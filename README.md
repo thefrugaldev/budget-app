@@ -13,6 +13,11 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## UI
+
+- [shadcn/ui](https://ui.shadcn.com/) for components — add via `pnpm dlx shadcn@latest add <component>`
+- Tailwind v4 for styling — no custom CSS unless required for theme setup
+
 ## Storage (MongoDB Atlas → Cosmos DB)
 
 Uses the official `mongodb` driver with a repository layer so the app never talks to Atlas-specific APIs directly.

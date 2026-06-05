@@ -1,0 +1,15 @@
+---
+description: UI component and styling conventions for the budget app
+globs: **/*.{tsx,jsx}
+alwaysApply: false
+---
+
+# UI Components & Styling
+
+- Use [shadcn/ui](https://ui.shadcn.com/) for all new UI components
+- Add components via CLI: `pnpm dlx shadcn@latest add <component>`
+- Style with Tailwind utility classes only
+- Use `cn()` from `@/lib/utils` when merging conditional classes
+- Use shadcn theme tokens (`bg-background`, `text-muted-foreground`, `border-border`, etc.) instead of ad-hoc colors
+- Custom components only when shadcn has no suitable primitive — build on top of existing shadcn pieces when possible
+- Avoid custom CSS files; `app/globals.css` is reserved for shadcn theme variables and Tailwind imports only
