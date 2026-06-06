@@ -12,7 +12,9 @@ export async function createTransaction(input: {
   categoryId: string;
   amount: number;
   date: string;
+  vendor?: string;
   note?: string;
+  items?: string[];
 }): Promise<Transaction> {
   const db = await getDb();
   await ensureIndexes(db);
@@ -22,7 +24,9 @@ export async function createTransaction(input: {
     categoryId: input.categoryId,
     amount: input.amount,
     date: input.date,
+    vendor: input.vendor,
     note: input.note,
+    items: input.items,
     createdAt: new Date(),
   };
 

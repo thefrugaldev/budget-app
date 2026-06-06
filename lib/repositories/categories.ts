@@ -20,13 +20,21 @@ export async function listCategories(): Promise<Category[]> {
   return docs.map(toCategory);
 }
 
-export async function createCategory(name: string): Promise<Category> {
+export async function createCategory(input: {
+  name: string;
+  emoji: string;
+  kind: Category["kind"];
+  monthly: number;
+}): Promise<Category> {
   const db = await getDb();
   await ensureIndexes(db);
 
   const doc: CategoryDocument = {
     _id: randomUUID(),
-    name,
+    name: input.name,
+    emoji: input.emoji,
+    kind: input.kind,
+    monthly: input.monthly,
     createdAt: new Date(),
   };
 
