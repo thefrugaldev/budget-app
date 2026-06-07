@@ -1,20 +1,36 @@
 // DEV FIXTURE — temporary in-memory data so the budget pages render before
 // real persistence is wired. Replace imports of this file with calls into
 // `lib/repositories/*` once the data layer is connected, then delete.
-import type { Category, Transaction } from "@/types/budget";
+import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+
+const FIXTURE_ACTIVE_FROM = "2026-01";
 
 export const CATEGORIES: Category[] = [
-  { id: "groceries", name: "Groceries", emoji: "🛒", kind: "expense", monthly: 800 },
-  { id: "dining", name: "Dining out", emoji: "🍔", kind: "expense", monthly: 300 },
-  { id: "gas", name: "Gas", emoji: "⛽", kind: "expense", monthly: 180 },
-  { id: "utilities", name: "Utilities", emoji: "💡", kind: "expense", monthly: 220 },
-  { id: "rent", name: "Rent", emoji: "🏠", kind: "expense", monthly: 2200 },
-  { id: "entertainment", name: "Entertainment", emoji: "🎬", kind: "expense", monthly: 150 },
-  { id: "shopping", name: "Shopping", emoji: "🛍️", kind: "expense", monthly: 200 },
-  { id: "travel", name: "Travel", emoji: "✈️", kind: "expense", monthly: 250 },
-  { id: "hysa", name: "HYSA", emoji: "🏦", kind: "savings", monthly: 800 },
-  { id: "brokerage", name: "Brokerage", emoji: "📈", kind: "savings", monthly: 600 },
-  { id: "vacation", name: "Vacation fund", emoji: "🏖️", kind: "savings", monthly: 200 },
+  { id: "groceries", name: "Groceries", emoji: "🛒", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "dining", name: "Dining out", emoji: "🍔", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "gas", name: "Gas", emoji: "⛽", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "utilities", name: "Utilities", emoji: "💡", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "rent", name: "Rent", emoji: "🏠", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "entertainment", name: "Entertainment", emoji: "🎬", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "shopping", name: "Shopping", emoji: "🛍️", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "travel", name: "Travel", emoji: "✈️", kind: "expense", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "hysa", name: "HYSA", emoji: "🏦", kind: "savings", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "brokerage", name: "Brokerage", emoji: "📈", kind: "savings", activeFrom: FIXTURE_ACTIVE_FROM },
+  { id: "vacation", name: "Vacation fund", emoji: "🏖️", kind: "savings", activeFrom: FIXTURE_ACTIVE_FROM },
+];
+
+export const CATEGORY_TARGETS: CategoryTarget[] = [
+  { categoryId: "groceries", monthly: 800, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "dining", monthly: 300, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "gas", monthly: 180, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "utilities", monthly: 220, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "rent", monthly: 2200, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "entertainment", monthly: 150, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "shopping", monthly: 200, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "travel", monthly: 250, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "hysa", monthly: 800, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "brokerage", monthly: 600, effectiveFrom: FIXTURE_ACTIVE_FROM },
+  { categoryId: "vacation", monthly: 200, effectiveFrom: FIXTURE_ACTIVE_FROM },
 ];
 
 export const TRANSACTIONS: Transaction[] = [

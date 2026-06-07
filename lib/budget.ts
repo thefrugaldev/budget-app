@@ -1,4 +1,9 @@
-import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+import type {
+  Category,
+  CategoryKind,
+  CategoryTarget,
+  Transaction,
+} from "@/types/budget";
 
 export function fmt(amount: number): string {
   return amount.toLocaleString("en-US", {
@@ -51,14 +56,18 @@ export function currentYearStart(today = new Date()): string {
 export type ThresholdState = "under" | "near" | "at" | "over";
 
 /**
- * Expense thresholds count toward the cap (over = bad). Savings thresholds
- * count toward the goal (over = good). The state vocabulary is shared but the
- * meaning of each state depends on `category.kind` — pair this with
- * `thresholdColor()` to translate to UI colors.
+ * Expense thresholds count toward the cap (over = bad). Savings and income
+ * thresholds count toward the goal/baseline (over = good). The state
+ * vocabulary is shared but the meaning of each state depends on `kind` —
+ * pair this with `thresholdColor()` to translate to UI colors.
  */
-export function thresholdFor(cat: Category, monthlyAmount: number): ThresholdState {
-  const pct = cat.monthly === 0 ? 0 : monthlyAmount / cat.monthly;
-  if (cat.kind === "expense") {
+export function thresholdFor(
+  kind: CategoryKind,
+  target: number,
+  amount: number,
+): ThresholdState {
+  const pct = target === 0 ? 0 : amount / target;
+  if (kind === "expense") {
     if (pct < 0.7) return "under";
     if (pct < 0.9) return "near";
     if (pct <= 1.0) return "at";

@@ -1,10 +1,11 @@
 import { CategoryCard } from "@/components/budget/CategoryCard";
-import { CATEGORIES, TRANSACTIONS } from "@/lib/fixtures/budget";
+import { CATEGORIES, CATEGORY_TARGETS, TRANSACTIONS } from "@/lib/fixtures/budget";
 import {
   currentMonthKey,
   fmt,
   monthLabel,
   monthTotalsByCategory,
+  resolveTargetForMonth,
   ytdTotalsByCategory,
 } from "@/lib/budget";
 
@@ -39,6 +40,7 @@ export default function Home() {
           <CategoryCard
             key={c.id}
             category={c}
+            target={resolveTargetForMonth(c.id, monthKey, CATEGORY_TARGETS)}
             monthAmount={thisMonth.get(c.id) ?? 0}
             ytdAmount={ytd.get(c.id) ?? 0}
             transactions={TRANSACTIONS}
@@ -53,6 +55,7 @@ export default function Home() {
             <CategoryCard
               key={c.id}
               category={c}
+              target={resolveTargetForMonth(c.id, monthKey, CATEGORY_TARGETS)}
               monthAmount={thisMonth.get(c.id) ?? 0}
               ytdAmount={ytd.get(c.id) ?? 0}
               transactions={TRANSACTIONS}

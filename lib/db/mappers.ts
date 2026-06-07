@@ -1,5 +1,9 @@
-import type { Category, Transaction } from "@/types/budget";
-import type { CategoryDocument, TransactionDocument } from "./documents";
+import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+import type {
+  CategoryDocument,
+  CategoryTargetDocument,
+  TransactionDocument,
+} from "./documents";
 
 export function toCategory(doc: CategoryDocument): Category {
   return {
@@ -7,7 +11,16 @@ export function toCategory(doc: CategoryDocument): Category {
     name: doc.name,
     emoji: doc.emoji,
     kind: doc.kind,
+    activeFrom: doc.activeFrom,
+    activeUntil: doc.activeUntil,
+  };
+}
+
+export function toCategoryTarget(doc: CategoryTargetDocument): CategoryTarget {
+  return {
+    categoryId: doc.categoryId,
     monthly: doc.monthly,
+    effectiveFrom: doc.effectiveFrom,
   };
 }
 

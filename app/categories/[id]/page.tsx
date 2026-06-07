@@ -11,10 +11,11 @@ import {
   fmtExact,
   monthlyTotalsLastN,
   monthTotalsByCategory,
+  resolveTargetForMonth,
   thresholdColor,
   thresholdFor,
 } from "@/lib/budget";
-import { CATEGORIES, TRANSACTIONS } from "@/lib/fixtures/budget";
+import { CATEGORIES, CATEGORY_TARGETS, TRANSACTIONS } from "@/lib/fixtures/budget";
 
 export default async function CategoryDetail({
   params,
@@ -28,9 +29,10 @@ export default async function CategoryDetail({
   const now = new Date();
   const monthKey = currentMonthKey(now);
   const thisMonth = monthTotalsByCategory(TRANSACTIONS, CATEGORIES, monthKey).get(category.id) ?? 0;
-  const state = thresholdFor(category, thisMonth);
+  const target = resolveTargetForMonth(category.id, monthKey, CATEGORY_TARGETS);
+  const state = thresholdFor(category.kind, target, thisMonth);
   const col = thresholdColor(category.kind, state);
-  const pct = thisMonth / category.monthly;
+  const pct = target === 0 ? 0 : thisMonth / target;
   const isSavings = category.kind === "savings";
   const trend = monthlyTotalsLastN(TRANSACTIONS, category.id, 6, now);
 
@@ -59,7 +61,7 @@ export default async function CategoryDetail({
               <div>
                 <h1 className="font-heading text-lg font-semibold leading-tight">{category.name}</h1>
                 <p className="text-xs text-muted-foreground">
-                  {isSavings ? "Goal" : "Cap"} · {fmt(category.monthly)}/mo
+                  {isSavings ? "Goal" : "Cap"} · {fmt(target)}/mo
                 </p>
               </div>
             </div>
@@ -70,7 +72,7 @@ export default async function CategoryDetail({
             <p className="text-xs text-muted-foreground">
               this month · {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
             </p>
-            <ThresholdMeter category={category} amount={thisMonth} className="mt-2" height="h-2" />
+            <ThresholdMeter kind={category.kind} target={target} amount={thisMonth} className="mt-2" height="h-2" />
           </div>
 
           <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
@@ -83,7 +85,7 @@ export default async function CategoryDetail({
             </h2>
             <MonthBarChart
               data={trend}
-              monthly={category.monthly}
+              monthly={target}
               kind={category.kind}
               highlightYm={monthKey}
               width={300}
@@ -99,7 +101,7 @@ export default async function CategoryDetail({
               <label htmlFor="monthly">Monthly</label>
               <input
                 id="monthly"
-                defaultValue={category.monthly}
+                defaultValue={target}
                 className="rounded-md bg-background px-2 py-1.5 ring-1 ring-border outline-none focus:ring-ring"
               />
             </div>
