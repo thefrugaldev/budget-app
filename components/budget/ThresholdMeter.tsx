@@ -1,21 +1,23 @@
-import type { Category } from "@/types/budget";
+import type { CategoryKind } from "@/types/budget";
 import { thresholdColor, thresholdFor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
 export function ThresholdMeter({
-  category,
+  kind,
+  target,
   amount,
   className,
   height = "h-1.5",
 }: {
-  category: Category;
+  kind: CategoryKind;
+  target: number;
   amount: number;
   className?: string;
   height?: string;
 }) {
-  const state = thresholdFor(category, amount);
-  const col = thresholdColor(category.kind, state);
-  const pct = category.monthly === 0 ? 0 : amount / category.monthly;
+  const state = thresholdFor(kind, target, amount);
+  const col = thresholdColor(kind, state);
+  const pct = target === 0 ? 0 : amount / target;
   return (
     <div className={cn("overflow-hidden rounded-full bg-muted", height, className)}>
       <div className={cn("h-full", col.bar)} style={{ width: `${Math.min(100, pct * 100)}%` }} />

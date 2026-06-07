@@ -1,14 +1,12 @@
-export type CategoryKind = "expense" | "savings";
+export type CategoryKind = "expense" | "savings" | "income";
 
 export type Category = {
   id: string;
   name: string;
   emoji: string;
   kind: CategoryKind;
-  /** Monthly cap (expense) or goal (savings), in USD. */
-  monthly: number;
-  /** Inclusive lower bound, "YYYY-MM". Undefined means "always active". */
-  activeFrom?: string;
+  /** Inclusive lower bound, "YYYY-MM". */
+  activeFrom: string;
   /** Inclusive upper bound, "YYYY-MM". Undefined means "no end". */
   activeUntil?: string;
 };

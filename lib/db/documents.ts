@@ -8,7 +8,16 @@ export type CategoryDocument = {
   name: string;
   emoji: string;
   kind: CategoryKind;
+  activeFrom: string; // "YYYY-MM"
+  activeUntil?: string; // "YYYY-MM"
+  createdAt: Date;
+};
+
+export type CategoryTargetDocument = {
+  _id: string;
+  categoryId: string;
   monthly: number;
+  effectiveFrom: string; // "YYYY-MM"
   createdAt: Date;
 };
 

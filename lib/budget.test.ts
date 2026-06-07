@@ -14,7 +14,7 @@ const expenseCat = (overrides: Partial<Category> = {}): Category => ({
   name: "Groceries",
   emoji: "🛒",
   kind: "expense",
-  monthly: 800,
+  activeFrom: "2026-01",
   ...overrides,
 });
 
@@ -23,7 +23,16 @@ const savingsCat = (overrides: Partial<Category> = {}): Category => ({
   name: "HYSA",
   emoji: "💰",
   kind: "savings",
-  monthly: 500,
+  activeFrom: "2026-01",
+  ...overrides,
+});
+
+const incomeCat = (overrides: Partial<Category> = {}): Category => ({
+  id: "salary",
+  name: "Salary",
+  emoji: "💼",
+  kind: "income",
+  activeFrom: "2026-01",
   ...overrides,
 });
 
@@ -231,37 +240,50 @@ describe("computeSavingsRate", () => {
 describe("thresholdFor negative-pct cases", () => {
   const cases: Array<{
     name: string;
-    cat: Category;
+    kind: Category["kind"];
+    target: number;
     amount: number;
     expected: ReturnType<typeof thresholdFor>;
   }> = [
     {
       name: "expense with a net refund (negative amount) is under",
-      cat: expenseCat({ monthly: 800 }),
+      kind: "expense",
+      target: 800,
       amount: -50,
       expected: "under",
     },
     {
       name: "savings with a net withdrawal (negative amount) is under",
-      cat: savingsCat({ monthly: 500 }),
+      kind: "savings",
+      target: 500,
       amount: -200,
       expected: "under",
     },
     {
-      name: "expense with monthly=0 and zero spend is under",
-      cat: expenseCat({ monthly: 0 }),
+      name: "income with a net reversal (negative amount) is under",
+      kind: "income",
+      target: 8000,
+      amount: -100,
+      expected: "under",
+    },
+    {
+      name: "expense with target=0 and zero spend is under",
+      kind: "expense",
+      target: 0,
       amount: 0,
       expected: "under",
     },
     {
-      name: "savings with monthly=0 and zero contribution is under",
-      cat: savingsCat({ monthly: 0 }),
+      name: "savings with target=0 and zero contribution is under",
+      kind: "savings",
+      target: 0,
       amount: 0,
       expected: "under",
     },
     {
-      name: "expense with monthly=0 and positive spend is under (no target to compare against)",
-      cat: expenseCat({ monthly: 0 }),
+      name: "expense with target=0 and positive spend is under (no target to compare against)",
+      kind: "expense",
+      target: 0,
       amount: 50,
       expected: "under",
     },
@@ -269,7 +291,35 @@ describe("thresholdFor negative-pct cases", () => {
 
   for (const c of cases) {
     it(c.name, () => {
-      expect(thresholdFor(c.cat, c.amount)).toBe(c.expected);
+      expect(thresholdFor(c.kind, c.target, c.amount)).toBe(c.expected);
     });
   }
+});
+
+describe("thresholdFor income kind — positive-side boundaries", () => {
+  // Income shares the goal-oriented code path with savings (over = good).
+  // Cover the under/near/at/over boundaries explicitly so a future refactor
+  // that splits income into its own branch can't drift.
+  const target = 1000;
+  const cases: Array<{ name: string; amount: number; expected: ReturnType<typeof thresholdFor> }> = [
+    { name: "well under target → under", amount: 500, expected: "under" },
+    { name: "just below 70% → under", amount: 699, expected: "under" },
+    { name: "at 70% → near", amount: 700, expected: "near" },
+    { name: "just below 90% → near", amount: 899, expected: "near" },
+    { name: "at 90% → at", amount: 900, expected: "at" },
+    { name: "just below 100% → at", amount: 999, expected: "at" },
+    { name: "exactly at target → over", amount: 1000, expected: "over" },
+    { name: "beyond target → over", amount: 1500, expected: "over" },
+  ];
+
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(thresholdFor("income", target, c.amount)).toBe(c.expected);
+    });
+  }
+
+  it("aligns with the incomeCat helper", () => {
+    const cat = incomeCat();
+    expect(thresholdFor(cat.kind, 5000, 6000)).toBe("over");
+  });
 });

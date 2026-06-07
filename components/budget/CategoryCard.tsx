@@ -6,19 +6,22 @@ import { ThresholdMeter } from "./ThresholdMeter";
 
 export function CategoryCard({
   category,
+  target,
   monthAmount,
   ytdAmount,
   transactions,
 }: {
   category: Category;
+  /** Resolved monthly target for the period being displayed. */
+  target: number;
   monthAmount: number;
   ytdAmount: number;
   /** Used to draw the sparkline. */
   transactions: Transaction[];
 }) {
-  const state = thresholdFor(category, monthAmount);
+  const state = thresholdFor(category.kind, target, monthAmount);
   const col = thresholdColor(category.kind, state);
-  const pct = monthAmount / category.monthly;
+  const pct = target === 0 ? 0 : monthAmount / target;
   const isSavings = category.kind === "savings";
 
   return (
@@ -37,7 +40,7 @@ export function CategoryCard({
           <div>
             <p className="font-medium leading-tight">{category.name}</p>
             <p className="text-xs text-muted-foreground">
-              {isSavings ? "Goal" : "Cap"} · {fmt(category.monthly)}/mo
+              {isSavings ? "Goal" : "Cap"} · {fmt(target)}/mo
             </p>
           </div>
         </div>
@@ -59,7 +62,7 @@ export function CategoryCard({
             {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
           </span>
         </div>
-        <ThresholdMeter category={category} amount={monthAmount} className="mt-2" />
+        <ThresholdMeter kind={category.kind} target={target} amount={monthAmount} className="mt-2" />
       </div>
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">

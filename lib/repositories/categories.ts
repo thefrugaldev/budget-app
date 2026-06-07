@@ -24,7 +24,8 @@ export async function createCategory(input: {
   name: string;
   emoji: string;
   kind: Category["kind"];
-  monthly: number;
+  activeFrom: string;
+  activeUntil?: string;
 }): Promise<Category> {
   const db = await getDb();
   await ensureIndexes(db);
@@ -34,7 +35,8 @@ export async function createCategory(input: {
     name: input.name,
     emoji: input.emoji,
     kind: input.kind,
-    monthly: input.monthly,
+    activeFrom: input.activeFrom,
+    activeUntil: input.activeUntil,
     createdAt: new Date(),
   };
 
