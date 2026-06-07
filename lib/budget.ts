@@ -1,4 +1,4 @@
-import type { Category, Transaction } from "@/types/budget";
+import type { Category, CategoryTarget, Transaction } from "@/types/budget";
 
 export function fmt(amount: number): string {
   return amount.toLocaleString("en-US", {
@@ -138,4 +138,104 @@ export function monthlyTotalsLastN(
     out.push({ ym, total });
   }
   return out;
+}
+
+/**
+ * Yields every "YYYY-MM" key from `start` through `end`, inclusive. The two
+ * strings are lexically comparable, which makes range checks elsewhere a
+ * straight string comparison.
+ */
+export function* monthsInRange(start: string, end: string): Generator<string> {
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em] = end.split("-").map(Number);
+  let y = sy;
+  let m = sm;
+  while (y < ey || (y === ey && m <= em)) {
+    yield `${y}-${String(m).padStart(2, "0")}`;
+    m++;
+    if (m > 12) {
+      m = 1;
+      y++;
+    }
+  }
+}
+
+/**
+ * Resolves the monthly target for `categoryId` at month `ym` by selecting
+ * the target row with the greatest `effectiveFrom <= ym`. Returns 0 when no
+ * row applies (e.g., month predates the category's first target).
+ */
+export function resolveTargetForMonth(
+  categoryId: string,
+  ym: string,
+  targetHistory: CategoryTarget[],
+): number {
+  let best: CategoryTarget | undefined;
+  for (const row of targetHistory) {
+    if (row.categoryId !== categoryId) continue;
+    if (row.effectiveFrom > ym) continue;
+    if (!best || row.effectiveFrom > best.effectiveFrom) best = row;
+  }
+  return best ? best.monthly : 0;
+}
+
+/**
+ * Inclusive lifecycle check against `activeFrom`/`activeUntil`. A category
+ * with neither bound set is treated as always active (forward-compat with
+ * the pre-migration data).
+ */
+export function isCategoryActiveForMonth(category: Category, ym: string): boolean {
+  if (category.activeFrom && ym < category.activeFrom) return false;
+  if (category.activeUntil && ym > category.activeUntil) return false;
+  return true;
+}
+
+export type RangeAggregate = {
+  categoryId: string;
+  total: number;
+  denominator: number;
+};
+
+/**
+ * Aggregates signed transaction amounts and effective-target sums over a
+ * `[rangeStart, rangeEnd]` month window (both inclusive, "YYYY-MM"). The
+ * denominator is the sum of resolved targets for the months in range during
+ * which the category was active, so a mid-range raise or a category that
+ * phases in partway through is honored.
+ */
+export function aggregateRange(
+  transactions: Transaction[],
+  categories: Category[],
+  rangeStart: string,
+  rangeEnd: string,
+  targetHistory: CategoryTarget[],
+): RangeAggregate[] {
+  const months = [...monthsInRange(rangeStart, rangeEnd)];
+  return categories.map((cat) => {
+    let total = 0;
+    for (const t of transactions) {
+      if (t.categoryId !== cat.id) continue;
+      const ym = t.date.slice(0, 7);
+      if (ym < rangeStart || ym > rangeEnd) continue;
+      total += t.amount;
+    }
+    let denominator = 0;
+    for (const ym of months) {
+      if (!isCategoryActiveForMonth(cat, ym)) continue;
+      denominator += resolveTargetForMonth(cat.id, ym, targetHistory);
+    }
+    return { categoryId: cat.id, total, denominator };
+  });
+}
+
+/**
+ * Savings rate = saved / income. Returns `null` when income is zero so the
+ * UI can render "n/a" rather than `NaN` or `Infinity`.
+ */
+export function computeSavingsRate(
+  incomeForRange: number,
+  savedForRange: number,
+): number | null {
+  if (incomeForRange === 0) return null;
+  return savedForRange / incomeForRange;
 }
