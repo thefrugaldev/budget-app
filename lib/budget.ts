@@ -189,12 +189,11 @@ export function resolveTargetForMonth(
 }
 
 /**
- * Inclusive lifecycle check against `activeFrom`/`activeUntil`. A category
- * with neither bound set is treated as always active (forward-compat with
- * the pre-migration data).
+ * Inclusive lifecycle check against `activeFrom`/`activeUntil`. `activeUntil`
+ * is optional — undefined means "no end".
  */
 export function isCategoryActiveForMonth(category: Category, ym: string): boolean {
-  if (category.activeFrom && ym < category.activeFrom) return false;
+  if (ym < category.activeFrom) return false;
   if (category.activeUntil && ym > category.activeUntil) return false;
   return true;
 }

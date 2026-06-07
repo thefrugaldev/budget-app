@@ -296,14 +296,27 @@ describe("thresholdFor negative-pct cases", () => {
   }
 });
 
-describe("thresholdFor income kind", () => {
-  it("treats income like savings: at-target is 'over' (good)", () => {
-    expect(thresholdFor("income", 8000, 8000)).toBe("over");
-  });
+describe("thresholdFor income kind — positive-side boundaries", () => {
+  // Income shares the goal-oriented code path with savings (over = good).
+  // Cover the under/near/at/over boundaries explicitly so a future refactor
+  // that splits income into its own branch can't drift.
+  const target = 1000;
+  const cases: Array<{ name: string; amount: number; expected: ReturnType<typeof thresholdFor> }> = [
+    { name: "well under target → under", amount: 500, expected: "under" },
+    { name: "just below 70% → under", amount: 699, expected: "under" },
+    { name: "at 70% → near", amount: 700, expected: "near" },
+    { name: "just below 90% → near", amount: 899, expected: "near" },
+    { name: "at 90% → at", amount: 900, expected: "at" },
+    { name: "just below 100% → at", amount: 999, expected: "at" },
+    { name: "exactly at target → over", amount: 1000, expected: "over" },
+    { name: "beyond target → over", amount: 1500, expected: "over" },
+  ];
 
-  it("treats short-of-baseline income as 'under'", () => {
-    expect(thresholdFor("income", 8000, 4000)).toBe("under");
-  });
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(thresholdFor("income", target, c.amount)).toBe(c.expected);
+    });
+  }
 
   it("aligns with the incomeCat helper", () => {
     const cat = incomeCat();

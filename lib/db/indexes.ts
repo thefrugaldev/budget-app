@@ -13,7 +13,7 @@ export function ensureIndexes(db: Db): Promise<void> {
         .createIndex({ name: 1 }, { unique: true }),
       db
         .collection(COLLECTIONS.categoryTargets)
-        .createIndex({ categoryId: 1 }),
+        .createIndex({ categoryId: 1, effectiveFrom: 1 }, { unique: true }),
       db.collection(COLLECTIONS.transactions).createIndex({ date: 1 }),
       db
         .collection(COLLECTIONS.transactions)
