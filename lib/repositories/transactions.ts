@@ -14,7 +14,6 @@ export async function createTransaction(input: {
   date: string;
   vendor?: string;
   note?: string;
-  items?: string[];
 }): Promise<Transaction> {
   const db = await getDb();
   await ensureIndexes(db);
@@ -26,7 +25,6 @@ export async function createTransaction(input: {
     date: input.date,
     vendor: input.vendor,
     note: input.note,
-    items: input.items,
     createdAt: new Date(),
   };
 
@@ -35,6 +33,29 @@ export async function createTransaction(input: {
     .insertOne(doc);
 
   return toTransaction(doc);
+}
+
+export async function updateTransaction(
+  id: string,
+  patch: {
+    categoryId?: string;
+    amount?: number;
+    date?: string;
+    vendor?: string;
+    note?: string;
+  },
+): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<TransactionDocument>(COLLECTIONS.transactions)
+    .updateOne({ _id: id }, { $set: patch });
+}
+
+export async function deleteTransaction(id: string): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<TransactionDocument>(COLLECTIONS.transactions)
+    .deleteOne({ _id: id });
 }
 
 export async function listTransactionsForMonth(

@@ -18,9 +18,10 @@ export function ThresholdMeter({
   const state = thresholdFor(kind, target, amount);
   const col = thresholdColor(kind, state);
   const pct = target === 0 ? 0 : amount / target;
+  const barWidth = Math.max(0, Math.min(100, pct * 100));
   return (
     <div className={cn("overflow-hidden rounded-full bg-muted", height, className)}>
-      <div className={cn("h-full", col.bar)} style={{ width: `${Math.min(100, pct * 100)}%` }} />
+      <div className={cn("h-full", col.bar)} style={{ width: `${barWidth}%` }} />
     </div>
   );
 }

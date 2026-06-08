@@ -23,15 +23,23 @@ export function CategoryCard({
   const col = thresholdColor(category.kind, state);
   const pct = target === 0 ? 0 : monthAmount / target;
   const isSavings = category.kind === "savings";
+  const isNegative = monthAmount < 0;
+  const showPlus = isSavings && monthAmount > 0;
 
   return (
     <Link
       href={`/categories/${category.id}`}
       className={cn(
-        "group relative flex flex-col gap-3 rounded-2xl bg-card p-4 ring-1 transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
+        "group relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 ring-1 transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
         isSavings ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border",
       )}
     >
+      {isNegative && (
+        <span
+          aria-hidden
+          className="absolute inset-y-0 left-0 w-1 bg-rose-500"
+        />
+      )}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="grid size-11 place-items-center rounded-xl bg-muted text-2xl">
@@ -55,7 +63,10 @@ export function CategoryCard({
       <div>
         <div className="flex items-baseline justify-between">
           <span className={cn("font-heading text-xl font-semibold tabular-nums", col.text)}>
-            {isSavings ? "+" : ""}
+            {isNegative && (
+              <span aria-label="net negative" className="mr-1">↓</span>
+            )}
+            {showPlus ? "+" : ""}
             {fmtExact(monthAmount)}
           </span>
           <span className="text-xs text-muted-foreground tabular-nums">

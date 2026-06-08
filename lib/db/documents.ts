@@ -24,11 +24,11 @@ export type CategoryTargetDocument = {
 export type TransactionDocument = {
   _id: string;
   categoryId: string;
+  // Signed: positive = outflow/contribution/income, negative = refund/withdrawal/reversed.
   amount: number;
   // ISO date string (YYYY-MM-DD) for portable range queries.
   date: string;
   vendor?: string;
   note?: string;
-  items?: string[];
   createdAt: Date;
 };

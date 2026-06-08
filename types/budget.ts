@@ -24,11 +24,12 @@ export type CategoryTarget = {
 export type Transaction = {
   id: string;
   categoryId: string;
+  /** Signed. Positive = spend / contribution / income received. Negative =
+   * refund / withdrawal / income reversed. Monthly totals may be negative. */
   amount: number;
   date: string; // ISO date, e.g. "2026-06-05"
   vendor?: string;
   note?: string;
-  items?: string[];
 };
 
 export type MonthlySpendByCategory = {

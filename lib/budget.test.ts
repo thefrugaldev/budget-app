@@ -4,9 +4,12 @@ import {
   aggregateRange,
   computeSavingsRate,
   isCategoryActiveForMonth,
+  monthTotalsByCategory,
+  monthlyTotalsLastN,
   monthsInRange,
   resolveTargetForMonth,
   thresholdFor,
+  ytdTotalsByCategory,
 } from "./budget";
 
 const expenseCat = (overrides: Partial<Category> = {}): Category => ({
@@ -321,5 +324,57 @@ describe("thresholdFor income kind — positive-side boundaries", () => {
   it("aligns with the incomeCat helper", () => {
     const cat = incomeCat();
     expect(thresholdFor(cat.kind, 5000, 6000)).toBe("over");
+  });
+});
+
+describe("signed amounts flow through aggregations", () => {
+  // Chunk 4 makes Transaction.amount signed end-to-end. These tests verify
+  // every aggregation seam already nets signed values rather than treating
+  // them as absolute. A refund/withdrawal scenario is the canonical case.
+  const groc = expenseCat({ id: "groc" });
+
+  it("monthTotalsByCategory nets a refund against the same-month purchase", () => {
+    const txs: Transaction[] = [
+      { id: "1", categoryId: "groc", amount: 200, date: "2026-06-01" },
+      { id: "2", categoryId: "groc", amount: -50, date: "2026-06-10" }, // refund
+    ];
+    const totals = monthTotalsByCategory(txs, [groc], "2026-06");
+    expect(totals.get("groc")).toBe(150);
+  });
+
+  it("monthTotalsByCategory allows a net-negative month (refund > spend)", () => {
+    const txs: Transaction[] = [
+      { id: "1", categoryId: "groc", amount: 30, date: "2026-06-01" },
+      { id: "2", categoryId: "groc", amount: -100, date: "2026-06-15" },
+    ];
+    const totals = monthTotalsByCategory(txs, [groc], "2026-06");
+    expect(totals.get("groc")).toBe(-70);
+  });
+
+  it("ytdTotalsByCategory subtracts an in-year refund from the gross", () => {
+    const txs: Transaction[] = [
+      { id: "1", categoryId: "groc", amount: 400, date: "2026-03-15" },
+      { id: "2", categoryId: "groc", amount: -75, date: "2026-05-20" }, // refund
+    ];
+    const today = new Date("2026-06-08T00:00:00Z");
+    const totals = ytdTotalsByCategory(txs, [groc], today);
+    expect(totals.get("groc")).toBe(325);
+  });
+
+  it("monthlyTotalsLastN returns the signed net per month", () => {
+    const txs: Transaction[] = [
+      { id: "1", categoryId: "hysa", amount: 500, date: "2026-04-15" },
+      { id: "2", categoryId: "hysa", amount: 500, date: "2026-05-15" },
+      // June: net -100 (deposit then larger withdrawal).
+      { id: "3", categoryId: "hysa", amount: 200, date: "2026-06-01" },
+      { id: "4", categoryId: "hysa", amount: -300, date: "2026-06-20" },
+    ];
+    const today = new Date("2026-06-08T00:00:00Z");
+    const series = monthlyTotalsLastN(txs, "hysa", 3, today);
+    expect(series).toEqual([
+      { ym: "2026-04", total: 500 },
+      { ym: "2026-05", total: 500 },
+      { ym: "2026-06", total: -100 },
+    ]);
   });
 });
