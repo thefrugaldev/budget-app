@@ -1,0 +1,42 @@
+/**
+ * Parses a user-entered positive amount. The transaction form's amount input
+ * is positive-only — sign is set by a separate segmented control and applied
+ * at submit. Empty, non-numeric, zero, and negative values throw so the
+ * server action surfaces an inline error.
+ */
+export function parsePositiveAmount(raw: FormDataEntryValue | null): number {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    throw new Error("Amount is required");
+  }
+  const cleaned = raw.replace(/[^0-9.\-]/g, "");
+  if (cleaned === "" || !/[0-9]/.test(cleaned)) {
+    throw new Error("Amount must be a number");
+  }
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) {
+    throw new Error("Amount must be a number");
+  }
+  if (n <= 0) {
+    throw new Error("Amount must be greater than zero");
+  }
+  return n;
+}
+
+/**
+ * Combines the positive amount with the segmented sign control. The form
+ * always submits `sign` as one of these two literals, but a hostile or
+ * stale client could omit it — fall back to "+" so the worst case is a
+ * mistakenly-positive transaction the user can edit, not a 500 response.
+ */
+export function applySign(amount: number, raw: FormDataEntryValue | null): number {
+  return raw === "-" ? -amount : amount;
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function parseIsoDate(raw: FormDataEntryValue | null): string {
+  if (typeof raw !== "string" || !ISO_DATE.test(raw)) {
+    throw new Error("Date is required (YYYY-MM-DD)");
+  }
+  return raw;
+}

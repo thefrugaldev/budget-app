@@ -404,3 +404,83 @@ export function targetLabel(kind: CategoryKind): "Cap" | "Goal" | "Baseline" {
       return "Baseline";
   }
 }
+
+/**
+ * Vocabulary for the kind-aware sign-flip segmented control on the transaction
+ * form. `positive` is the action a positive-amount transaction represents;
+ * `negative` is the reversal. The two-way mapping keeps the form's mental
+ * model honest regardless of which kind is selected (story 35).
+ */
+export type SignLabels = { positive: string; negative: string };
+export function signLabelsFor(kind: CategoryKind): SignLabels {
+  switch (kind) {
+    case "expense":
+      return { positive: "Spent", negative: "Refunded" };
+    case "savings":
+      return { positive: "Deposit", negative: "Withdraw" };
+    case "income":
+      return { positive: "Received", negative: "Reversed" };
+  }
+}
+
+/**
+ * Most-recent (by date, then insertion order) transaction in a category, used
+ * to pre-fill `vendor` / `amount` / `note` on the Add Transaction form when
+ * the user lands on a category with existing history (story 32). Returns
+ * `undefined` for an empty category so callers can fall through to empty
+ * defaults.
+ *
+ * Sign-aware: the absolute value is what the form's positive-only amount input
+ * shows; the caller separately seeds the sign from the prefill transaction.
+ */
+export function mostRecentTransactionInCategory(
+  transactions: Transaction[],
+  categoryId: string,
+): Transaction | undefined {
+  // Tiebreaker on id (lexicographic, descending) so same-date rows have a
+  // deterministic winner independent of input order — Mongo's sort isn't
+  // stable across the same date, and React fixtures don't carry an order.
+  let best: Transaction | undefined;
+  for (const t of transactions) {
+    if (t.categoryId !== categoryId) continue;
+    if (!best) {
+      best = t;
+      continue;
+    }
+    if (t.date > best.date) best = t;
+    else if (t.date === best.date && t.id > best.id) best = t;
+  }
+  return best;
+}
+
+/**
+ * Frequency-ranked list of vendor strings for the autocomplete suggestion
+ * popup (story 33). Vendors used in the selected category appear first
+ * (ranked by count), then global vendors used elsewhere — deduped, blanks
+ * dropped. Caller decides how many to show; the order is stable across
+ * renders so the popup doesn't shift under the user.
+ */
+export function vendorSuggestionsForCategory(
+  transactions: Transaction[],
+  categoryId: string,
+): string[] {
+  const inCategory = new Map<string, number>();
+  const global = new Map<string, number>();
+  for (const t of transactions) {
+    const v = t.vendor?.trim();
+    if (!v) continue;
+    global.set(v, (global.get(v) ?? 0) + 1);
+    if (t.categoryId === categoryId) {
+      inCategory.set(v, (inCategory.get(v) ?? 0) + 1);
+    }
+  }
+  const byFreqDesc = (a: [string, number], b: [string, number]) =>
+    b[1] - a[1] || a[0].localeCompare(b[0]);
+  const localOrdered = [...inCategory.entries()].sort(byFreqDesc).map(([v]) => v);
+  const seen = new Set(localOrdered);
+  const globalOrdered = [...global.entries()]
+    .sort(byFreqDesc)
+    .map(([v]) => v)
+    .filter((v) => !seen.has(v));
+  return [...localOrdered, ...globalOrdered];
+}

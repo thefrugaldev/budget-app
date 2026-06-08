@@ -10,12 +10,15 @@ import {
   monthTotalsByCategory,
   monthlyTotalsLastN,
   monthsInRange,
+  mostRecentTransactionInCategory,
   nextMonth,
   rangeLabel,
   resolveRange,
   resolveTargetForMonth,
+  signLabelsFor,
   targetLabel,
   thresholdFor,
+  vendorSuggestionsForCategory,
   ytdTotalsByCategory,
   type RangePreset,
 } from "./budget";
@@ -633,5 +636,82 @@ describe("signed amounts flow through aggregations", () => {
       { ym: "2026-05", total: 500 },
       { ym: "2026-06", total: -100 },
     ]);
+  });
+});
+
+describe("signLabelsFor", () => {
+  it.each([
+    { kind: "expense" as const, positive: "Spent", negative: "Refunded" },
+    { kind: "savings" as const, positive: "Deposit", negative: "Withdraw" },
+    { kind: "income" as const, positive: "Received", negative: "Reversed" },
+  ])("maps $kind to {$positive, $negative}", ({ kind, positive, negative }) => {
+    expect(signLabelsFor(kind)).toEqual({ positive, negative });
+  });
+});
+
+describe("mostRecentTransactionInCategory", () => {
+  const txs: Transaction[] = [
+    { id: "a", categoryId: "groc", amount: 10, date: "2026-05-01" },
+    { id: "b", categoryId: "groc", amount: 20, date: "2026-06-04" },
+    { id: "c", categoryId: "groc", amount: 30, date: "2026-04-15" },
+    { id: "d", categoryId: "hysa", amount: 800, date: "2026-06-10" },
+  ];
+
+  it("returns the latest by date for a category", () => {
+    expect(mostRecentTransactionInCategory(txs, "groc")?.id).toBe("b");
+  });
+
+  it("isolates by category", () => {
+    expect(mostRecentTransactionInCategory(txs, "hysa")?.id).toBe("d");
+  });
+
+  it("returns undefined when the category has no transactions", () => {
+    expect(mostRecentTransactionInCategory(txs, "rent")).toBeUndefined();
+  });
+
+  it("breaks same-date ties deterministically by id (lexicographic, max wins)", () => {
+    const sameDay: Transaction[] = [
+      { id: "z", categoryId: "groc", amount: 10, date: "2026-06-04" },
+      { id: "a", categoryId: "groc", amount: 20, date: "2026-06-04" },
+      { id: "m", categoryId: "groc", amount: 30, date: "2026-06-04" },
+    ];
+    expect(mostRecentTransactionInCategory(sameDay, "groc")?.id).toBe("z");
+  });
+});
+
+describe("vendorSuggestionsForCategory", () => {
+  const txs: Transaction[] = [
+    { id: "1", categoryId: "groc", amount: 10, date: "2026-06-01", vendor: "Whole Foods" },
+    { id: "2", categoryId: "groc", amount: 12, date: "2026-06-02", vendor: "Whole Foods" },
+    { id: "3", categoryId: "groc", amount: 14, date: "2026-06-03", vendor: "Trader Joe's" },
+    { id: "4", categoryId: "dining", amount: 50, date: "2026-06-04", vendor: "Sushi Ran" },
+    { id: "5", categoryId: "dining", amount: 30, date: "2026-06-05", vendor: "Sushi Ran" },
+    { id: "6", categoryId: "dining", amount: 25, date: "2026-06-06", vendor: "Whole Foods" }, // cross-category
+    { id: "7", categoryId: "groc", amount: 16, date: "2026-06-07" }, // no vendor — dropped
+    { id: "8", categoryId: "groc", amount: 18, date: "2026-06-08", vendor: "  " }, // blank — dropped
+  ];
+
+  it("ranks vendors used in the active category first by frequency, then globals", () => {
+    expect(vendorSuggestionsForCategory(txs, "groc")).toEqual([
+      "Whole Foods",
+      "Trader Joe's",
+      "Sushi Ran",
+    ]);
+  });
+
+  it("returns globals only when the category is empty", () => {
+    expect(vendorSuggestionsForCategory(txs, "rent")).toEqual([
+      "Whole Foods",
+      "Sushi Ran",
+      "Trader Joe's",
+    ]);
+  });
+
+  it("breaks frequency ties alphabetically for stable ordering", () => {
+    const tied: Transaction[] = [
+      { id: "1", categoryId: "groc", amount: 5, date: "2026-06-01", vendor: "Whole Foods" },
+      { id: "2", categoryId: "groc", amount: 5, date: "2026-06-02", vendor: "Aldi" },
+    ];
+    expect(vendorSuggestionsForCategory(tied, "groc")).toEqual(["Aldi", "Whole Foods"]);
   });
 });

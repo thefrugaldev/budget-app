@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
-import { QuickAddForm } from "@/components/budget/QuickAddForm";
 import { RangeSelector } from "@/components/budget/RangeSelector";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
+import { TransactionForm } from "@/components/budget/TransactionForm";
 import {
   aggregateRange,
   currentMonthKey,
@@ -125,7 +125,14 @@ export default async function CategoryDetail({
           </div>
 
           <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
-            <QuickAddForm category={category} />
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Add transaction
+            </h2>
+            <TransactionForm
+              categories={categories}
+              transactions={transactions}
+              initialCategoryId={category.id}
+            />
           </div>
 
           <div className="rounded-2xl bg-card p-4 ring-1 ring-border">

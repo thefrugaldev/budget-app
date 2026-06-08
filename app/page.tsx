@@ -1,3 +1,4 @@
+import { AddMenu } from "@/components/budget/AddMenu";
 import { CategoryCard } from "@/components/budget/CategoryCard";
 import { HeaderIncome } from "@/components/budget/HeaderIncome";
 import { RangeSelector } from "@/components/budget/RangeSelector";
@@ -131,13 +132,7 @@ export default async function Home({
         </div>
       </div>
 
-      <button
-        className="fixed bottom-8 right-8 z-10 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-medium text-primary-foreground shadow-lg ring-1 ring-black/10 hover:bg-primary/80"
-        aria-label="Add transaction"
-      >
-        <span className="text-xl leading-none">+</span>
-        <span>Add</span>
-      </button>
+      <AddMenu categories={categories} transactions={transactions} />
     </div>
   );
 }
