@@ -27,7 +27,18 @@ const EMPTY_FILTER: TransactionFilter = {
 type PendingDelete = {
   transaction: Transaction;
   timer: ReturnType<typeof setTimeout>;
+  /**
+   * `true` once the undo timer has fired and the action is awaiting. The row
+   * stays hidden through the RTT (no optimistic flash), and the unmount
+   * cleanup skips firing the action a second time when the work is already in
+   * progress.
+   */
+  inFlight: boolean;
 };
+
+function reportDeleteError(result: { error: string | null }) {
+  if (result.error) console.error("deleteTransactionAction failed:", result.error);
+}
 
 /**
  * Client-side transaction list for the category detail page (chunk 8):
@@ -69,6 +80,8 @@ export function TransactionList({
   // fire-and-forget the action — the POST continues in the browser past the
   // React unmount, and the action's revalidatePath calls flush the route
   // cache so the next render of the budget / detail pages reflects the delete.
+  // When the timer has already fired (`inFlight`), the action is in progress
+  // and we skip the cleanup fire so we don't double-delete.
   const pendingRef = useRef<PendingDelete | null>(null);
   useEffect(() => {
     pendingRef.current = pending;
@@ -78,34 +91,52 @@ export function TransactionList({
       const p = pendingRef.current;
       if (!p) return;
       clearTimeout(p.timer);
+      if (p.inFlight) return;
       void deleteTransactionAction({
         id: p.transaction.id,
         categoryId: p.transaction.categoryId,
-      });
+      }).then(reportDeleteError);
     };
   }, []);
 
   function startDelete(transaction: Transaction) {
     // Stacking deletes: clicking Delete while a previous toast is showing
     // finalizes the prior delete and starts a new toast. Single-slot UI keeps
-    // the bottom-left corner uncluttered.
+    // the bottom-left corner uncluttered. If the prior is already in flight,
+    // it'll finish on its own — don't fire it again.
     if (pending) {
       clearTimeout(pending.timer);
-      const prior = pending.transaction;
-      void deleteTransactionAction({ id: prior.id, categoryId: prior.categoryId });
+      if (!pending.inFlight) {
+        const prior = pending.transaction;
+        void deleteTransactionAction({
+          id: prior.id,
+          categoryId: prior.categoryId,
+        }).then(reportDeleteError);
+      }
     }
-    const timer = setTimeout(() => {
-      void deleteTransactionAction({
+    const timer = setTimeout(async () => {
+      // Mark in-flight *before* awaiting so the unmount cleanup doesn't
+      // double-fire and the row stays hidden through the action's RTT.
+      // Without this `await`, `setPending(null)` ran synchronously and the
+      // row briefly reappeared until revalidation rebuilt the parent.
+      setPending((cur) =>
+        cur?.transaction.id === transaction.id ? { ...cur, inFlight: true } : cur,
+      );
+      const result = await deleteTransactionAction({
         id: transaction.id,
         categoryId: transaction.categoryId,
       });
+      reportDeleteError(result);
       setPending((cur) => (cur?.transaction.id === transaction.id ? null : cur));
     }, UNDO_WINDOW_MS);
-    setPending({ transaction, timer });
+    setPending({ transaction, timer, inFlight: false });
   }
 
   function undoDelete() {
-    if (!pending) return;
+    // Undo is only meaningful before the timer fires. Once the action is in
+    // flight, the server has already started the delete; clicking Undo here
+    // would just hide the toast without rescuing the row.
+    if (!pending || pending.inFlight) return;
     clearTimeout(pending.timer);
     setPending(null);
   }
@@ -356,7 +387,8 @@ function UndoToast({
           <button
             type="button"
             onClick={onUndo}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-muted"
+            disabled={pending.inFlight}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
           >
             <Undo2 className="size-3.5" aria-hidden />
             Undo
