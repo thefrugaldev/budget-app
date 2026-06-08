@@ -15,7 +15,10 @@ import {
   thresholdColor,
   thresholdFor,
 } from "@/lib/budget";
-import { CATEGORIES, CATEGORY_TARGETS, TRANSACTIONS } from "@/lib/fixtures/budget";
+import { ensureSeeded } from "@/lib/db/seed";
+import { listCategories } from "@/lib/repositories/categories";
+import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
+import { listAllTransactions } from "@/lib/repositories/transactions";
 
 export default async function CategoryDetail({
   params,
@@ -23,20 +26,27 @@ export default async function CategoryDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const category = CATEGORIES.find((c) => c.id === id);
+  await ensureSeeded();
+  const [categories, targets, transactions] = await Promise.all([
+    listCategories(),
+    listCategoryTargets(),
+    listAllTransactions(),
+  ]);
+
+  const category = categories.find((c) => c.id === id);
   if (!category) notFound();
 
   const now = new Date();
   const monthKey = currentMonthKey(now);
-  const thisMonth = monthTotalsByCategory(TRANSACTIONS, CATEGORIES, monthKey).get(category.id) ?? 0;
-  const target = resolveTargetForMonth(category.id, monthKey, CATEGORY_TARGETS);
+  const thisMonth = monthTotalsByCategory(transactions, categories, monthKey).get(category.id) ?? 0;
+  const target = resolveTargetForMonth(category.id, monthKey, targets);
   const state = thresholdFor(category.kind, target, thisMonth);
   const col = thresholdColor(category.kind, state);
   const pct = target === 0 ? 0 : thisMonth / target;
   const isSavings = category.kind === "savings";
-  const trend = monthlyTotalsLastN(TRANSACTIONS, category.id, 6, now);
+  const trend = monthlyTotalsLastN(transactions, category.id, 6, now);
 
-  const txns = TRANSACTIONS.filter((t) => t.categoryId === category.id).sort((a, b) =>
+  const txns = transactions.filter((t) => t.categoryId === category.id).sort((a, b) =>
     b.date.localeCompare(a.date),
   );
 

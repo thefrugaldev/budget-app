@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { MongoClient, type Db } from "mongodb";
 
 const dbName = process.env.MONGODB_DB_NAME ?? "budget";
@@ -26,6 +27,11 @@ function createClientPromise(): Promise<MongoClient> {
   return client.connect();
 }
 
+// Prod uses a module-level singleton so each request reuses the same
+// connected client. Dev caches on globalThis so HMR re-evaluations of this
+// module don't multiply clients across reloads.
+let prodClientPromise: Promise<MongoClient> | undefined;
+
 function getClientPromise(): Promise<MongoClient> {
   if (process.env.NODE_ENV !== "production") {
     if (!globalForMongo._mongoClientPromise) {
@@ -34,10 +40,14 @@ function getClientPromise(): Promise<MongoClient> {
     return globalForMongo._mongoClientPromise;
   }
 
-  return createClientPromise();
+  if (!prodClientPromise) {
+    prodClientPromise = createClientPromise();
+  }
+  return prodClientPromise;
 }
 
 export async function getDb(): Promise<Db> {
+  await connection();
   const client = await getClientPromise();
   return client.db(dbName);
 }

@@ -53,3 +53,16 @@ export async function listTransactionsForMonth(
 
   return docs.map(toTransaction);
 }
+
+export async function listAllTransactions(): Promise<Transaction[]> {
+  const db = await getDb();
+  await ensureIndexes(db);
+
+  const docs = await db
+    .collection<TransactionDocument>(COLLECTIONS.transactions)
+    .find()
+    .sort({ date: -1 })
+    .toArray();
+
+  return docs.map(toTransaction);
+}
