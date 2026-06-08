@@ -324,9 +324,12 @@ function daysInUtcMonth(year: number, monthIndex0: number): number {
  * Total income earned across [rangeStart, rangeEnd], in dollars. Combines:
  *
  *   - the resolved monthly baseline target for each in-range month an income
- *     category was active. The current month is pro-rated by day elapsed
- *     (`baseline × day / daysInMonth`) so the YTD savings rate moves smoothly
- *     as the month progresses (story 51);
+ *     category was active. The current month is pro-rated by **calendar day**
+ *     (`baseline × today.getUTCDate() / daysInMonth`), counted *inclusively*:
+ *     on the 1st of the month one full day's worth of baseline is counted,
+ *     not zero. This keeps the YTD savings rate moving smoothly past midnight
+ *     on the 1st rather than jumping the moment a paycheck would have landed
+ *     (story 51);
  *   - the signed sum of income-category transactions in the range — bonuses,
  *     RSU vests, side-gig income, etc. (story 52).
  *

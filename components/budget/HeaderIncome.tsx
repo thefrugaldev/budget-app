@@ -23,21 +23,24 @@ export function HeaderIncome({
   targets: CategoryTarget[];
   currentMonth: string;
 }) {
+  // Filter once; both the annualized total and the modal's per-source rows
+  // operate on the same "active right now" set.
+  const activeIncomeCategories = incomeCategories.filter((c) =>
+    isCategoryActiveForMonth(c, currentMonth),
+  );
   const totalMonthly = currentMonthlyBaseline(
-    incomeCategories,
+    activeIncomeCategories,
     targets,
     currentMonth,
   );
   const totalYearly = totalMonthly * 12;
 
-  const sources: IncomeSourceRow[] = incomeCategories
-    .filter((c) => isCategoryActiveForMonth(c, currentMonth))
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      emoji: c.emoji,
-      currentMonthly: resolveTargetForMonth(c.id, currentMonth, targets),
-    }));
+  const sources: IncomeSourceRow[] = activeIncomeCategories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    emoji: c.emoji,
+    currentMonthly: resolveTargetForMonth(c.id, currentMonth, targets),
+  }));
 
   return (
     <div className="flex items-start gap-3">

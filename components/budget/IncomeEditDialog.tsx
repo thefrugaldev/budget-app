@@ -1,13 +1,19 @@
 "use client";
 
 import { Dialog } from "@base-ui/react/dialog";
-import { useState } from "react";
+import { Pencil } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 import {
   createIncomeSourceAction,
   endIncomeSourceAction,
   updateIncomeBaselineAction,
 } from "@/app/actions/income";
+import {
+  INCOME_ACTION_INITIAL,
+  type IncomeActionState,
+} from "@/app/actions/income-state";
 import { fmt, monthLabel, nextMonth } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +54,7 @@ export function IncomeEditDialog({
         )}
         aria-label={triggerLabel}
       >
-        <PencilIcon />
+        <Pencil className="size-3.5" aria-hidden />
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 transition-opacity" />
@@ -106,6 +112,21 @@ export function IncomeEditDialog({
   );
 }
 
+/**
+ * Detects the post-action success transition and invokes `onDone` once when
+ * the `ok` counter increments — closing the dialog after a write lands but
+ * leaving it open on failure (so the inline error is visible).
+ */
+function useSuccessEffect(state: IncomeActionState, onDone: () => void) {
+  const lastSeen = useRef(state.ok);
+  useEffect(() => {
+    if (state.ok > lastSeen.current && !state.error) {
+      lastSeen.current = state.ok;
+      onDone();
+    }
+  }, [state, onDone]);
+}
+
 function IncomeSourceForm({
   source,
   currentMonth,
@@ -116,20 +137,23 @@ function IncomeSourceForm({
   onDone: () => void;
 }) {
   const yearly = source.currentMonthly * 12;
+  const [updateState, updateAction] = useActionState(
+    updateIncomeBaselineAction,
+    INCOME_ACTION_INITIAL,
+  );
+  const [endState, endAction] = useActionState(
+    endIncomeSourceAction,
+    INCOME_ACTION_INITIAL,
+  );
 
-  async function saveBaseline(formData: FormData) {
-    await updateIncomeBaselineAction(formData);
-    onDone();
-  }
+  useSuccessEffect(updateState, onDone);
+  useSuccessEffect(endState, onDone);
 
-  async function endSource(formData: FormData) {
-    await endIncomeSourceAction(formData);
-    onDone();
-  }
+  const error = updateState.error ?? endState.error;
 
   return (
     <div className="rounded-xl bg-background p-3 ring-1 ring-border">
-      <form action={saveBaseline} className="space-y-2">
+      <form action={updateAction} className="space-y-2">
         <input type="hidden" name="categoryId" value={source.id} />
         <div className="flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-md bg-muted text-lg">
@@ -166,20 +190,25 @@ function IncomeSourceForm({
           Apply this month ({monthLabel(currentMonth)})
         </label>
         <div className="flex items-center justify-between gap-2 pt-1">
-          <button
-            type="submit"
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80"
-          >
-            Save baseline
-          </button>
-          <button
-            type="submit"
-            formAction={endSource}
-            className="rounded-md px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
-          >
-            End source
-          </button>
+          <SubmitButton
+            label="Save baseline"
+            pendingLabel="Saving…"
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-60"
+          />
         </div>
+        {error && (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
+      </form>
+      <form action={endAction} className="mt-2 flex justify-end">
+        <input type="hidden" name="categoryId" value={source.id} />
+        <SubmitButton
+          label="End source"
+          pendingLabel="Ending…"
+          className="rounded-md px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+        />
       </form>
     </div>
   );
@@ -192,20 +221,24 @@ function AddSourceForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  async function submit(formData: FormData) {
-    await createIncomeSourceAction(formData);
-    onDone();
-  }
+  const [state, formAction] = useActionState(
+    createIncomeSourceAction,
+    INCOME_ACTION_INITIAL,
+  );
+  useSuccessEffect(state, onDone);
 
   return (
-    <form action={submit} className="space-y-2 rounded-xl bg-background p-3 ring-1 ring-border">
+    <form
+      action={formAction}
+      className="space-y-2 rounded-xl bg-background p-3 ring-1 ring-border"
+    >
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         New income source
       </p>
       <div className="grid grid-cols-[64px_1fr] gap-2">
         <input
           name="emoji"
-          defaultValue="💼"
+          defaultValue="💰"
           maxLength={4}
           aria-label="Emoji"
           className="rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none focus:ring-ring"
@@ -227,6 +260,11 @@ function AddSourceForm({
         required
         className="w-full rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
       />
+      {state.error && (
+        <p role="alert" className="text-xs text-destructive">
+          {state.error}
+        </p>
+      )}
       <div className="flex items-center justify-end gap-2 pt-1">
         <button
           type="button"
@@ -235,32 +273,29 @@ function AddSourceForm({
         >
           Cancel
         </button>
-        <button
-          type="submit"
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80"
-        >
-          Add source
-        </button>
+        <SubmitButton
+          label="Add source"
+          pendingLabel="Adding…"
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-60"
+        />
       </div>
     </form>
   );
 }
 
-function PencilIcon() {
+function SubmitButton({
+  label,
+  pendingLabel,
+  className,
+}: {
+  label: string;
+  pendingLabel: string;
+  className: string;
+}) {
+  const { pending } = useFormStatus();
   return (
-    <svg
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-    </svg>
+    <button type="submit" disabled={pending} className={className}>
+      {pending ? pendingLabel : label}
+    </button>
   );
 }

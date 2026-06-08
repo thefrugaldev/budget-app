@@ -84,3 +84,11 @@ export async function getCategoriesByIds(
 
   return new Map(docs.map((doc) => [doc._id, toCategory(doc)]));
 }
+
+export async function getCategoryById(id: string): Promise<Category | undefined> {
+  const db = await getDb();
+  const doc = await db
+    .collection<CategoryDocument>(COLLECTIONS.categories)
+    .findOne({ _id: id });
+  return doc ? toCategory(doc) : undefined;
+}
