@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 
 import { MonthBarChart } from "@/components/budget/MonthBarChart";
 import { QuickAddForm } from "@/components/budget/QuickAddForm";
+import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
 import {
   currentMonthKey,
   dayLabel,
   fmt,
-  fmtExact,
   monthlyTotalsLastN,
   monthTotalsByCategory,
   resolveTargetForMonth,
@@ -45,7 +45,6 @@ export default async function CategoryDetail({
   const pct = target === 0 ? 0 : thisMonth / target;
   const isSavings = category.kind === "savings";
   const isNegative = thisMonth < 0;
-  const showPlus = isSavings && thisMonth > 0;
   const trend = monthlyTotalsLastN(transactions, category.id, 6, now);
 
   const txns = transactions.filter((t) => t.categoryId === category.id).sort((a, b) =>
@@ -81,9 +80,7 @@ export default async function CategoryDetail({
               </div>
             </div>
             <p className={"font-heading text-3xl font-semibold tabular-nums " + col.text}>
-              {isNegative && <span aria-label="net negative" className="mr-1">↓</span>}
-              {showPlus ? "+" : ""}
-              {fmtExact(thisMonth)}
+              <SignedAmount kind={category.kind} amount={thisMonth} />
             </p>
             <p className="text-xs text-muted-foreground">
               this month · {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
@@ -147,8 +144,7 @@ export default async function CategoryDetail({
                         (isSavings && t.amount > 0 ? "text-emerald-700 dark:text-emerald-400" : "")
                       }
                     >
-                      {isSavings && t.amount > 0 ? "+" : ""}
-                      {fmtExact(t.amount)}
+                      <SignedAmount kind={category.kind} amount={t.amount} marker={false} />
                     </span>
                   </div>
                   {t.note && (

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
-import { fmt, fmtExact, monthlyTotalsLastN, thresholdColor, thresholdFor } from "@/lib/budget";
+import { fmt, monthlyTotalsLastN, thresholdColor, thresholdFor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
+import { SignedAmount } from "./SignedAmount";
 import { ThresholdMeter } from "./ThresholdMeter";
 
 export function CategoryCard({
@@ -24,7 +25,6 @@ export function CategoryCard({
   const pct = target === 0 ? 0 : monthAmount / target;
   const isSavings = category.kind === "savings";
   const isNegative = monthAmount < 0;
-  const showPlus = isSavings && monthAmount > 0;
 
   return (
     <Link
@@ -63,11 +63,7 @@ export function CategoryCard({
       <div>
         <div className="flex items-baseline justify-between">
           <span className={cn("font-heading text-xl font-semibold tabular-nums", col.text)}>
-            {isNegative && (
-              <span aria-label="net negative" className="mr-1">↓</span>
-            )}
-            {showPlus ? "+" : ""}
-            {fmtExact(monthAmount)}
+            <SignedAmount kind={category.kind} amount={monthAmount} />
           </span>
           <span className="text-xs text-muted-foreground tabular-nums">
             {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
