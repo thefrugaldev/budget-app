@@ -44,6 +44,31 @@ export async function createCategory(input: {
   return toCategory(doc);
 }
 
+type CategoryPatch = {
+  name?: string;
+  emoji?: string;
+  activeFrom?: string;
+  activeUntil?: string;
+};
+
+// Returns true if a matching category was found and patched.
+export async function updateCategory(
+  id: string,
+  patch: CategoryPatch,
+): Promise<boolean> {
+  const set: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) set[key] = value;
+  }
+  if (Object.keys(set).length === 0) return false;
+
+  const db = await getDb();
+  const result = await db
+    .collection<CategoryDocument>(COLLECTIONS.categories)
+    .updateOne({ _id: id }, { $set: set });
+  return result.matchedCount > 0;
+}
+
 export async function getCategoriesByIds(
   ids: string[],
 ): Promise<Map<string, Category>> {
@@ -58,4 +83,12 @@ export async function getCategoriesByIds(
     .toArray();
 
   return new Map(docs.map((doc) => [doc._id, toCategory(doc)]));
+}
+
+export async function getCategoryById(id: string): Promise<Category | undefined> {
+  const db = await getDb();
+  const doc = await db
+    .collection<CategoryDocument>(COLLECTIONS.categories)
+    .findOne({ _id: id });
+  return doc ? toCategory(doc) : undefined;
 }

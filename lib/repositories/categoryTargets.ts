@@ -58,6 +58,38 @@ export async function createCategoryTarget(input: {
   return toCategoryTarget(doc);
 }
 
+/**
+ * Idempotent at `(categoryId, effectiveFrom)`: updates the `monthly` value if a
+ * row already exists for that key (so a user can "Apply this month" twice and
+ * have the second value win), otherwise inserts a new row. Used by the income
+ * edit modal where the caller picks `effectiveFrom` based on an "apply this
+ * month" toggle.
+ */
+export async function upsertCategoryTarget(input: {
+  categoryId: string;
+  monthly: number;
+  effectiveFrom: string;
+}): Promise<void> {
+  const db = await getDb();
+  await ensureIndexes(db);
+
+  await db
+    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
+    .updateOne(
+      { categoryId: input.categoryId, effectiveFrom: input.effectiveFrom },
+      {
+        $set: { monthly: input.monthly },
+        $setOnInsert: {
+          _id: randomUUID(),
+          categoryId: input.categoryId,
+          effectiveFrom: input.effectiveFrom,
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+}
+
 export async function updateCategoryTarget(
   categoryId: string,
   effectiveFrom: string,

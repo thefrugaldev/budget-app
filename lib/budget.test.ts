@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
 import {
   aggregateRange,
+  computeIncomeForRange,
   computeSavingsRate,
+  currentMonthlyBaseline,
   isCategoryActiveForMonth,
   isRangePreset,
   monthTotalsByCategory,
   monthlyTotalsLastN,
   monthsInRange,
+  nextMonth,
   rangeLabel,
   resolveRange,
   resolveTargetForMonth,
+  targetLabel,
   thresholdFor,
   ytdTotalsByCategory,
   type RangePreset,
@@ -242,6 +246,177 @@ describe("computeSavingsRate", () => {
       expect(computeSavingsRate(c.income, c.saved)).toBe(c.expected);
     });
   }
+});
+
+describe("nextMonth", () => {
+  it("advances within a year", () => {
+    expect(nextMonth("2026-06")).toBe("2026-07");
+  });
+
+  it("rolls December to January of the next year", () => {
+    expect(nextMonth("2026-12")).toBe("2027-01");
+  });
+});
+
+describe("targetLabel", () => {
+  it("returns Cap for expense, Goal for savings, Baseline for income", () => {
+    expect(targetLabel("expense")).toBe("Cap");
+    expect(targetLabel("savings")).toBe("Goal");
+    expect(targetLabel("income")).toBe("Baseline");
+  });
+});
+
+describe("currentMonthlyBaseline", () => {
+  const salary = incomeCat({ id: "salary" });
+  const sideGig = incomeCat({ id: "gig", activeFrom: "2026-03" });
+
+  const history: CategoryTarget[] = [
+    { categoryId: "salary", monthly: 7500, effectiveFrom: "2026-01" },
+    { categoryId: "salary", monthly: 8000, effectiveFrom: "2026-07" },
+    { categoryId: "gig", monthly: 500, effectiveFrom: "2026-03" },
+  ];
+
+  it("sums effective baselines for the given month", () => {
+    expect(currentMonthlyBaseline([salary, sideGig], history, "2026-06")).toBe(8000);
+  });
+
+  it("picks up a raise that takes effect at the queried month", () => {
+    expect(currentMonthlyBaseline([salary, sideGig], history, "2026-07")).toBe(8500);
+  });
+
+  it("excludes categories that aren't active in the month", () => {
+    // sideGig.activeFrom === 2026-03, so in 2026-02 only salary contributes.
+    expect(currentMonthlyBaseline([salary, sideGig], history, "2026-02")).toBe(7500);
+  });
+
+  it("excludes ended categories (activeUntil < ym)", () => {
+    const ended = incomeCat({ id: "gig", activeFrom: "2026-03", activeUntil: "2026-05" });
+    expect(currentMonthlyBaseline([salary, ended], history, "2026-06")).toBe(7500);
+  });
+
+  it("returns 0 when no income categories are passed", () => {
+    expect(currentMonthlyBaseline([], history, "2026-06")).toBe(0);
+  });
+});
+
+describe("computeIncomeForRange", () => {
+  const salary = incomeCat({ id: "salary" });
+  const history: CategoryTarget[] = [
+    { categoryId: "salary", monthly: 7500, effectiveFrom: "2026-01" },
+  ];
+
+  it("pro-rates the current month by day elapsed", () => {
+    // 2026-06-09 → 9 / 30 days of the month elapsed.
+    const today = new Date("2026-06-09T00:00:00Z");
+    const inc = computeIncomeForRange([salary], history, [], "2026-06", "2026-06", today);
+    expect(inc).toBeCloseTo((7500 * 9) / 30, 5);
+  });
+
+  it("counts elapsed months in full and pro-rates only the current month", () => {
+    const today = new Date("2026-03-15T00:00:00Z");
+    // Jan + Feb full, March 15/31 pro-rated.
+    const inc = computeIncomeForRange([salary], history, [], "2026-01", "2026-03", today);
+    expect(inc).toBeCloseTo(7500 + 7500 + (7500 * 15) / 31, 5);
+  });
+
+  it("honors a mid-range raise via target history", () => {
+    const raisedHistory: CategoryTarget[] = [
+      { categoryId: "salary", monthly: 7500, effectiveFrom: "2026-01" },
+      { categoryId: "salary", monthly: 9000, effectiveFrom: "2026-04" },
+    ];
+    // YTD on May 1: Jan/Feb/Mar at 7500, Apr at 9000, May pro-rated at 9000 × 1/31.
+    const today = new Date("2026-05-01T00:00:00Z");
+    const inc = computeIncomeForRange(
+      [salary],
+      raisedHistory,
+      [],
+      "2026-01",
+      "2026-05",
+      today,
+    );
+    expect(inc).toBeCloseTo(7500 * 3 + 9000 + (9000 * 1) / 31, 5);
+  });
+
+  it("adds signed transactions on income categories (e.g. bonus)", () => {
+    const today = new Date("2026-03-31T00:00:00Z");
+    const bonus: Transaction = {
+      id: "bonus",
+      categoryId: "salary",
+      amount: 5000,
+      date: "2026-03-15",
+    };
+    // Jan + Feb full at 7500, March pro-rated at 31/31 = full, plus 5000 bonus.
+    const inc = computeIncomeForRange(
+      [salary],
+      history,
+      [bonus],
+      "2026-01",
+      "2026-03",
+      today,
+    );
+    expect(inc).toBeCloseTo(7500 * 3 + 5000, 5);
+  });
+
+  it("nets a reversed-income transaction (negative amount)", () => {
+    const today = new Date("2026-06-30T00:00:00Z");
+    const reversal: Transaction = {
+      id: "rev",
+      categoryId: "salary",
+      amount: -200,
+      date: "2026-06-10",
+    };
+    const inc = computeIncomeForRange(
+      [salary],
+      history,
+      [reversal],
+      "2026-06",
+      "2026-06",
+      today,
+    );
+    expect(inc).toBeCloseTo(7500 - 200, 5);
+  });
+
+  it("excludes future months that fall in range past today's month", () => {
+    // YTD on Feb 1 → range is Jan..Feb, current is Feb. Future months are
+    // never in range here, but a "last-12-months"-style preset could include
+    // months past today; verify the guard.
+    const today = new Date("2026-02-01T00:00:00Z");
+    const inc = computeIncomeForRange([salary], history, [], "2026-01", "2026-05", today);
+    expect(inc).toBeCloseTo(7500 + (7500 * 1) / 28, 5); // Jan full + Feb day 1
+  });
+
+  it("excludes inactive months from the baseline", () => {
+    const phased = incomeCat({ id: "salary", activeFrom: "2026-03" });
+    const today = new Date("2026-04-30T00:00:00Z");
+    // Jan/Feb inactive → 0; Mar full; Apr pro-rated 30/30.
+    const inc = computeIncomeForRange([phased], history, [], "2026-01", "2026-04", today);
+    expect(inc).toBeCloseTo(7500 + (7500 * 30) / 30, 5);
+  });
+
+  it("ignores transactions on non-income categories", () => {
+    const today = new Date("2026-06-30T00:00:00Z");
+    const spend: Transaction = {
+      id: "s",
+      categoryId: "groc",
+      amount: 100,
+      date: "2026-06-10",
+    };
+    const inc = computeIncomeForRange(
+      [salary],
+      history,
+      [spend],
+      "2026-06",
+      "2026-06",
+      today,
+    );
+    // 30/30 of monthly baseline; spend ignored entirely.
+    expect(inc).toBeCloseTo(7500, 5);
+  });
+
+  it("returns 0 when no income categories are configured", () => {
+    const today = new Date("2026-06-09T00:00:00Z");
+    expect(computeIncomeForRange([], history, [], "2026-06", "2026-06", today)).toBe(0);
+  });
 });
 
 describe("thresholdFor negative-pct cases", () => {
