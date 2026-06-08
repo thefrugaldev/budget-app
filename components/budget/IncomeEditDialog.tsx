@@ -14,6 +14,7 @@ import {
   INCOME_ACTION_INITIAL,
   type IncomeActionState,
 } from "@/app/actions/income-state";
+import { useNotify } from "@/components/notify";
 import { fmt, monthLabel, nextMonth } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
@@ -113,18 +114,25 @@ export function IncomeEditDialog({
 }
 
 /**
- * Detects the post-action success transition and invokes `onDone` once when
- * the `ok` counter increments — closing the dialog after a write lands but
- * leaving it open on failure (so the inline error is visible).
+ * Detects the post-action success transition: emits a success toast and
+ * invokes `onDone` once when the `ok` counter increments. On failure the
+ * dialog stays open (so the inline error is visible) and no toast is fired —
+ * the error is co-located with the form, not announced separately.
  */
-function useSuccessEffect(state: IncomeActionState, onDone: () => void) {
+function useSuccessEffect(
+  state: IncomeActionState,
+  successMessage: string,
+  onDone: () => void,
+) {
+  const notify = useNotify();
   const lastSeen = useRef(state.ok);
   useEffect(() => {
     if (state.ok > lastSeen.current && !state.error) {
       lastSeen.current = state.ok;
+      notify.success(successMessage);
       onDone();
     }
-  }, [state, onDone]);
+  }, [state, onDone, notify, successMessage]);
 }
 
 function IncomeSourceForm({
@@ -146,8 +154,8 @@ function IncomeSourceForm({
     INCOME_ACTION_INITIAL,
   );
 
-  useSuccessEffect(updateState, onDone);
-  useSuccessEffect(endState, onDone);
+  useSuccessEffect(updateState, "Income baseline updated", onDone);
+  useSuccessEffect(endState, "Income source ended", onDone);
 
   const error = updateState.error ?? endState.error;
 
@@ -225,7 +233,7 @@ function AddSourceForm({
     createIncomeSourceAction,
     INCOME_ACTION_INITIAL,
   );
-  useSuccessEffect(state, onDone);
+  useSuccessEffect(state, "Income source added", onDone);
 
   return (
     <form

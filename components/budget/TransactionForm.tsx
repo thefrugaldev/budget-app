@@ -10,6 +10,7 @@ import {
   updateTransactionAction,
 } from "@/app/actions/transactions";
 import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
+import { useNotify } from "@/components/notify";
 import {
   mostRecentTransactionInCategory,
   signLabelsFor,
@@ -89,14 +90,16 @@ export function TransactionForm({
     isEdit ? updateTransactionAction : createTransactionAction,
     TX_ACTION_INITIAL,
   );
+  const notify = useNotify();
   const lastOk = useRef(state.ok);
   useEffect(() => {
     if (state.ok > lastOk.current && !state.error) {
       lastOk.current = state.ok;
+      notify.success(isEdit ? "Transaction updated" : "Transaction added");
       onSuccess?.();
       setResetCount((c) => c + 1);
     }
-  }, [state, onSuccess]);
+  }, [state, onSuccess, notify, isEdit]);
 
   const defaultSubmitLabel = isEdit ? "Save changes" : "Add transaction";
   // In edit mode the field key drops the category dep so re-categorization
