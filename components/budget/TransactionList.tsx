@@ -63,16 +63,25 @@ export function TransactionList({
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
 
-  // Cancel any pending delete when the component unmounts. The action is not
-  // fired — navigating away within the undo window cancels the delete, matching
-  // the user's last intent (they were watching the toast and left it open).
+  // Flush any pending delete when the component unmounts. The user's last
+  // intent was "delete this row"; navigating away (or otherwise unmounting
+  // the list) before the timer fires shouldn't silently resurrect it. We
+  // fire-and-forget the action — the POST continues in the browser past the
+  // React unmount, and the action's revalidatePath calls flush the route
+  // cache so the next render of the budget / detail pages reflects the delete.
   const pendingRef = useRef<PendingDelete | null>(null);
   useEffect(() => {
     pendingRef.current = pending;
   }, [pending]);
   useEffect(() => {
     return () => {
-      if (pendingRef.current) clearTimeout(pendingRef.current.timer);
+      const p = pendingRef.current;
+      if (!p) return;
+      clearTimeout(p.timer);
+      void deleteTransactionAction({
+        id: p.transaction.id,
+        categoryId: p.transaction.categoryId,
+      });
     };
   }, []);
 
