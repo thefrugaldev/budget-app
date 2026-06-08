@@ -7,24 +7,30 @@ import { ThresholdMeter } from "./ThresholdMeter";
 
 export function CategoryCard({
   category,
-  target,
-  monthAmount,
-  ytdAmount,
+  total,
+  denominator,
+  perMonthTarget,
   transactions,
 }: {
   category: Category;
-  /** Resolved monthly target for the period being displayed. */
-  target: number;
-  monthAmount: number;
-  ytdAmount: number;
-  /** Used to draw the sparkline. */
+  /** Signed sum of in-range transaction amounts. May be negative. */
+  total: number;
+  /** Sum of historically-resolved targets across active months in range. */
+  denominator: number;
+  /**
+   * Resolved monthly target for the latest month in range. Used for the
+   * "Cap · $X/mo" sub-label so the card always advertises the user's
+   * current cap, not a stale per-month value.
+   */
+  perMonthTarget: number;
+  /** Used to draw the 6-month sparkline (independent of range). */
   transactions: Transaction[];
 }) {
-  const state = thresholdFor(category.kind, target, monthAmount);
+  const state = thresholdFor(category.kind, denominator, total);
   const col = thresholdColor(category.kind, state);
-  const pct = target === 0 ? 0 : monthAmount / target;
+  const pct = denominator === 0 ? 0 : total / denominator;
   const isSavings = category.kind === "savings";
-  const isNegative = monthAmount < 0;
+  const isNegative = total < 0;
 
   return (
     <Link
@@ -48,7 +54,7 @@ export function CategoryCard({
           <div>
             <p className="font-medium leading-tight">{category.name}</p>
             <p className="text-xs text-muted-foreground">
-              {isSavings ? "Goal" : "Cap"} · {fmt(target)}/mo
+              {isSavings ? "Goal" : "Cap"} · {fmt(perMonthTarget)}/mo
             </p>
           </div>
         </div>
@@ -63,17 +69,16 @@ export function CategoryCard({
       <div>
         <div className="flex items-baseline justify-between">
           <span className={cn("font-heading text-xl font-semibold tabular-nums", col.text)}>
-            <SignedAmount kind={category.kind} amount={monthAmount} />
+            <SignedAmount kind={category.kind} amount={total} />
           </span>
           <span className="text-xs text-muted-foreground tabular-nums">
             {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
           </span>
         </div>
-        <ThresholdMeter kind={category.kind} target={target} amount={monthAmount} className="mt-2" />
+        <ThresholdMeter kind={category.kind} target={denominator} amount={total} className="mt-2" />
       </div>
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>YTD {fmt(ytdAmount)}</span>
+      <div className="flex items-center justify-end text-xs text-muted-foreground">
         <Sparkline categoryId={category.id} transactions={transactions} />
       </div>
     </Link>

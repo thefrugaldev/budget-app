@@ -1,19 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { MonthBarChart } from "@/components/budget/MonthBarChart";
+import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { QuickAddForm } from "@/components/budget/QuickAddForm";
+import { RangeSelector } from "@/components/budget/RangeSelector";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
 import {
+  aggregateRange,
   currentMonthKey,
   dayLabel,
   fmt,
+  isRangePreset,
   monthlyTotalsLastN,
-  monthTotalsByCategory,
+  rangeLabel,
+  resolveRange,
   resolveTargetForMonth,
   thresholdColor,
   thresholdFor,
+  type RangePreset,
 } from "@/lib/budget";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
@@ -22,10 +27,12 @@ import { listAllTransactions } from "@/lib/repositories/transactions";
 
 export default async function CategoryDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ range?: string | string[] }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { range: rangeParam }] = await Promise.all([params, searchParams]);
   await ensureSeeded();
   const [categories, targets, transactions] = await Promise.all([
     listCategories(),
@@ -36,20 +43,43 @@ export default async function CategoryDetail({
   const category = categories.find((c) => c.id === id);
   if (!category) notFound();
 
+  const raw = Array.isArray(rangeParam) ? rangeParam[0] : rangeParam;
+  const preset: RangePreset = isRangePreset(raw) ? raw : "this-month";
   const now = new Date();
-  const monthKey = currentMonthKey(now);
-  const thisMonth = monthTotalsByCategory(transactions, categories, monthKey).get(category.id) ?? 0;
-  const target = resolveTargetForMonth(category.id, monthKey, targets);
-  const state = thresholdFor(category.kind, target, thisMonth);
-  const col = thresholdColor(category.kind, state);
-  const pct = target === 0 ? 0 : thisMonth / target;
-  const isSavings = category.kind === "savings";
-  const isNegative = thisMonth < 0;
-  const trend = monthlyTotalsLastN(transactions, category.id, 6, now);
+  const range = resolveRange(preset, now);
+  const rangeText = rangeLabel(preset);
 
-  const txns = transactions.filter((t) => t.categoryId === category.id).sort((a, b) =>
-    b.date.localeCompare(a.date),
+  const [agg] = aggregateRange(
+    transactions,
+    [category],
+    range.ymStart,
+    range.ymEnd,
+    targets,
   );
+  const total = agg.total;
+  const denominator = agg.denominator;
+  const perMonthTarget = resolveTargetForMonth(category.id, range.ymEnd, targets);
+  const state = thresholdFor(category.kind, denominator, total);
+  const col = thresholdColor(category.kind, state);
+  const pct = denominator === 0 ? 0 : total / denominator;
+  const isSavings = category.kind === "savings";
+  const isNegative = total < 0;
+
+  const trend: MonthBarDatum[] = monthlyTotalsLastN(transactions, category.id, 6, now).map(
+    (m) => ({
+      ym: m.ym,
+      total: m.total,
+      target: resolveTargetForMonth(category.id, m.ym, targets),
+    }),
+  );
+
+  const txns = transactions
+    .filter((t) => {
+      if (t.categoryId !== category.id) return false;
+      const ym = t.date.slice(0, 7);
+      return ym >= range.ymStart && ym <= range.ymEnd;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
@@ -57,7 +87,11 @@ export default async function CategoryDetail({
         ← Back to budget
       </Link>
 
-      <div className="mt-3 grid gap-6 lg:grid-cols-[340px_1fr]">
+      <div className="mt-4 mb-6">
+        <RangeSelector active={preset} basePath={`/categories/${category.id}`} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <div
             className={
@@ -75,17 +109,17 @@ export default async function CategoryDetail({
               <div>
                 <h1 className="font-heading text-lg font-semibold leading-tight">{category.name}</h1>
                 <p className="text-xs text-muted-foreground">
-                  {isSavings ? "Goal" : "Cap"} · {fmt(target)}/mo
+                  {isSavings ? "Goal" : "Cap"} · {fmt(perMonthTarget)}/mo
                 </p>
               </div>
             </div>
             <p className={"font-heading text-3xl font-semibold tabular-nums " + col.text}>
-              <SignedAmount kind={category.kind} amount={thisMonth} />
+              <SignedAmount kind={category.kind} amount={total} />
             </p>
             <p className="text-xs text-muted-foreground">
-              this month · {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
+              {rangeText.toLowerCase()} · {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
             </p>
-            <ThresholdMeter kind={category.kind} target={target} amount={thisMonth} className="mt-2" height="h-2" />
+            <ThresholdMeter kind={category.kind} target={denominator} amount={total} className="mt-2" height="h-2" />
           </div>
 
           <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
@@ -98,9 +132,8 @@ export default async function CategoryDetail({
             </h2>
             <MonthBarChart
               data={trend}
-              monthly={target}
               kind={category.kind}
-              highlightYm={monthKey}
+              highlightYm={currentMonthKey(now)}
               width={300}
               height={120}
             />
@@ -114,7 +147,7 @@ export default async function CategoryDetail({
               <label htmlFor="monthly">Monthly</label>
               <input
                 id="monthly"
-                defaultValue={target}
+                defaultValue={perMonthTarget}
                 className="rounded-md bg-background px-2 py-1.5 ring-1 ring-border outline-none focus:ring-ring"
               />
             </div>
@@ -123,7 +156,9 @@ export default async function CategoryDetail({
 
         <section>
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-heading text-lg font-medium">{txns.length} transactions</h2>
+            <h2 className="font-heading text-lg font-medium">
+              {txns.length} transactions · {rangeText.toLowerCase()}
+            </h2>
             <input
               placeholder="Filter…"
               className="rounded-md bg-card px-3 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
@@ -155,7 +190,7 @@ export default async function CategoryDetail({
             ))}
             {txns.length === 0 && (
               <li className="px-4 py-6 text-center text-sm text-muted-foreground">
-                No transactions yet for this category.
+                No transactions in this range.
               </li>
             )}
           </ul>
