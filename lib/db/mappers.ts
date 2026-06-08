@@ -12,7 +12,12 @@ export function toCategory(doc: CategoryDocument): Category {
     emoji: doc.emoji,
     kind: doc.kind,
     activeFrom: doc.activeFrom,
-    activeUntil: doc.activeUntil,
+    // Mongo writes a missing optional as `null` (not omitted) when the
+    // insert payload included `activeUntil: undefined`. Normalise so the
+    // rest of the app can rely on the `?: string` type literally — checks
+    // like `activeUntil !== undefined` and `monthLabel(activeUntil!)`
+    // would otherwise crash on the leaked null.
+    activeUntil: doc.activeUntil ?? undefined,
   };
 }
 
