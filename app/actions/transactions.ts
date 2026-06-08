@@ -10,9 +10,7 @@ import {
   parseIsoDate,
   parsePositiveAmount,
 } from "./transaction-parsers";
-
-export type TransactionActionState = { error: string | null; ok: number };
-export const TX_ACTION_INITIAL: TransactionActionState = { error: null, ok: 0 };
+import type { TransactionActionState } from "./transactions-state";
 
 function requireString(raw: FormDataEntryValue | null, field: string): string {
   if (typeof raw !== "string" || raw.trim() === "") {

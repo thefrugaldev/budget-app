@@ -5,11 +5,8 @@ import { Check, ChevronDown, Search } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-import {
-  createTransactionAction,
-  TX_ACTION_INITIAL,
-  type TransactionActionState,
-} from "@/app/actions/transactions";
+import { createTransactionAction } from "@/app/actions/transactions";
+import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
 import {
   mostRecentTransactionInCategory,
   signLabelsFor,
@@ -435,5 +432,3 @@ function SubmitButton({
     </button>
   );
 }
-
-export type { TransactionActionState };
