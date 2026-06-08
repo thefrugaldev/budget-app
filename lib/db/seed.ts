@@ -3,9 +3,8 @@
 // requests within the process (cached promise) and across process restarts
 // (collection is no longer empty).
 //
-// Mirrors the previous `lib/fixtures/budget.ts` dataset so the pages render
-// the same numbers they did before the cutover. Once chunk 6 introduces a
-// real seed for income, fold income categories in here too.
+// Includes a single seed income category (Salary) so the Pulse header has a
+// baseline to display the first time a fresh DB is rendered.
 
 import type { Db } from "mongodb";
 
@@ -36,6 +35,7 @@ const CATEGORIES: SeedCategory[] = [
   { _id: "hysa", name: "HYSA", emoji: "🏦", kind: "savings", activeFrom: ACTIVE_FROM, initialMonthly: 800 },
   { _id: "brokerage", name: "Brokerage", emoji: "📈", kind: "savings", activeFrom: ACTIVE_FROM, initialMonthly: 600 },
   { _id: "vacation", name: "Vacation fund", emoji: "🏖️", kind: "savings", activeFrom: ACTIVE_FROM, initialMonthly: 200 },
+  { _id: "salary", name: "Salary", emoji: "💼", kind: "income", activeFrom: ACTIVE_FROM, initialMonthly: 7500 },
 ];
 
 type SeedTransaction = Omit<TransactionDocument, "createdAt">;
@@ -112,16 +112,56 @@ async function doSeed(): Promise<void> {
   const db = await getDb();
   await ensureIndexes(db);
 
+  const now = new Date();
   const categoryCount = await db
     .collection(COLLECTIONS.categories)
     .countDocuments({}, { limit: 1 });
-  if (categoryCount > 0) return;
 
-  const now = new Date();
+  if (categoryCount === 0) {
+    await seedCategories(db, now);
+    await seedTargets(db, now);
+    await seedTransactions(db, now);
+    return;
+  }
 
-  await seedCategories(db, now);
-  await seedTargets(db, now);
-  await seedTransactions(db, now);
+  // DB already populated — backfill any categories added since this DB was
+  // first seeded (e.g. the income source introduced in chunk 6). Keyed on
+  // `_id`, so a user-renamed seed category isn't re-inserted.
+  await backfillMissingCategories(db, now);
+}
+
+async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
+  const existingIds = new Set(
+    (
+      await db
+        .collection<CategoryDocument>(COLLECTIONS.categories)
+        .find({ _id: { $in: CATEGORIES.map((c) => c._id) } }, { projection: { _id: 1 } })
+        .toArray()
+    ).map((d) => d._id),
+  );
+  const missing = CATEGORIES.filter((c) => !existingIds.has(c._id));
+  if (missing.length === 0) return;
+
+  const catDocs: CategoryDocument[] = missing.map((c) => ({
+    _id: c._id,
+    name: c.name,
+    emoji: c.emoji,
+    kind: c.kind,
+    activeFrom: c.activeFrom,
+    createdAt: now,
+  }));
+  await db.collection<CategoryDocument>(COLLECTIONS.categories).insertMany(catDocs);
+
+  const targetDocs: CategoryTargetDocument[] = missing.map((c) => ({
+    _id: `${c._id}:${c.activeFrom}`,
+    categoryId: c._id,
+    monthly: c.initialMonthly,
+    effectiveFrom: c.activeFrom,
+    createdAt: now,
+  }));
+  await db
+    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
+    .insertMany(targetDocs);
 }
 
 async function seedCategories(db: Db, now: Date): Promise<void> {

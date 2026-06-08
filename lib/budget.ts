@@ -92,6 +92,11 @@ function shiftMonth(ym: string, offset: number): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Next month key, e.g. `nextMonth("2026-12") === "2027-01"`. */
+export function nextMonth(ym: string): string {
+  return shiftMonth(ym, 1);
+}
+
 /**
  * Maps a preset to a `[ymStart, ymEnd]` window anchored at `today`. The end
  * is always the current month — even for YTD and Last-12, the in-progress
@@ -308,4 +313,91 @@ export function computeSavingsRate(
 ): number | null {
   if (incomeForRange === 0) return null;
   return savedForRange / incomeForRange;
+}
+
+function daysInUtcMonth(year: number, monthIndex0: number): number {
+  // monthIndex0 is 0..11; the zeroth day of (monthIndex0 + 1) is the last day of monthIndex0.
+  return new Date(Date.UTC(year, monthIndex0 + 1, 0)).getUTCDate();
+}
+
+/**
+ * Total income earned across [rangeStart, rangeEnd], in dollars. Combines:
+ *
+ *   - the resolved monthly baseline target for each in-range month an income
+ *     category was active. The current month is pro-rated by day elapsed
+ *     (`baseline × day / daysInMonth`) so the YTD savings rate moves smoothly
+ *     as the month progresses (story 51);
+ *   - the signed sum of income-category transactions in the range — bonuses,
+ *     RSU vests, side-gig income, etc. (story 52).
+ *
+ * Future months past `today`'s current month are skipped even if they fall in
+ * the range, since baseline income hasn't happened yet.
+ */
+export function computeIncomeForRange(
+  incomeCategories: Category[],
+  targets: CategoryTarget[],
+  transactions: Transaction[],
+  rangeStart: string,
+  rangeEnd: string,
+  today = new Date(),
+): number {
+  const thisMonth = currentMonthKey(today);
+  let baseline = 0;
+  for (const ym of monthsInRange(rangeStart, rangeEnd)) {
+    if (ym > thisMonth) continue; // future month — baseline hasn't happened
+    for (const cat of incomeCategories) {
+      if (!isCategoryActiveForMonth(cat, ym)) continue;
+      const monthly = resolveTargetForMonth(cat.id, ym, targets);
+      if (ym === thisMonth) {
+        const dim = daysInUtcMonth(today.getUTCFullYear(), today.getUTCMonth());
+        baseline += (monthly * today.getUTCDate()) / dim;
+      } else {
+        baseline += monthly;
+      }
+    }
+  }
+
+  let irregular = 0;
+  const incomeIds = new Set(incomeCategories.map((c) => c.id));
+  for (const t of transactions) {
+    if (!incomeIds.has(t.categoryId)) continue;
+    const ym = t.date.slice(0, 7);
+    if (ym < rangeStart || ym > rangeEnd) continue;
+    irregular += t.amount;
+  }
+
+  return baseline + irregular;
+}
+
+/**
+ * Sum of resolved monthly baselines for `ym`, across income categories that
+ * are active that month. The Pulse header annualizes this (× 12) for the
+ * "Current total income" display.
+ */
+export function currentMonthlyBaseline(
+  incomeCategories: Category[],
+  targets: CategoryTarget[],
+  ym: string,
+): number {
+  let sum = 0;
+  for (const cat of incomeCategories) {
+    if (!isCategoryActiveForMonth(cat, ym)) continue;
+    sum += resolveTargetForMonth(cat.id, ym, targets);
+  }
+  return sum;
+}
+
+/**
+ * Human-readable label for what a category's monthly target represents.
+ * Used in card sub-labels and detail-page headers.
+ */
+export function targetLabel(kind: CategoryKind): "Cap" | "Goal" | "Baseline" {
+  switch (kind) {
+    case "expense":
+      return "Cap";
+    case "savings":
+      return "Goal";
+    case "income":
+      return "Baseline";
+  }
 }

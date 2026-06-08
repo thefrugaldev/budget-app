@@ -16,6 +16,7 @@ import {
   rangeLabel,
   resolveRange,
   resolveTargetForMonth,
+  targetLabel,
   thresholdColor,
   thresholdFor,
   type RangePreset,
@@ -62,7 +63,8 @@ export default async function CategoryDetail({
   const state = thresholdFor(category.kind, denominator, total);
   const col = thresholdColor(category.kind, state);
   const pct = denominator === 0 ? 0 : total / denominator;
-  const isSavings = category.kind === "savings";
+  const isInflow = category.kind !== "expense";
+  const label = targetLabel(category.kind);
   const isNegative = total < 0;
 
   const trend: MonthBarDatum[] = monthlyTotalsLastN(transactions, category.id, 6, now).map(
@@ -96,7 +98,7 @@ export default async function CategoryDetail({
           <div
             className={
               "relative overflow-hidden rounded-2xl bg-card p-5 ring-1 " +
-              (isSavings ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border")
+              (isInflow ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border")
             }
           >
             {isNegative && (
@@ -109,7 +111,7 @@ export default async function CategoryDetail({
               <div>
                 <h1 className="font-heading text-lg font-semibold leading-tight">{category.name}</h1>
                 <p className="text-xs text-muted-foreground">
-                  {isSavings ? "Goal" : "Cap"} · {fmt(perMonthTarget)}/mo
+                  {label} · {fmt(perMonthTarget)}/mo
                 </p>
               </div>
             </div>
@@ -117,7 +119,7 @@ export default async function CategoryDetail({
               <SignedAmount kind={category.kind} amount={total} />
             </p>
             <p className="text-xs text-muted-foreground">
-              {rangeText.toLowerCase()} · {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
+              {rangeText.toLowerCase()} · {Math.round(pct * 100)}% of {label.toLowerCase()}
             </p>
             <ThresholdMeter kind={category.kind} target={denominator} amount={total} className="mt-2" height="h-2" />
           </div>
@@ -176,7 +178,7 @@ export default async function CategoryDetail({
                     <span
                       className={
                         "shrink-0 tabular-nums " +
-                        (isSavings && t.amount > 0 ? "text-emerald-700 dark:text-emerald-400" : "")
+                        (isInflow && t.amount > 0 ? "text-emerald-700 dark:text-emerald-400" : "")
                       }
                     >
                       <SignedAmount kind={category.kind} amount={t.amount} marker={false} />

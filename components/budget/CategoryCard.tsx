@@ -1,6 +1,12 @@
 import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
-import { fmt, monthlyTotalsLastN, thresholdColor, thresholdFor } from "@/lib/budget";
+import {
+  fmt,
+  monthlyTotalsLastN,
+  targetLabel,
+  thresholdColor,
+  thresholdFor,
+} from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import { SignedAmount } from "./SignedAmount";
 import { ThresholdMeter } from "./ThresholdMeter";
@@ -29,7 +35,8 @@ export function CategoryCard({
   const state = thresholdFor(category.kind, denominator, total);
   const col = thresholdColor(category.kind, state);
   const pct = denominator === 0 ? 0 : total / denominator;
-  const isSavings = category.kind === "savings";
+  const isInflow = category.kind !== "expense";
+  const label = targetLabel(category.kind);
   const isNegative = total < 0;
 
   return (
@@ -37,7 +44,7 @@ export function CategoryCard({
       href={`/categories/${category.id}`}
       className={cn(
         "group relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 ring-1 transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
-        isSavings ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border",
+        isInflow ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border",
       )}
     >
       {isNegative && (
@@ -54,7 +61,7 @@ export function CategoryCard({
           <div>
             <p className="font-medium leading-tight">{category.name}</p>
             <p className="text-xs text-muted-foreground">
-              {isSavings ? "Goal" : "Cap"} · {fmt(perMonthTarget)}/mo
+              {label} · {fmt(perMonthTarget)}/mo
             </p>
           </div>
         </div>
@@ -72,7 +79,7 @@ export function CategoryCard({
             <SignedAmount kind={category.kind} amount={total} />
           </span>
           <span className="text-xs text-muted-foreground tabular-nums">
-            {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
+            {Math.round(pct * 100)}% of {label.toLowerCase()}
           </span>
         </div>
         <ThresholdMeter kind={category.kind} target={denominator} amount={total} className="mt-2" />

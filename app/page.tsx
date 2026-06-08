@@ -1,7 +1,11 @@
 import { CategoryCard } from "@/components/budget/CategoryCard";
+import { HeaderIncome } from "@/components/budget/HeaderIncome";
 import { RangeSelector } from "@/components/budget/RangeSelector";
 import {
   aggregateRange,
+  computeIncomeForRange,
+  computeSavingsRate,
+  currentMonthKey,
   fmt,
   isRangePreset,
   rangeLabel,
@@ -31,6 +35,7 @@ export default async function Home({
   const preset: RangePreset = isRangePreset(raw) ? raw : "this-month";
   const now = new Date();
   const range = resolveRange(preset, now);
+  const thisMonth = currentMonthKey(now);
 
   const aggregates = aggregateRange(
     transactions,
@@ -43,6 +48,8 @@ export default async function Home({
 
   const expenses = categories.filter((c) => c.kind === "expense");
   const savings = categories.filter((c) => c.kind === "savings");
+  const incomeCategories = categories.filter((c) => c.kind === "income");
+
   const expenseTotal = expenses.reduce(
     (s, c) => s + (aggregateById.get(c.id)?.total ?? 0),
     0,
@@ -51,13 +58,26 @@ export default async function Home({
     (s, c) => s + (aggregateById.get(c.id)?.total ?? 0),
     0,
   );
-  const monthsIn = now.getUTCMonth() + now.getUTCDate() / 30;
+  const incomeForRange = computeIncomeForRange(
+    incomeCategories,
+    targets,
+    transactions,
+    range.ymStart,
+    range.ymEnd,
+    now,
+  );
+  const savingsRate = computeSavingsRate(incomeForRange, savingsTotal);
   const rangeText = rangeLabel(preset);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-28">
-      <header className="mb-6">
+      <header className="mb-6 flex items-start justify-between gap-4">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">Pulse</h1>
+        <HeaderIncome
+          incomeCategories={incomeCategories}
+          targets={targets}
+          currentMonth={thisMonth}
+        />
       </header>
 
       <div className="mb-8">
@@ -67,7 +87,12 @@ export default async function Home({
       <div className="mb-10 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <HeroKpi emoji="💸" label="Spent" value={fmt(expenseTotal)} sub={rangeText} />
         <HeroKpi emoji="🌱" label="Saved" value={fmt(savingsTotal)} sub={rangeText} positive />
-        <HeroKpi emoji="📅" label="Months in" value={monthsIn.toFixed(1)} sub="of 12" />
+        <HeroKpi
+          emoji="📊"
+          label="Savings rate"
+          value={savingsRate === null ? "n/a" : `${Math.round(savingsRate * 100)}%`}
+          sub={rangeText}
+        />
       </div>
 
       <SectionHeading>Expenses · {rangeText.toLowerCase()}</SectionHeading>
