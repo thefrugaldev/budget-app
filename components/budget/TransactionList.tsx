@@ -71,6 +71,7 @@ export function TransactionList({
   rangeText,
   now,
   isInflow,
+  onHiddenIdChange,
 }: {
   category: Category;
   categories: Category[];
@@ -81,6 +82,12 @@ export function TransactionList({
   rangeText: string;
   now: Date;
   isInflow: boolean;
+  /**
+   * Reports the currently-hidden (optimistically-deleted) row id up to a
+   * parent so sidebar aggregates can subtract the row and update headline
+   * totals immediately. Undefined when no row is hidden.
+   */
+  onHiddenIdChange?: (id: string | undefined) => void;
 }) {
   const [filter, setFilter] = useState<TransactionFilter>(EMPTY_FILTER);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -188,6 +195,11 @@ export function TransactionList({
   }
 
   const hiddenId = pending?.transaction.id;
+  // Mirror the hidden id up to the parent so sidebar aggregates can subtract
+  // it (story 46-adjacent — totals should match the visible list).
+  useEffect(() => {
+    onHiddenIdChange?.(hiddenId);
+  }, [hiddenId, onHiddenIdChange]);
   const filtered = useMemo(
     () =>
       transactions.filter((t) => {

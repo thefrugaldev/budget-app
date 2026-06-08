@@ -25,7 +25,13 @@ export function NotifyViewport() {
               key={t.id}
               toast={t}
               className={cn(
-                "group relative flex items-start gap-3 rounded-lg bg-card px-4 py-3 text-sm shadow-xl ring-1 transition-[opacity,transform] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 data-[starting-style]:translate-y-2",
+                "group relative flex items-start gap-3 rounded-lg bg-card px-4 py-3 text-sm shadow-xl ring-1 transition-[opacity,transform]",
+                "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 data-[starting-style]:translate-y-2",
+                // Base UI's `limit` doesn't remove evicted toasts; it just
+                // marks them `data-limited` and expects us to style them out.
+                // Without this rule, overflow toasts pile up vertically and
+                // the viewport scrolls past the visible cap.
+                "data-[limited]:pointer-events-none data-[limited]:opacity-0",
                 type === "error"
                   ? "ring-rose-200 dark:ring-rose-900"
                   : "ring-border",

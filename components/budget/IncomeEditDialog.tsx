@@ -24,6 +24,18 @@ export type IncomeSourceRow = {
   emoji: string;
   /** Resolved monthly baseline for the current month, in dollars. */
   currentMonthly: number;
+  /**
+   * Monthly baseline that takes effect next month, only when it differs from
+   * `currentMonthly` — surfaces a "your edit was scheduled" signal in the
+   * modal so a save with `applyThisMonth=false` (default) is visible.
+   */
+  nextMonthly: number | null;
+  /**
+   * Inclusive last month the source is active. Present when the user has
+   * already clicked End source. The row stays in the modal so the action is
+   * visible, but Save/End controls are disabled.
+   */
+  activeUntil?: string;
 };
 
 export function IncomeEditDialog({
@@ -115,13 +127,16 @@ export function IncomeEditDialog({
 
 /**
  * Detects the post-action success transition: emits a success toast and
- * invokes `onDone` once when the `ok` counter increments. On failure the
- * dialog stays open (so the inline error is visible) and no toast is fired —
- * the error is co-located with the form, not announced separately.
+ * invokes `onDone` once when the `ok` counter increments. The success
+ * message is read from a ref so callers can compute it at submit time
+ * (e.g. branching on the apply-this-month checkbox) without re-running
+ * the effect for every keystroke. On failure the dialog stays open (so the
+ * inline error is visible) and no toast is fired — the error is co-located
+ * with the form, not announced separately.
  */
 function useSuccessEffect(
   state: IncomeActionState,
-  successMessage: string,
+  messageRef: React.MutableRefObject<string>,
   onDone: () => void,
 ) {
   const notify = useNotify();
@@ -129,10 +144,10 @@ function useSuccessEffect(
   useEffect(() => {
     if (state.ok > lastSeen.current && !state.error) {
       lastSeen.current = state.ok;
-      notify.success(successMessage);
+      notify.success(messageRef.current);
       onDone();
     }
-  }, [state, onDone, notify, successMessage]);
+  }, [state, onDone, notify, messageRef]);
 }
 
 function IncomeSourceForm({
@@ -144,7 +159,11 @@ function IncomeSourceForm({
   currentMonth: string;
   onDone: () => void;
 }) {
-  const yearly = source.currentMonthly * 12;
+  const initialYearly = source.currentMonthly * 12;
+  const [yearlyInput, setYearlyInput] = useState(initialYearly.toString());
+  const [applyThisMonth, setApplyThisMonth] = useState(false);
+  const isEnded = source.activeUntil !== undefined;
+
   const [updateState, updateAction] = useActionState(
     updateIncomeBaselineAction,
     INCOME_ACTION_INITIAL,
@@ -154,13 +173,38 @@ function IncomeSourceForm({
     INCOME_ACTION_INITIAL,
   );
 
-  useSuccessEffect(updateState, "Income baseline updated", onDone);
-  useSuccessEffect(endState, "Income source ended", onDone);
+  // Refs let useSuccessEffect read the latest computed message without
+  // re-running for every keystroke. Written inside an effect — React 19's
+  // strict mode forbids ref mutation during render.
+  const updateMessageRef = useRef("Baseline updated");
+  const endMessageRef = useRef("Income source ended");
+  useEffect(() => {
+    updateMessageRef.current = `Baseline updated · effective ${monthLabel(
+      applyThisMonth ? currentMonth : nextMonth(currentMonth),
+    )}`;
+    endMessageRef.current = `${source.name} ends after ${monthLabel(currentMonth)}`;
+  });
+
+  useSuccessEffect(updateState, updateMessageRef, onDone);
+  useSuccessEffect(endState, endMessageRef, onDone);
 
   const error = updateState.error ?? endState.error;
 
+  // Disable Save when there's nothing to persist: the yearly value matches
+  // the current baseline AND the apply-toggle isn't asking us to write a
+  // (no-op) current-month row over a next-month-effective row.
+  const parsedYearly = Number(yearlyInput);
+  const yearlyUnchanged =
+    Number.isFinite(parsedYearly) && parsedYearly === initialYearly;
+  const saveDisabled = isEnded || (yearlyUnchanged && !applyThisMonth);
+
   return (
-    <div className="rounded-xl bg-background p-3 ring-1 ring-border">
+    <div
+      className={cn(
+        "rounded-xl bg-background p-3 ring-1 ring-border",
+        isEnded && "opacity-75",
+      )}
+    >
       <form action={updateAction} className="space-y-2">
         <input type="hidden" name="categoryId" value={source.id} />
         <div className="flex items-center gap-2">
@@ -170,8 +214,19 @@ function IncomeSourceForm({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{source.name}</p>
             <p className="text-[11px] text-muted-foreground">
-              Current: {fmt(yearly)}/yr · {fmt(source.currentMonthly)}/mo
+              Current: {fmt(initialYearly)}/yr · {fmt(source.currentMonthly)}/mo
             </p>
+            {source.nextMonthly !== null && (
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                Scheduled {monthLabel(nextMonth(currentMonth))}:{" "}
+                {fmt(source.nextMonthly * 12)}/yr · {fmt(source.nextMonthly)}/mo
+              </p>
+            )}
+            {isEnded && (
+              <p className="text-[11px] font-medium text-rose-700 dark:text-rose-400">
+                Ends after {monthLabel(source.activeUntil!)}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -185,14 +240,24 @@ function IncomeSourceForm({
             step="0.01"
             min="0"
             inputMode="decimal"
-            defaultValue={yearly}
-            className="flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+            value={yearlyInput}
+            onChange={(e) => setYearlyInput(e.target.value)}
+            disabled={isEnded}
+            className="flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+        <label
+          className={cn(
+            "flex items-center gap-2 text-xs text-muted-foreground",
+            isEnded && "cursor-not-allowed opacity-50",
+          )}
+        >
           <input
             type="checkbox"
             name="applyThisMonth"
+            checked={applyThisMonth}
+            onChange={(e) => setApplyThisMonth(e.target.checked)}
+            disabled={isEnded}
             className="size-3.5 accent-foreground"
           />
           Apply this month ({monthLabel(currentMonth)})
@@ -201,7 +266,8 @@ function IncomeSourceForm({
           <SubmitButton
             label="Save baseline"
             pendingLabel="Saving…"
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-60"
+            disabled={saveDisabled}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-60"
           />
         </div>
         {error && (
@@ -210,14 +276,16 @@ function IncomeSourceForm({
           </p>
         )}
       </form>
-      <form action={endAction} className="mt-2 flex justify-end">
-        <input type="hidden" name="categoryId" value={source.id} />
-        <SubmitButton
-          label="End source"
-          pendingLabel="Ending…"
-          className="rounded-md px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
-        />
-      </form>
+      {!isEnded && (
+        <form action={endAction} className="mt-2 flex justify-end">
+          <input type="hidden" name="categoryId" value={source.id} />
+          <SubmitButton
+            label="End source"
+            pendingLabel="Ending…"
+            className="rounded-md px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+          />
+        </form>
+      )}
     </div>
   );
 }
@@ -233,7 +301,8 @@ function AddSourceForm({
     createIncomeSourceAction,
     INCOME_ACTION_INITIAL,
   );
-  useSuccessEffect(state, "Income source added", onDone);
+  const messageRef = useRef("Income source added");
+  useSuccessEffect(state, messageRef, onDone);
 
   return (
     <form
@@ -295,14 +364,20 @@ function SubmitButton({
   label,
   pendingLabel,
   className,
+  disabled,
 }: {
   label: string;
   pendingLabel: string;
   className: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={className}>
+    <button
+      type="submit"
+      disabled={pending || disabled}
+      className={className}
+    >
       {pending ? pendingLabel : label}
     </button>
   );

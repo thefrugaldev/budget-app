@@ -3,6 +3,7 @@ import {
   currentMonthlyBaseline,
   fmt,
   isCategoryActiveForMonth,
+  nextMonth,
   resolveTargetForMonth,
 } from "@/lib/budget";
 
@@ -35,12 +36,22 @@ export function HeaderIncome({
   );
   const totalYearly = totalMonthly * 12;
 
-  const sources: IncomeSourceRow[] = activeIncomeCategories.map((c) => ({
-    id: c.id,
-    name: c.name,
-    emoji: c.emoji,
-    currentMonthly: resolveTargetForMonth(c.id, currentMonth, targets),
-  }));
+  const next = nextMonth(currentMonth);
+  const sources: IncomeSourceRow[] = activeIncomeCategories.map((c) => {
+    const current = resolveTargetForMonth(c.id, currentMonth, targets);
+    const upcoming = resolveTargetForMonth(c.id, next, targets);
+    return {
+      id: c.id,
+      name: c.name,
+      emoji: c.emoji,
+      currentMonthly: current,
+      // Only surfaced to the modal when distinct from the current baseline —
+      // gives the user a visible "your change is scheduled" signal even
+      // though the header total can't reflect a future-month value.
+      nextMonthly: upcoming === current ? null : upcoming,
+      activeUntil: c.activeUntil,
+    };
+  });
 
   return (
     <div className="flex items-start gap-3">

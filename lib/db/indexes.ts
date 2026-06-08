@@ -4,13 +4,24 @@ import { COLLECTIONS } from "./collections";
 
 let indexesReady: Promise<void> | undefined;
 
-// Portable single-field indexes only (Atlas + Cosmos Mongo API).
+/**
+ * Portable single-field indexes only (Atlas + Cosmos Mongo API). The
+ * categories collection deliberately has no name index: multiple categories
+ * may share a name (two "Bonus" income sources in the same year, two
+ * "Schooling" expense categories across life phases), and the collection is
+ * small enough that `.sort({ name: 1 })` in listCategories doesn't need one.
+ * Earlier revisions created `{ name: 1 }` with `unique: true`, which now
+ * actively blocks legitimate inserts — `dropIndex` cleans that up idempotently
+ * on the next boot. Treat any error from dropIndex as "index not present",
+ * which is the desired terminal state.
+ */
 export function ensureIndexes(db: Db): Promise<void> {
   if (!indexesReady) {
     indexesReady = Promise.all([
       db
         .collection(COLLECTIONS.categories)
-        .createIndex({ name: 1 }, { unique: true }),
+        .dropIndex("name_1")
+        .catch(() => undefined),
       db
         .collection(COLLECTIONS.categoryTargets)
         .createIndex({ categoryId: 1, effectiveFrom: 1 }, { unique: true }),
