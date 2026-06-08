@@ -32,6 +32,5 @@ export function toTransaction(doc: TransactionDocument): Transaction {
     date: doc.date,
     vendor: doc.vendor,
     note: doc.note,
-    items: doc.items,
   };
 }

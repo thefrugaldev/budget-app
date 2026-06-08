@@ -39,8 +39,8 @@ export function QuickAddForm({
         className="w-full rounded-md bg-background px-2 py-1.5 text-right tabular-nums ring-1 ring-border outline-none focus:ring-ring"
       />
       <input
-        name="details"
-        placeholder="Details / items (optional, comma-separated)"
+        name="note"
+        placeholder="Note (optional)"
         className="w-full rounded-md bg-background px-2 py-1.5 text-xs ring-1 ring-border outline-none focus:ring-ring"
       />
       <button

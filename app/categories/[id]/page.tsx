@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 
 import { MonthBarChart } from "@/components/budget/MonthBarChart";
 import { QuickAddForm } from "@/components/budget/QuickAddForm";
+import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
 import {
   currentMonthKey,
   dayLabel,
   fmt,
-  fmtExact,
   monthlyTotalsLastN,
   monthTotalsByCategory,
   resolveTargetForMonth,
@@ -44,6 +44,7 @@ export default async function CategoryDetail({
   const col = thresholdColor(category.kind, state);
   const pct = target === 0 ? 0 : thisMonth / target;
   const isSavings = category.kind === "savings";
+  const isNegative = thisMonth < 0;
   const trend = monthlyTotalsLastN(transactions, category.id, 6, now);
 
   const txns = transactions.filter((t) => t.categoryId === category.id).sort((a, b) =>
@@ -60,10 +61,13 @@ export default async function CategoryDetail({
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <div
             className={
-              "rounded-2xl bg-card p-5 ring-1 " +
+              "relative overflow-hidden rounded-2xl bg-card p-5 ring-1 " +
               (isSavings ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border")
             }
           >
+            {isNegative && (
+              <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-rose-500" />
+            )}
             <div className="mb-3 flex items-center gap-3">
               <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
                 {category.emoji}
@@ -76,8 +80,7 @@ export default async function CategoryDetail({
               </div>
             </div>
             <p className={"font-heading text-3xl font-semibold tabular-nums " + col.text}>
-              {isSavings ? "+" : ""}
-              {fmtExact(thisMonth)}
+              <SignedAmount kind={category.kind} amount={thisMonth} />
             </p>
             <p className="text-xs text-muted-foreground">
               this month · {Math.round(pct * 100)}% of {isSavings ? "goal" : "cap"}
@@ -138,19 +141,14 @@ export default async function CategoryDetail({
                     <span
                       className={
                         "shrink-0 tabular-nums " +
-                        (isSavings ? "text-emerald-700 dark:text-emerald-400" : "")
+                        (isSavings && t.amount > 0 ? "text-emerald-700 dark:text-emerald-400" : "")
                       }
                     >
-                      {isSavings ? "+" : ""}
-                      {fmtExact(t.amount)}
+                      <SignedAmount kind={category.kind} amount={t.amount} marker={false} />
                     </span>
                   </div>
-                  {(t.note || t.items) && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {t.note}
-                      {t.note && t.items ? " · " : ""}
-                      {t.items?.join(", ")}
-                    </p>
+                  {t.note && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t.note}</p>
                   )}
                 </div>
               </li>
