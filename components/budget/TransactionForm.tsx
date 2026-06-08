@@ -19,8 +19,11 @@ const KIND_LABELS = {
   expense: "Expenses",
   savings: "Savings",
   income: "Income",
-} as const;
-const KIND_ORDER = ["expense", "savings", "income"] as const;
+} as const satisfies Record<CategoryKind, string>;
+// Derived from KIND_LABELS so adding a CategoryKind without updating the
+// labels object is a compile error, and the picker can never silently drop
+// a kind. Object.keys is typed as `string[]`, so cast back to the union.
+const KIND_ORDER = Object.keys(KIND_LABELS) as readonly CategoryKind[];
 
 type Mode = "add" | "edit";
 

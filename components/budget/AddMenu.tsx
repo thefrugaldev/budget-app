@@ -7,10 +7,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createIncomeSourceAction } from "@/app/actions/income";
-import {
-  INCOME_ACTION_INITIAL,
-  type IncomeActionState,
-} from "@/app/actions/income-state";
+import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
@@ -62,13 +59,16 @@ export function AddMenu({
               <Menu.Item
                 disabled
                 aria-disabled
+                aria-label="Add category (coming soon)"
                 className="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-muted-foreground outline-none"
               >
                 <span className="flex items-center gap-2">
                   <Plus className="size-4" aria-hidden />
                   <span>Add category</span>
                 </span>
-                <span className="text-[10px] uppercase tracking-wide">Soon</span>
+                <span aria-hidden className="text-[10px] uppercase tracking-wide">
+                  Soon
+                </span>
               </Menu.Item>
               <Menu.Item
                 onClick={() => setSheet("income")}
@@ -221,7 +221,3 @@ function SubmitButton() {
     </button>
   );
 }
-
-// Quiet unused-state warning — `IncomeActionState` is the contract this
-// dialog's action returns, exported through `INCOME_ACTION_INITIAL`.
-export type { IncomeActionState };

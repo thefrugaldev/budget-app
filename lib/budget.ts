@@ -437,10 +437,18 @@ export function mostRecentTransactionInCategory(
   transactions: Transaction[],
   categoryId: string,
 ): Transaction | undefined {
+  // Tiebreaker on id (lexicographic, descending) so same-date rows have a
+  // deterministic winner independent of input order — Mongo's sort isn't
+  // stable across the same date, and React fixtures don't carry an order.
   let best: Transaction | undefined;
   for (const t of transactions) {
     if (t.categoryId !== categoryId) continue;
-    if (!best || t.date > best.date) best = t;
+    if (!best) {
+      best = t;
+      continue;
+    }
+    if (t.date > best.date) best = t;
+    else if (t.date === best.date && t.id > best.id) best = t;
   }
   return best;
 }

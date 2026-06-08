@@ -668,6 +668,15 @@ describe("mostRecentTransactionInCategory", () => {
   it("returns undefined when the category has no transactions", () => {
     expect(mostRecentTransactionInCategory(txs, "rent")).toBeUndefined();
   });
+
+  it("breaks same-date ties deterministically by id (lexicographic, max wins)", () => {
+    const sameDay: Transaction[] = [
+      { id: "z", categoryId: "groc", amount: 10, date: "2026-06-04" },
+      { id: "a", categoryId: "groc", amount: 20, date: "2026-06-04" },
+      { id: "m", categoryId: "groc", amount: 30, date: "2026-06-04" },
+    ];
+    expect(mostRecentTransactionInCategory(sameDay, "groc")?.id).toBe("z");
+  });
 });
 
 describe("vendorSuggestionsForCategory", () => {
