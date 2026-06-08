@@ -7,6 +7,7 @@ import {
   currentMonthlyBaseline,
   isCategoryActiveForMonth,
   isRangePreset,
+  matchesTransactionFilter,
   monthTotalsByCategory,
   monthlyTotalsLastN,
   monthsInRange,
@@ -713,5 +714,79 @@ describe("vendorSuggestionsForCategory", () => {
       { id: "2", categoryId: "groc", amount: 5, date: "2026-06-02", vendor: "Aldi" },
     ];
     expect(vendorSuggestionsForCategory(tied, "groc")).toEqual(["Aldi", "Whole Foods"]);
+  });
+});
+
+describe("matchesTransactionFilter", () => {
+  const t: Transaction = {
+    id: "1",
+    categoryId: "groc",
+    amount: 12.5,
+    date: "2026-06-05",
+    vendor: "Whole Foods",
+    note: "Weekly run",
+  };
+
+  it("returns true when the filter is empty", () => {
+    expect(matchesTransactionFilter(t, {})).toBe(true);
+  });
+
+  it("matches free-text against vendor case-insensitively", () => {
+    expect(matchesTransactionFilter(t, { text: "whole" })).toBe(true);
+    expect(matchesTransactionFilter(t, { text: "WHOLE" })).toBe(true);
+  });
+
+  it("matches free-text against note case-insensitively", () => {
+    expect(matchesTransactionFilter(t, { text: "weekly" })).toBe(true);
+  });
+
+  it("rejects free-text that matches neither vendor nor note", () => {
+    expect(matchesTransactionFilter(t, { text: "costco" })).toBe(false);
+  });
+
+  it("treats whitespace-only free-text as 'no filter'", () => {
+    expect(matchesTransactionFilter(t, { text: "   " })).toBe(true);
+  });
+
+  it("ignores missing vendor / note when the text filter is empty", () => {
+    const bare: Transaction = { id: "2", categoryId: "groc", amount: 5, date: "2026-06-06" };
+    expect(matchesTransactionFilter(bare, {})).toBe(true);
+    expect(matchesTransactionFilter(bare, { text: "anything" })).toBe(false);
+  });
+
+  it("filters by exact vendor", () => {
+    expect(matchesTransactionFilter(t, { vendor: "Whole Foods" })).toBe(true);
+    expect(matchesTransactionFilter(t, { vendor: "Trader Joe's" })).toBe(false);
+  });
+
+  it("treats empty vendor as 'all vendors'", () => {
+    expect(matchesTransactionFilter(t, { vendor: "" })).toBe(true);
+  });
+
+  it("enforces inclusive dateFrom / dateTo bounds", () => {
+    expect(matchesTransactionFilter(t, { dateFrom: "2026-06-05" })).toBe(true);
+    expect(matchesTransactionFilter(t, { dateFrom: "2026-06-06" })).toBe(false);
+    expect(matchesTransactionFilter(t, { dateTo: "2026-06-05" })).toBe(true);
+    expect(matchesTransactionFilter(t, { dateTo: "2026-06-04" })).toBe(false);
+  });
+
+  it("combines all filters as AND", () => {
+    expect(
+      matchesTransactionFilter(t, {
+        text: "weekly",
+        vendor: "Whole Foods",
+        dateFrom: "2026-06-01",
+        dateTo: "2026-06-30",
+      }),
+    ).toBe(true);
+    // Vendor mismatch alone is enough to fail.
+    expect(
+      matchesTransactionFilter(t, {
+        text: "weekly",
+        vendor: "Trader Joe's",
+        dateFrom: "2026-06-01",
+        dateTo: "2026-06-30",
+      }),
+    ).toBe(false);
   });
 });

@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { getCategoryById } from "@/lib/repositories/categories";
-import { createTransaction } from "@/lib/repositories/transactions";
+import {
+  createTransaction,
+  deleteTransaction,
+  updateTransaction,
+} from "@/lib/repositories/transactions";
 
 import {
   applySign,
@@ -63,5 +67,64 @@ export async function createTransactionAction(
     return success(prev);
   } catch (err) {
     return failure(prev, err);
+  }
+}
+
+/**
+ * Persists an edit to an existing transaction (chunk 8 row overflow → Edit).
+ * The form submits a hidden `id` for the row being edited and a hidden
+ * `originalCategoryId` so we can revalidate the previous detail page when
+ * the user re-categorizes (story 45). The new `categoryId` is read from the
+ * regular category picker — the same field as Add — which keeps the
+ * single-form-shape invariant from chunk 7.
+ */
+export async function updateTransactionAction(
+  prev: TransactionActionState,
+  formData: FormData,
+): Promise<TransactionActionState> {
+  try {
+    const id = requireString(formData.get("id"), "id");
+    const categoryId = requireString(formData.get("categoryId"), "categoryId");
+    const category = await getCategoryById(categoryId);
+    if (!category) throw new Error("Category not found");
+
+    const date = parseIsoDate(formData.get("date"));
+    const amount = applySign(parsePositiveAmount(formData.get("amount")), formData.get("sign"));
+    const vendor = optionalString(formData.get("vendor"));
+    const note = optionalString(formData.get("note"));
+
+    const hit = await updateTransaction(id, { categoryId, date, amount, vendor, note });
+    if (!hit) throw new Error("Transaction not found");
+
+    revalidatePath("/");
+    revalidatePath(`/categories/${categoryId}`);
+    const originalCategoryId = optionalString(formData.get("originalCategoryId"));
+    if (originalCategoryId && originalCategoryId !== categoryId) {
+      revalidatePath(`/categories/${originalCategoryId}`);
+    }
+    return success(prev);
+  } catch (err) {
+    return failure(prev, err);
+  }
+}
+
+/**
+ * Fire-and-forget delete used by the row overflow menu after the undo toast
+ * expires (story 47 — no soft-delete, no trash view). The action is invoked
+ * directly from a client effect rather than a form submit, so it returns a
+ * plain `{ error: string | null }` shape instead of the useActionState one.
+ */
+export async function deleteTransactionAction(input: {
+  id: string;
+  categoryId: string;
+}): Promise<{ error: string | null }> {
+  try {
+    const hit = await deleteTransaction(input.id);
+    if (!hit) throw new Error("Transaction not found");
+    revalidatePath("/");
+    revalidatePath(`/categories/${input.categoryId}`);
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Delete failed" };
   }
 }

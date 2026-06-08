@@ -484,3 +484,33 @@ export function vendorSuggestionsForCategory(
     .filter((v) => !seen.has(v));
   return [...localOrdered, ...globalOrdered];
 }
+
+export type TransactionFilter = {
+  text?: string;
+  vendor?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+/**
+ * Predicate behind the category detail page's filter row (stories 24, 64).
+ * Free-text matches `vendor` and `note` case-insensitively. `vendor` is an
+ * exact-match constraint used by the vendor dropdown; an empty/undefined
+ * value means "all vendors". Date bounds are inclusive ISO `YYYY-MM-DD`
+ * strings — lexicographic comparison is safe given the fixed shape.
+ */
+export function matchesTransactionFilter(
+  t: Transaction,
+  f: TransactionFilter,
+): boolean {
+  if (f.dateFrom && t.date < f.dateFrom) return false;
+  if (f.dateTo && t.date > f.dateTo) return false;
+  if (f.vendor && t.vendor !== f.vendor) return false;
+  const text = f.text?.trim().toLowerCase();
+  if (text) {
+    const inVendor = t.vendor?.toLowerCase().includes(text) ?? false;
+    const inNote = t.note?.toLowerCase().includes(text) ?? false;
+    if (!inVendor && !inNote) return false;
+  }
+  return true;
+}
