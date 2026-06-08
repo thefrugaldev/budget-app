@@ -1,5 +1,4 @@
 import { CategoryCard } from "@/components/budget/CategoryCard";
-import { CATEGORIES, CATEGORY_TARGETS, TRANSACTIONS } from "@/lib/fixtures/budget";
 import {
   currentMonthKey,
   fmt,
@@ -8,15 +7,26 @@ import {
   resolveTargetForMonth,
   ytdTotalsByCategory,
 } from "@/lib/budget";
+import { ensureSeeded } from "@/lib/db/seed";
+import { listCategories } from "@/lib/repositories/categories";
+import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
+import { listAllTransactions } from "@/lib/repositories/transactions";
 
-export default function Home() {
+export default async function Home() {
+  await ensureSeeded();
+  const [categories, targets, transactions] = await Promise.all([
+    listCategories(),
+    listCategoryTargets(),
+    listAllTransactions(),
+  ]);
+
   const now = new Date();
   const monthKey = currentMonthKey(now);
-  const ytd = ytdTotalsByCategory(TRANSACTIONS, CATEGORIES, now);
-  const thisMonth = monthTotalsByCategory(TRANSACTIONS, CATEGORIES, monthKey);
+  const ytd = ytdTotalsByCategory(transactions, categories, now);
+  const thisMonth = monthTotalsByCategory(transactions, categories, monthKey);
 
-  const expenses = CATEGORIES.filter((c) => c.kind === "expense");
-  const savings = CATEGORIES.filter((c) => c.kind === "savings");
+  const expenses = categories.filter((c) => c.kind === "expense");
+  const savings = categories.filter((c) => c.kind === "savings");
   const ytdExpense = expenses.reduce((s, c) => s + (ytd.get(c.id) ?? 0), 0);
   const ytdSavings = savings.reduce((s, c) => s + (ytd.get(c.id) ?? 0), 0);
   const monthsIn = now.getUTCMonth() + now.getUTCDate() / 30;
@@ -40,10 +50,10 @@ export default function Home() {
           <CategoryCard
             key={c.id}
             category={c}
-            target={resolveTargetForMonth(c.id, monthKey, CATEGORY_TARGETS)}
+            target={resolveTargetForMonth(c.id, monthKey, targets)}
             monthAmount={thisMonth.get(c.id) ?? 0}
             ytdAmount={ytd.get(c.id) ?? 0}
-            transactions={TRANSACTIONS}
+            transactions={transactions}
           />
         ))}
       </div>
@@ -55,10 +65,10 @@ export default function Home() {
             <CategoryCard
               key={c.id}
               category={c}
-              target={resolveTargetForMonth(c.id, monthKey, CATEGORY_TARGETS)}
+              target={resolveTargetForMonth(c.id, monthKey, targets)}
               monthAmount={thisMonth.get(c.id) ?? 0}
               ytdAmount={ytd.get(c.id) ?? 0}
-              transactions={TRANSACTIONS}
+              transactions={transactions}
             />
           ))}
         </div>

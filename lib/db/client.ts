@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { MongoClient, type Db } from "mongodb";
 
 const dbName = process.env.MONGODB_DB_NAME ?? "budget";
@@ -38,6 +39,7 @@ function getClientPromise(): Promise<MongoClient> {
 }
 
 export async function getDb(): Promise<Db> {
+  await connection();
   const client = await getClientPromise();
   return client.db(dbName);
 }
