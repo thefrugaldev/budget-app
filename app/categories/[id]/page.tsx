@@ -6,10 +6,10 @@ import { RangeSelector } from "@/components/budget/RangeSelector";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
 import { TransactionForm } from "@/components/budget/TransactionForm";
+import { TransactionList } from "@/components/budget/TransactionList";
 import {
   aggregateRange,
   currentMonthKey,
-  dayLabel,
   fmt,
   isRangePreset,
   monthlyTotalsLastN,
@@ -164,45 +164,15 @@ export default async function CategoryDetail({
         </aside>
 
         <section>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-heading text-lg font-medium">
-              {txns.length} transactions · {rangeText.toLowerCase()}
-            </h2>
-            <input
-              placeholder="Filter…"
-              className="rounded-md bg-card px-3 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
-            />
-          </div>
-          <ul className="divide-y divide-border rounded-2xl bg-card ring-1 ring-border">
-            {txns.map((t) => (
-              <li key={t.id} className="flex items-start gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="truncate">
-                      <span className="font-medium">{t.vendor ?? "—"}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{dayLabel(t.date, now)}</span>
-                    </p>
-                    <span
-                      className={
-                        "shrink-0 tabular-nums " +
-                        (isInflow && t.amount > 0 ? "text-emerald-700 dark:text-emerald-400" : "")
-                      }
-                    >
-                      <SignedAmount kind={category.kind} amount={t.amount} marker={false} />
-                    </span>
-                  </div>
-                  {t.note && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">{t.note}</p>
-                  )}
-                </div>
-              </li>
-            ))}
-            {txns.length === 0 && (
-              <li className="px-4 py-6 text-center text-sm text-muted-foreground">
-                No transactions in this range.
-              </li>
-            )}
-          </ul>
+          <TransactionList
+            category={category}
+            categories={categories}
+            transactions={txns}
+            allTransactions={transactions}
+            rangeText={rangeText}
+            now={now}
+            isInflow={isInflow}
+          />
         </section>
       </div>
     </div>

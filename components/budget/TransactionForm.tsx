@@ -5,7 +5,10 @@ import { Check, ChevronDown, Search } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { createTransactionAction } from "@/app/actions/transactions";
+import {
+  createTransactionAction,
+  updateTransactionAction,
+} from "@/app/actions/transactions";
 import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
 import {
   mostRecentTransactionInCategory,
@@ -25,13 +28,17 @@ const KIND_LABELS = {
 // a kind. Object.keys is typed as `string[]`, so cast back to the union.
 const KIND_ORDER = Object.keys(KIND_LABELS) as readonly CategoryKind[];
 
-type Mode = "add" | "edit";
-
 export type TransactionFormProps = {
-  mode?: Mode;
   categories: Category[];
   transactions: Transaction[];
-  /** When present, the form opens with this category preselected (story 30). */
+  /**
+   * When present, the form opens in edit mode pre-loaded with this row.
+   * `id` and `originalCategoryId` are submitted as hidden fields so the
+   * server action can update the right document and revalidate the previous
+   * detail page when the user re-categorizes (story 45).
+   */
+  editing?: Transaction;
+  /** Add-mode only: opens with this category preselected (story 30). */
   initialCategoryId?: string;
   /** Called after a successful save — used by the dialog wrapper to close itself. */
   onSuccess?: () => void;
@@ -41,37 +48,45 @@ export type TransactionFormProps = {
 };
 
 export function TransactionForm({
-  mode = "add",
   categories,
   transactions,
+  editing,
   initialCategoryId,
   onSuccess,
   submitLabel,
   className,
 }: TransactionFormProps) {
+  const isEdit = editing !== undefined;
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
     [categories],
   );
 
-  const [categoryId, setCategoryId] = useState<string | undefined>(initialCategoryId);
+  const [categoryId, setCategoryId] = useState<string | undefined>(
+    editing?.categoryId ?? initialCategoryId,
+  );
   // Bumps after every successful save — used as part of the Fields component's
   // `key` so the inputs remount with fresh defaults instead of carrying stale
   // text from the previous submission.
   const [resetCount, setResetCount] = useState(0);
 
   const selected = categoryId ? categoryMap.get(categoryId) : undefined;
-  const prefill = useMemo(
-    () => (categoryId ? mostRecentTransactionInCategory(transactions, categoryId) : undefined),
-    [categoryId, transactions],
-  );
+  // Edit mode always prefills from the editing row, even after the user
+  // re-categorizes (story 45) — we don't want to clobber typed values with
+  // "most recent in the new category".
+  const prefill = useMemo(() => {
+    if (editing) return editing;
+    return categoryId
+      ? mostRecentTransactionInCategory(transactions, categoryId)
+      : undefined;
+  }, [editing, categoryId, transactions]);
   const vendorOptions = useMemo(
     () => (categoryId ? vendorSuggestionsForCategory(transactions, categoryId) : []),
     [categoryId, transactions],
   );
 
   const [state, formAction] = useActionState(
-    createTransactionAction,
+    isEdit ? updateTransactionAction : createTransactionAction,
     TX_ACTION_INITIAL,
   );
   const lastOk = useRef(state.ok);
@@ -83,11 +98,27 @@ export function TransactionForm({
     }
   }, [state, onSuccess]);
 
-  const defaultSubmitLabel = mode === "edit" ? "Save changes" : "Add transaction";
+  const defaultSubmitLabel = isEdit ? "Save changes" : "Add transaction";
+  // In edit mode the field key drops the category dep so re-categorization
+  // doesn't remount the inputs (and discard the user's typed values). In add
+  // mode the category change is the signal to re-pre-fill from history.
+  const fieldsKey = isEdit
+    ? `edit:${editing.id}:${resetCount}`
+    : `${categoryId ?? "_none_"}:${resetCount}`;
 
   return (
     <form action={formAction} className={cn("space-y-3", className)}>
       <input type="hidden" name="categoryId" value={categoryId ?? ""} />
+      {isEdit && (
+        <>
+          <input type="hidden" name="id" value={editing.id} />
+          <input
+            type="hidden"
+            name="originalCategoryId"
+            value={editing.categoryId}
+          />
+        </>
+      )}
 
       <CategoryPicker
         categories={categories}
@@ -96,10 +127,11 @@ export function TransactionForm({
       />
 
       <TransactionFields
-        key={`${categoryId ?? "_none_"}:${resetCount}`}
+        key={fieldsKey}
         kind={selected?.kind}
         prefill={prefill}
         vendorOptions={vendorOptions}
+        useDateFromPrefill={isEdit}
       />
 
       {state.error && (
@@ -112,7 +144,7 @@ export function TransactionForm({
         <SubmitButton
           disabled={!categoryId}
           label={submitLabel ?? defaultSubmitLabel}
-          pendingLabel={mode === "edit" ? "Saving…" : "Adding…"}
+          pendingLabel={isEdit ? "Saving…" : "Adding…"}
         />
       </div>
     </form>
@@ -130,13 +162,22 @@ function TransactionFields({
   kind,
   prefill,
   vendorOptions,
+  useDateFromPrefill,
 }: {
   kind: CategoryKind | undefined;
   prefill: Transaction | undefined;
   vendorOptions: string[];
+  /**
+   * Add mode pre-fills vendor/amount/note from history but always defaults
+   * the date to today (story 31). Edit mode pre-fills the date from the row
+   * being edited as well, so the form can round-trip an existing transaction
+   * without surprising re-dating.
+   */
+  useDateFromPrefill: boolean;
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
+  const initialDate = useDateFromPrefill ? prefill?.date ?? today : today;
+  const [date, setDate] = useState(initialDate);
   const [amount, setAmount] = useState(prefill ? Math.abs(prefill.amount).toString() : "");
   const [sign, setSign] = useState<"+" | "-">(prefill && prefill.amount < 0 ? "-" : "+");
   const [vendor, setVendor] = useState(prefill?.vendor ?? "");
