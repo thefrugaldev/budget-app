@@ -4,12 +4,16 @@ import {
   aggregateRange,
   computeSavingsRate,
   isCategoryActiveForMonth,
+  isRangePreset,
   monthTotalsByCategory,
   monthlyTotalsLastN,
   monthsInRange,
+  rangeLabel,
+  resolveRange,
   resolveTargetForMonth,
   thresholdFor,
   ytdTotalsByCategory,
+  type RangePreset,
 } from "./budget";
 
 const expenseCat = (overrides: Partial<Category> = {}): Category => ({
@@ -324,6 +328,84 @@ describe("thresholdFor income kind — positive-side boundaries", () => {
   it("aligns with the incomeCat helper", () => {
     const cat = incomeCat();
     expect(thresholdFor(cat.kind, 5000, 6000)).toBe("over");
+  });
+});
+
+describe("resolveRange", () => {
+  // Anchor every case at 2026-06-08 so the assertions are deterministic.
+  const today = new Date("2026-06-08T00:00:00Z");
+
+  const cases: Array<{
+    preset: RangePreset;
+    ymStart: string;
+    ymEnd: string;
+  }> = [
+    { preset: "this-month", ymStart: "2026-06", ymEnd: "2026-06" },
+    { preset: "last-month", ymStart: "2026-05", ymEnd: "2026-05" },
+    { preset: "last-3-months", ymStart: "2026-04", ymEnd: "2026-06" },
+    { preset: "ytd", ymStart: "2026-01", ymEnd: "2026-06" },
+    { preset: "last-12-months", ymStart: "2025-07", ymEnd: "2026-06" },
+  ];
+
+  for (const c of cases) {
+    it(`${c.preset} → [${c.ymStart}, ${c.ymEnd}]`, () => {
+      expect(resolveRange(c.preset, today)).toEqual({
+        preset: c.preset,
+        ymStart: c.ymStart,
+        ymEnd: c.ymEnd,
+      });
+    });
+  }
+
+  it("last-month rolls year backward in January", () => {
+    const jan = new Date("2026-01-15T00:00:00Z");
+    expect(resolveRange("last-month", jan)).toEqual({
+      preset: "last-month",
+      ymStart: "2025-12",
+      ymEnd: "2025-12",
+    });
+  });
+
+  it("last-12-months spans Dec→Nov across a year boundary", () => {
+    const dec = new Date("2026-12-15T00:00:00Z");
+    expect(resolveRange("last-12-months", dec)).toEqual({
+      preset: "last-12-months",
+      ymStart: "2026-01",
+      ymEnd: "2026-12",
+    });
+  });
+
+  it("ytd in January is the single-month range Jan→Jan", () => {
+    const jan = new Date("2026-01-15T00:00:00Z");
+    expect(resolveRange("ytd", jan)).toEqual({
+      preset: "ytd",
+      ymStart: "2026-01",
+      ymEnd: "2026-01",
+    });
+  });
+});
+
+describe("rangeLabel", () => {
+  it("returns the human-readable label for each preset", () => {
+    expect(rangeLabel("this-month")).toBe("This month");
+    expect(rangeLabel("last-month")).toBe("Last month");
+    expect(rangeLabel("last-3-months")).toBe("Last 3 months");
+    expect(rangeLabel("ytd")).toBe("YTD");
+    expect(rangeLabel("last-12-months")).toBe("Last 12 months");
+  });
+});
+
+describe("isRangePreset", () => {
+  it("accepts every preset", () => {
+    expect(isRangePreset("this-month")).toBe(true);
+    expect(isRangePreset("ytd")).toBe(true);
+  });
+
+  it("rejects unknown strings and non-strings", () => {
+    expect(isRangePreset("forever")).toBe(false);
+    expect(isRangePreset(undefined)).toBe(false);
+    expect(isRangePreset(null)).toBe(false);
+    expect(isRangePreset(7)).toBe(false);
   });
 });
 

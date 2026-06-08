@@ -1,76 +1,108 @@
 import { CategoryCard } from "@/components/budget/CategoryCard";
+import { RangeSelector } from "@/components/budget/RangeSelector";
 import {
-  currentMonthKey,
+  aggregateRange,
   fmt,
-  monthLabel,
-  monthTotalsByCategory,
+  isRangePreset,
+  rangeLabel,
+  resolveRange,
   resolveTargetForMonth,
-  ytdTotalsByCategory,
+  type RangePreset,
 } from "@/lib/budget";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
 import { listAllTransactions } from "@/lib/repositories/transactions";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string | string[] }>;
+}) {
   await ensureSeeded();
-  const [categories, targets, transactions] = await Promise.all([
+  const [{ range: rangeParam }, categories, targets, transactions] = await Promise.all([
+    searchParams,
     listCategories(),
     listCategoryTargets(),
     listAllTransactions(),
   ]);
 
+  const raw = Array.isArray(rangeParam) ? rangeParam[0] : rangeParam;
+  const preset: RangePreset = isRangePreset(raw) ? raw : "this-month";
   const now = new Date();
-  const monthKey = currentMonthKey(now);
-  const ytd = ytdTotalsByCategory(transactions, categories, now);
-  const thisMonth = monthTotalsByCategory(transactions, categories, monthKey);
+  const range = resolveRange(preset, now);
+
+  const aggregates = aggregateRange(
+    transactions,
+    categories,
+    range.ymStart,
+    range.ymEnd,
+    targets,
+  );
+  const aggregateById = new Map(aggregates.map((row) => [row.categoryId, row]));
 
   const expenses = categories.filter((c) => c.kind === "expense");
   const savings = categories.filter((c) => c.kind === "savings");
-  const ytdExpense = expenses.reduce((s, c) => s + (ytd.get(c.id) ?? 0), 0);
-  const ytdSavings = savings.reduce((s, c) => s + (ytd.get(c.id) ?? 0), 0);
+  const expenseTotal = expenses.reduce(
+    (s, c) => s + (aggregateById.get(c.id)?.total ?? 0),
+    0,
+  );
+  const savingsTotal = savings.reduce(
+    (s, c) => s + (aggregateById.get(c.id)?.total ?? 0),
+    0,
+  );
   const monthsIn = now.getUTCMonth() + now.getUTCDate() / 30;
+  const rangeText = rangeLabel(preset);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-28">
-      <header className="mb-8">
-        <p className="text-sm text-muted-foreground">{monthLabel(monthKey)}</p>
+      <header className="mb-6">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">Pulse</h1>
       </header>
 
+      <div className="mb-8">
+        <RangeSelector active={preset} basePath="/" />
+      </div>
+
       <div className="mb-10 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <HeroKpi emoji="💸" label="Spent YTD" value={fmt(ytdExpense)} />
-        <HeroKpi emoji="🌱" label="Saved YTD" value={fmt(ytdSavings)} positive />
+        <HeroKpi emoji="💸" label="Spent" value={fmt(expenseTotal)} sub={rangeText} />
+        <HeroKpi emoji="🌱" label="Saved" value={fmt(savingsTotal)} sub={rangeText} positive />
         <HeroKpi emoji="📅" label="Months in" value={monthsIn.toFixed(1)} sub="of 12" />
       </div>
 
-      <SectionHeading>Expenses · this month</SectionHeading>
+      <SectionHeading>Expenses · {rangeText.toLowerCase()}</SectionHeading>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {expenses.map((c) => (
-          <CategoryCard
-            key={c.id}
-            category={c}
-            target={resolveTargetForMonth(c.id, monthKey, targets)}
-            monthAmount={thisMonth.get(c.id) ?? 0}
-            ytdAmount={ytd.get(c.id) ?? 0}
-            transactions={transactions}
-          />
-        ))}
-      </div>
-
-      <div className="mt-8">
-        <SectionHeading>Savings · this month</SectionHeading>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {savings.map((c) => (
+        {expenses.map((c) => {
+          const agg = aggregateById.get(c.id);
+          return (
             <CategoryCard
               key={c.id}
               category={c}
-              target={resolveTargetForMonth(c.id, monthKey, targets)}
-              monthAmount={thisMonth.get(c.id) ?? 0}
-              ytdAmount={ytd.get(c.id) ?? 0}
+              total={agg?.total ?? 0}
+              denominator={agg?.denominator ?? 0}
+              perMonthTarget={resolveTargetForMonth(c.id, range.ymEnd, targets)}
               transactions={transactions}
             />
-          ))}
+          );
+        })}
+      </div>
+
+      <div className="mt-8">
+        <SectionHeading>Savings · {rangeText.toLowerCase()}</SectionHeading>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {savings.map((c) => {
+            const agg = aggregateById.get(c.id);
+            return (
+              <CategoryCard
+                key={c.id}
+                category={c}
+                total={agg?.total ?? 0}
+                denominator={agg?.denominator ?? 0}
+                perMonthTarget={resolveTargetForMonth(c.id, range.ymEnd, targets)}
+                transactions={transactions}
+              />
+            );
+          })}
         </div>
       </div>
 

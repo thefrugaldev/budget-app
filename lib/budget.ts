@@ -53,6 +53,68 @@ export function currentYearStart(today = new Date()): string {
   return `${today.getUTCFullYear()}-01-01`;
 }
 
+export const RANGE_PRESETS = [
+  "this-month",
+  "last-month",
+  "last-3-months",
+  "ytd",
+  "last-12-months",
+] as const;
+
+export type RangePreset = (typeof RANGE_PRESETS)[number];
+
+export type RangeSelection = {
+  preset: RangePreset;
+  ymStart: string;
+  ymEnd: string;
+};
+
+const PRESET_LABELS: Record<RangePreset, string> = {
+  "this-month": "This month",
+  "last-month": "Last month",
+  "last-3-months": "Last 3 months",
+  ytd: "YTD",
+  "last-12-months": "Last 12 months",
+};
+
+export function rangeLabel(preset: RangePreset): string {
+  return PRESET_LABELS[preset];
+}
+
+export function isRangePreset(value: unknown): value is RangePreset {
+  return typeof value === "string" && (RANGE_PRESETS as readonly string[]).includes(value);
+}
+
+function shiftMonth(ym: string, offset: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  // JS Date normalizes overflow/underflow in month indices, which is what we want here.
+  const d = new Date(Date.UTC(y, m - 1 + offset, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Maps a preset to a `[ymStart, ymEnd]` window anchored at `today`. The end
+ * is always the current month — even for YTD and Last-12, the in-progress
+ * month is included so KPIs update as transactions land.
+ */
+export function resolveRange(preset: RangePreset, today = new Date()): RangeSelection {
+  const thisMonth = currentMonthKey(today);
+  switch (preset) {
+    case "this-month":
+      return { preset, ymStart: thisMonth, ymEnd: thisMonth };
+    case "last-month": {
+      const last = shiftMonth(thisMonth, -1);
+      return { preset, ymStart: last, ymEnd: last };
+    }
+    case "last-3-months":
+      return { preset, ymStart: shiftMonth(thisMonth, -2), ymEnd: thisMonth };
+    case "ytd":
+      return { preset, ymStart: `${today.getUTCFullYear()}-01`, ymEnd: thisMonth };
+    case "last-12-months":
+      return { preset, ymStart: shiftMonth(thisMonth, -11), ymEnd: thisMonth };
+  }
+}
+
 export type ThresholdState = "under" | "near" | "at" | "over";
 
 /**
