@@ -21,7 +21,11 @@ export function ensureIndexes(db: Db): Promise<void> {
       db
         .collection(COLLECTIONS.categories)
         .dropIndex("name_1")
-        .catch(() => undefined),
+        .catch((err: { code?: number }) => {
+          // 27 = `IndexNotFound`. Anything else (permissions, connectivity)
+          // surfaces — silently swallowing those would mask real ops issues.
+          if (err?.code !== 27) throw err;
+        }),
       db
         .collection(COLLECTIONS.categoryTargets)
         .createIndex({ categoryId: 1, effectiveFrom: 1 }, { unique: true }),

@@ -127,16 +127,15 @@ export function IncomeEditDialog({
 
 /**
  * Detects the post-action success transition: emits a success toast and
- * invokes `onDone` once when the `ok` counter increments. The success
- * message is read from a ref so callers can compute it at submit time
- * (e.g. branching on the apply-this-month checkbox) without re-running
- * the effect for every keystroke. On failure the dialog stays open (so the
- * inline error is visible) and no toast is fired — the error is co-located
- * with the form, not announced separately.
+ * invokes `onDone` once when the `ok` counter increments. The message is
+ * computed lazily (only on success), so a closure over fast-changing form
+ * state — yearly input, apply-this-month checkbox — is fine. On failure the
+ * dialog stays open (so the inline error is visible) and no toast fires:
+ * the error is co-located with the form, not announced separately.
  */
 function useSuccessEffect(
   state: IncomeActionState,
-  messageRef: React.MutableRefObject<string>,
+  computeMessage: () => string,
   onDone: () => void,
 ) {
   const notify = useNotify();
@@ -144,10 +143,10 @@ function useSuccessEffect(
   useEffect(() => {
     if (state.ok > lastSeen.current && !state.error) {
       lastSeen.current = state.ok;
-      notify.success(messageRef.current);
+      notify.success(computeMessage());
       onDone();
     }
-  }, [state, onDone, notify, messageRef]);
+  }, [state, onDone, notify, computeMessage]);
 }
 
 function IncomeSourceForm({
@@ -173,20 +172,22 @@ function IncomeSourceForm({
     INCOME_ACTION_INITIAL,
   );
 
-  // Refs let useSuccessEffect read the latest computed message without
-  // re-running for every keystroke. Written inside an effect — React 19's
-  // strict mode forbids ref mutation during render.
-  const updateMessageRef = useRef("Baseline updated");
-  const endMessageRef = useRef("Income source ended");
-  useEffect(() => {
-    updateMessageRef.current = `Baseline updated · effective ${monthLabel(
-      applyThisMonth ? currentMonth : nextMonth(currentMonth),
-    )}`;
-    endMessageRef.current = `${source.name} ends after ${monthLabel(currentMonth)}`;
-  });
-
-  useSuccessEffect(updateState, updateMessageRef, onDone);
-  useSuccessEffect(endState, endMessageRef, onDone);
+  // Messages are computed lazily inside useSuccessEffect's success branch,
+  // so the closure picks up the *latest* applyThisMonth / currentMonth at
+  // commit time without any per-render bookkeeping.
+  useSuccessEffect(
+    updateState,
+    () =>
+      `Baseline updated · effective ${monthLabel(
+        applyThisMonth ? currentMonth : nextMonth(currentMonth),
+      )}`,
+    onDone,
+  );
+  useSuccessEffect(
+    endState,
+    () => `${source.name} ends after ${monthLabel(currentMonth)}`,
+    onDone,
+  );
 
   const error = updateState.error ?? endState.error;
 
@@ -301,8 +302,7 @@ function AddSourceForm({
     createIncomeSourceAction,
     INCOME_ACTION_INITIAL,
   );
-  const messageRef = useRef("Income source added");
-  useSuccessEffect(state, messageRef, onDone);
+  useSuccessEffect(state, () => "Income source added", onDone);
 
   return (
     <form
