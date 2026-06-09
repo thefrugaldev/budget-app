@@ -5,9 +5,13 @@ import { Pencil } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { endCategoryAction } from "@/app/actions/categories";
+import {
+  CATEGORY_ACTION_INITIAL,
+  type CategoryActionState,
+} from "@/app/actions/category-state";
 import {
   createIncomeSourceAction,
-  endIncomeSourceAction,
   updateIncomeBaselineAction,
 } from "@/app/actions/income";
 import {
@@ -133,8 +137,12 @@ export function IncomeEditDialog({
  * dialog stays open (so the inline error is visible) and no toast fires:
  * the error is co-located with the form, not announced separately.
  */
+// Accepts either `IncomeActionState` or `CategoryActionState` (or any
+// future action shape that exposes the same success-counter convention) —
+// the End action now points at the category-side, which carries an extra
+// optional `id` we don't read here.
 function useSuccessEffect(
-  state: IncomeActionState,
+  state: IncomeActionState | CategoryActionState,
   computeMessage: () => string,
   onDone: () => void,
 ) {
@@ -167,9 +175,15 @@ function IncomeSourceForm({
     updateIncomeBaselineAction,
     INCOME_ACTION_INITIAL,
   );
+  // End / Reopen of an income source now goes through the shared
+  // `endCategoryAction` so there's a single end-category path regardless
+  // of which surface the user clicks from. The two-action split this used
+  // to have was incidental (different revalidation + message), and the
+  // shared action's `assertIncomeCategory` guard was redundant — the
+  // header pencil only ever surfaces income categories.
   const [endState, endAction] = useActionState(
-    endIncomeSourceAction,
-    INCOME_ACTION_INITIAL,
+    endCategoryAction,
+    CATEGORY_ACTION_INITIAL,
   );
 
   // Messages are computed lazily inside useSuccessEffect's success branch,
@@ -185,7 +199,7 @@ function IncomeSourceForm({
   );
   useSuccessEffect(
     endState,
-    () => `${source.name} ends after ${monthLabel(currentMonth)}`,
+    () => `${source.name} ended after ${monthLabel(currentMonth)}`,
     onDone,
   );
 
@@ -279,7 +293,10 @@ function IncomeSourceForm({
       </form>
       {!isEnded && (
         <form action={endAction} className="mt-2 flex justify-end">
-          <input type="hidden" name="categoryId" value={source.id} />
+          {/* endCategoryAction reads `id` (not `categoryId`); the update
+              form above still posts `categoryId` because that's what
+              updateIncomeBaselineAction expects. */}
+          <input type="hidden" name="id" value={source.id} />
           <SubmitButton
             label="End source"
             pendingLabel="Ending…"
