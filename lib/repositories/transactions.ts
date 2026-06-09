@@ -89,6 +89,15 @@ export async function listTransactionsForMonth(
   return docs.map(toTransaction);
 }
 
+export async function countTransactionsForCategory(
+  categoryId: string,
+): Promise<number> {
+  const db = await getDb();
+  return db
+    .collection<TransactionDocument>(COLLECTIONS.transactions)
+    .countDocuments({ categoryId });
+}
+
 export async function listAllTransactions(): Promise<Transaction[]> {
   const db = await getDb();
   await ensureIndexes(db);

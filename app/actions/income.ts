@@ -6,7 +6,6 @@ import { currentMonthKey, nextMonth } from "@/lib/budget";
 import {
   createCategory,
   getCategoryById,
-  updateCategory,
 } from "@/lib/repositories/categories";
 import {
   createCategoryTarget,
@@ -106,22 +105,9 @@ export async function createIncomeSourceAction(
   }
 }
 
-/**
- * Ends an income source by setting `activeUntil` to the current month — the
- * source still counts for the current month's pro-rated baseline but is
- * excluded from next month forward.
- */
-export async function endIncomeSourceAction(
-  prev: IncomeActionState,
-  formData: FormData,
-): Promise<IncomeActionState> {
-  try {
-    const categoryId = requireString(formData.get("categoryId"), "categoryId");
-    await assertIncomeCategory(categoryId);
-    await updateCategory(categoryId, { activeUntil: currentMonthKey() });
-    revalidatePath("/");
-    return success(prev);
-  } catch (err) {
-    return failure(prev, err);
-  }
-}
+// `endIncomeSourceAction` was here. Removed during chunk 9 cleanup: the
+// detail-page panel and the header income dialog now both go through
+// `endCategoryAction` in `app/actions/categories.ts`, so there's one end
+// path regardless of which surface the user clicks. The income-only
+// `assertIncomeCategory` guard it had was incidental — the header pencil
+// only ever lists income categories anyway.

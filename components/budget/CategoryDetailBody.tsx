@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { CategoryEditPanel } from "@/components/budget/CategoryEditPanel";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
@@ -11,6 +12,7 @@ import {
   aggregateRange,
   currentMonthKey,
   fmt,
+  monthLabelShort,
   monthlyTotalsLastN,
   resolveTargetForMonth,
   targetLabel,
@@ -99,6 +101,15 @@ export function CategoryDetailBody({
     [visibleTxns, category.id, range],
   );
 
+  // Live count of this category's transactions across all of time. Drives the
+  // Delete / End-category gate inside `CategoryEditPanel` — when the user
+  // optimistically deletes the last transaction, the Delete button flips on
+  // immediately without waiting for revalidation.
+  const txCountForCategory = useMemo(
+    () => visibleTxns.filter((t) => t.categoryId === category.id).length,
+    [visibleTxns, category.id],
+  );
+
   return (
     <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
       <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
@@ -111,18 +122,29 @@ export function CategoryDetailBody({
           {isNegative && (
             <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-rose-500" />
           )}
-          <div className="mb-3 flex items-center gap-3">
-            <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
-              {category.emoji}
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
+                {category.emoji}
+              </div>
+              <div>
+                <h1 className="font-heading text-lg font-semibold leading-tight">
+                  {category.name}
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  {label} · {fmt(perMonthTarget)}/mo
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-heading text-lg font-semibold leading-tight">
-                {category.name}
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                {label} · {fmt(perMonthTarget)}/mo
-              </p>
-            </div>
+            {category.activeUntil && (
+              <span
+                className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900"
+                title={`Ended after ${category.activeUntil}`}
+              >
+                Ended {monthLabelShort(category.activeUntil)}{" "}
+                {category.activeUntil.slice(0, 4)}
+              </span>
+            )}
           </div>
           <p className={cn("font-heading text-3xl font-semibold tabular-nums", col.text)}>
             <SignedAmount kind={category.kind} amount={total} />
@@ -163,19 +185,12 @@ export function CategoryDetailBody({
           />
         </div>
 
-        <details className="rounded-2xl bg-card p-4 text-sm ring-1 ring-border">
-          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Threshold
-          </summary>
-          <div className="mt-3 grid grid-cols-[110px_1fr] items-center gap-y-2">
-            <label htmlFor="monthly">Monthly</label>
-            <input
-              id="monthly"
-              defaultValue={perMonthTarget}
-              className="rounded-md bg-background px-2 py-1.5 ring-1 ring-border outline-none focus:ring-ring"
-            />
-          </div>
-        </details>
+        <CategoryEditPanel
+          category={category}
+          targets={targets}
+          txCount={txCountForCategory}
+          now={now}
+        />
       </aside>
 
       <section>
