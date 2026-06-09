@@ -171,18 +171,35 @@ function DetailsForm({ category }: { category: Category }) {
           ))}
         </select>
       </label>
-      <label className="block space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">
-          Active from
-        </span>
-        <input
-          name="activeFrom"
-          type="month"
-          defaultValue={category.activeFrom}
-          required
-          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
-        />
-      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            Active from
+          </span>
+          <input
+            name="activeFrom"
+            type="month"
+            defaultValue={category.activeFrom}
+            required
+            className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            Active until
+          </span>
+          <input
+            name="activeUntil"
+            type="month"
+            defaultValue={category.activeUntil ?? ""}
+            className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+          />
+        </label>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Leave Active until empty for an open-ended category. End / Reopen
+        buttons below are shortcuts for the common cases.
+      </p>
       {state.error && (
         <p role="alert" className="text-xs text-destructive">
           {state.error}

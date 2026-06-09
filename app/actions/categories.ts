@@ -83,9 +83,11 @@ export async function createCategoryAction(
 
 /**
  * Patches the editable attributes of a category — name, emoji, kind, and the
- * `activeFrom` lower bound. Target changes go through `updateCategoryTargetAction`;
- * `activeUntil` is set via `endCategoryAction` (or cleared via the dedicated
- * action). Keeping these split mirrors the menu/affordance split in the UI.
+ * full active range (`activeFrom` + optional `activeUntil`). Target changes go
+ * through `upsertCategoryTargetAction`. `endCategoryAction` is the one-click
+ * "retire as of this month" shortcut; this action is the long-form path that
+ * also lets the user pick an arbitrary end month or clear it entirely
+ * (matching the `reopenCategoryAction` one-click path).
  */
 export async function updateCategoryAction(
   prev: CategoryActionState,
@@ -100,8 +102,23 @@ export async function updateCategoryAction(
     const emoji = (formData.get("emoji") as string | null)?.trim() || cat.emoji;
     const kind = parseCategoryKind(formData.get("kind"));
     const activeFrom = parseMonthKey(formData.get("activeFrom"), "Active from");
+    const activeUntil = parseOptionalMonthKey(
+      formData.get("activeUntil"),
+      "Active until",
+    );
+    if (activeUntil !== undefined && activeUntil < activeFrom) {
+      throw new Error("Active until must be on or after Active from");
+    }
 
-    await updateCategory(id, { name, emoji, kind, activeFrom });
+    await updateCategory(id, {
+      name,
+      emoji,
+      kind,
+      activeFrom,
+      ...(activeUntil !== undefined
+        ? { activeUntil }
+        : { clearActiveUntil: true }),
+    });
     revalidateCategory(id);
     return success(prev, id);
   } catch (err) {
