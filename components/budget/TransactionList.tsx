@@ -2,12 +2,13 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
-import { MoreHorizontal, Pencil, Trash2, Undo2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { deleteTransactionAction } from "@/app/actions/transactions";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { TransactionForm } from "@/components/budget/TransactionForm";
+import { useNotify } from "@/components/notify";
 import {
   dayLabel,
   matchesTransactionFilter,
@@ -24,32 +25,43 @@ const EMPTY_FILTER: TransactionFilter = {
   dateTo: "",
 };
 
+type Notify = ReturnType<typeof useNotify>;
+
 type PendingDelete = {
   transaction: Transaction;
   timer: ReturnType<typeof setTimeout>;
+  /** Stable id for the undo toast in the shared notify queue. */
+  toastId: string;
   /**
    * `true` once the undo timer has fired and the action is awaiting. The row
-   * stays hidden through the RTT (no optimistic flash), and the unmount
-   * cleanup skips firing the action a second time when the work is already in
-   * progress.
+   * stays hidden through the RTT (no optimistic flash), the unmount cleanup
+   * skips firing the action a second time when work is already in progress,
+   * and the toast's Undo button is disabled.
    */
   inFlight: boolean;
 };
 
-function reportDeleteError(result: { error: string | null }) {
-  if (result.error) console.error("deleteTransactionAction failed:", result.error);
+function reportDeleteError(notify: Notify) {
+  return (result: { error: string | null }) => {
+    if (!result.error) return;
+    console.error("deleteTransactionAction failed:", result.error);
+    notify.error("Delete failed", result.error);
+  };
 }
 
 /**
- * Client-side transaction list for the category detail page (chunk 8):
+ * Client-side transaction list for the category detail page (chunk 8 +
+ * issue #10):
  *
  * - Filter row narrows by vendor / date range / free-text (stories 24, 64).
  * - Each row has a `…` overflow menu with Edit / Delete (story 43).
  * - Edit opens the shared TransactionForm in edit mode (story 44) — the
  *   category is editable inside that form for re-categorization (story 45).
- * - Delete is optimistic: the row disappears immediately and a toast offers
- *   ~5s to undo; on expiry the server delete fires (story 46, 47). No soft-
- *   delete. Navigating away during the window cancels the delete.
+ * - Delete is optimistic: the row disappears immediately and a custom toast
+ *   in the shared `useNotify` queue offers ~5s to undo; on expiry the
+ *   server delete fires (story 46, 47). No soft-delete. Navigating away
+ *   during the window finalizes the delete (the action keeps running past
+ *   the React unmount).
  */
 export function TransactionList({
   category,
@@ -59,6 +71,7 @@ export function TransactionList({
   rangeText,
   now,
   isInflow,
+  onHiddenIdChange,
 }: {
   category: Category;
   categories: Category[];
@@ -69,19 +82,25 @@ export function TransactionList({
   rangeText: string;
   now: Date;
   isInflow: boolean;
+  /**
+   * Reports the currently-hidden (optimistically-deleted) row id up to a
+   * parent so sidebar aggregates can subtract the row and update headline
+   * totals immediately. Undefined when no row is hidden.
+   */
+  onHiddenIdChange?: (id: string | undefined) => void;
 }) {
   const [filter, setFilter] = useState<TransactionFilter>(EMPTY_FILTER);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
+  const notify = useNotify();
 
   // Flush any pending delete when the component unmounts. The user's last
-  // intent was "delete this row"; navigating away (or otherwise unmounting
-  // the list) before the timer fires shouldn't silently resurrect it. We
-  // fire-and-forget the action — the POST continues in the browser past the
-  // React unmount, and the action's revalidatePath calls flush the route
-  // cache so the next render of the budget / detail pages reflects the delete.
-  // When the timer has already fired (`inFlight`), the action is in progress
-  // and we skip the cleanup fire so we don't double-delete.
+  // intent was "delete this row"; navigating away before the timer fires
+  // shouldn't silently resurrect it. We fire-and-forget the action — the
+  // POST continues past the React unmount and the action's revalidatePath
+  // calls flush the route cache. When the timer has already fired
+  // (`inFlight`), the action is in progress; the timer callback will dismiss
+  // the toast when it completes, so we just leave it alone.
   const pendingRef = useRef<PendingDelete | null>(null);
   useEffect(() => {
     pendingRef.current = pending;
@@ -92,56 +111,95 @@ export function TransactionList({
       if (!p) return;
       clearTimeout(p.timer);
       if (p.inFlight) return;
+      // Take the toast out of "you can undo" mode immediately — the user
+      // navigated away, so the action's going to commit and Undo can't
+      // rescue it. The toast self-dismisses once the action resolves.
+      notify.update(p.toastId, {
+        data: {
+          vendorLabel: p.transaction.vendor ?? "transaction",
+          inFlight: true,
+          onUndo: () => {},
+        },
+      });
       void deleteTransactionAction({
         id: p.transaction.id,
         categoryId: p.transaction.categoryId,
-      }).then(reportDeleteError);
+      }).then((result) => {
+        reportDeleteError(notify)(result);
+        notify.dismiss(p.toastId);
+      });
     };
+    // notify is referentially stable across renders (memoized by useNotify);
+    // closing over it for the unmount cleanup is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startDelete(transaction: Transaction) {
-    // Stacking deletes: clicking Delete while a previous toast is showing
-    // finalizes the prior delete and starts a new toast. Single-slot UI keeps
-    // the bottom-left corner uncluttered. If the prior is already in flight,
-    // it'll finish on its own — don't fire it again.
+    // Stacking deletes: clicking Delete while a prior toast is showing
+    // finalizes the prior delete and starts a new toast. If the prior is
+    // already in flight, leave it alone — its own timer callback will
+    // dismiss its toast when the action resolves.
     if (pending) {
       clearTimeout(pending.timer);
       if (!pending.inFlight) {
         const prior = pending.transaction;
+        notify.dismiss(pending.toastId);
         void deleteTransactionAction({
           id: prior.id,
           categoryId: prior.categoryId,
-        }).then(reportDeleteError);
+        }).then(reportDeleteError(notify));
       }
     }
+
+    // The same transaction can only be in one pending-delete slot at a time
+    // (deleting hides the row), so a stable id per transaction is collision-
+    // free here. Reusing it after a prior toast dismissed is fine — Base UI
+    // treats `add({id})` as upsert.
+    const toastId = `undo-delete:${transaction.id}`;
+    const vendorLabel = transaction.vendor ?? "transaction";
+
     const timer = setTimeout(async () => {
-      // Mark in-flight *before* awaiting so the unmount cleanup doesn't
-      // double-fire and the row stays hidden through the action's RTT.
-      // Without this `await`, `setPending(null)` ran synchronously and the
-      // row briefly reappeared until revalidation rebuilt the parent.
+      // Flip to in-flight *before* awaiting so the unmount cleanup doesn't
+      // double-fire, the row stays hidden through the action's RTT, and the
+      // toast's Undo button is disabled. Without this, `setPending(null)`
+      // ran synchronously and the row flashed back for one render before
+      // revalidation rebuilt the parent.
       setPending((cur) =>
         cur?.transaction.id === transaction.id ? { ...cur, inFlight: true } : cur,
       );
+      notify.update(toastId, {
+        data: { vendorLabel, inFlight: true, onUndo: () => {} },
+      });
       const result = await deleteTransactionAction({
         id: transaction.id,
         categoryId: transaction.categoryId,
       });
-      reportDeleteError(result);
+      reportDeleteError(notify)(result);
+      notify.dismiss(toastId);
       setPending((cur) => (cur?.transaction.id === transaction.id ? null : cur));
     }, UNDO_WINDOW_MS);
-    setPending({ transaction, timer, inFlight: false });
-  }
 
-  function undoDelete() {
-    // Undo is only meaningful before the timer fires. Once the action is in
-    // flight, the server has already started the delete; clicking Undo here
-    // would just hide the toast without rescuing the row.
-    if (!pending || pending.inFlight) return;
-    clearTimeout(pending.timer);
-    setPending(null);
+    notify.undoDelete({
+      id: toastId,
+      vendorLabel,
+      onUndo: () =>
+        setPending((cur) => {
+          if (!cur || cur.toastId !== toastId || cur.inFlight) return cur;
+          clearTimeout(cur.timer);
+          notify.dismiss(cur.toastId);
+          return null;
+        }),
+    });
+
+    setPending({ transaction, timer, toastId, inFlight: false });
   }
 
   const hiddenId = pending?.transaction.id;
+  // Mirror the hidden id up to the parent so sidebar aggregates can subtract
+  // it (story 46-adjacent — totals should match the visible list).
+  useEffect(() => {
+    onHiddenIdChange?.(hiddenId);
+  }, [hiddenId, onHiddenIdChange]);
   const filtered = useMemo(
     () =>
       transactions.filter((t) => {
@@ -197,8 +255,6 @@ export function TransactionList({
         categories={categories}
         allTransactions={allTransactions}
       />
-
-      <UndoToast pending={pending} onUndo={undoDelete} />
     </>
   );
 }
@@ -360,41 +416,5 @@ function EditDialog({
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
-  );
-}
-
-function UndoToast({
-  pending,
-  onUndo,
-}: {
-  pending: PendingDelete | null;
-  onUndo: () => void;
-}) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        "fixed bottom-8 left-8 z-30 flex items-center gap-3 rounded-lg bg-card px-4 py-3 text-sm shadow-xl ring-1 ring-border transition-opacity",
-        !pending && "pointer-events-none opacity-0",
-      )}
-    >
-      {pending && (
-        <>
-          <span>
-            Deleted <strong>{pending.transaction.vendor ?? "transaction"}</strong>
-          </span>
-          <button
-            type="button"
-            onClick={onUndo}
-            disabled={pending.inFlight}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-          >
-            <Undo2 className="size-3.5" aria-hidden />
-            Undo
-          </button>
-        </>
-      )}
-    </div>
   );
 }

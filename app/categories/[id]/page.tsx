@@ -1,24 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
+import { CategoryDetailBody } from "@/components/budget/CategoryDetailBody";
 import { RangeSelector } from "@/components/budget/RangeSelector";
-import { SignedAmount } from "@/components/budget/SignedAmount";
-import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
-import { TransactionForm } from "@/components/budget/TransactionForm";
-import { TransactionList } from "@/components/budget/TransactionList";
 import {
-  aggregateRange,
-  currentMonthKey,
-  fmt,
   isRangePreset,
-  monthlyTotalsLastN,
   rangeLabel,
   resolveRange,
-  resolveTargetForMonth,
-  targetLabel,
-  thresholdColor,
-  thresholdFor,
   type RangePreset,
 } from "@/lib/budget";
 import { ensureSeeded } from "@/lib/db/seed";
@@ -50,42 +38,12 @@ export default async function CategoryDetail({
   const range = resolveRange(preset, now);
   const rangeText = rangeLabel(preset);
 
-  const [agg] = aggregateRange(
-    transactions,
-    [category],
-    range.ymStart,
-    range.ymEnd,
-    targets,
-  );
-  const total = agg.total;
-  const denominator = agg.denominator;
-  const perMonthTarget = resolveTargetForMonth(category.id, range.ymEnd, targets);
-  const state = thresholdFor(category.kind, denominator, total);
-  const col = thresholdColor(category.kind, state);
-  const pct = denominator === 0 ? 0 : total / denominator;
-  const isInflow = category.kind !== "expense";
-  const label = targetLabel(category.kind);
-  const isNegative = total < 0;
-
-  const trend: MonthBarDatum[] = monthlyTotalsLastN(transactions, category.id, 6, now).map(
-    (m) => ({
-      ym: m.ym,
-      total: m.total,
-      target: resolveTargetForMonth(category.id, m.ym, targets),
-    }),
-  );
-
-  const txns = transactions
-    .filter((t) => {
-      if (t.categoryId !== category.id) return false;
-      const ym = t.date.slice(0, 7);
-      return ym >= range.ymStart && ym <= range.ymEnd;
-    })
-    .sort((a, b) => b.date.localeCompare(a.date));
-
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
-      <Link href="/" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
         ← Back to budget
       </Link>
 
@@ -93,88 +51,15 @@ export default async function CategoryDetail({
         <RangeSelector active={preset} basePath={`/categories/${category.id}`} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <div
-            className={
-              "relative overflow-hidden rounded-2xl bg-card p-5 ring-1 " +
-              (isInflow ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border")
-            }
-          >
-            {isNegative && (
-              <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-rose-500" />
-            )}
-            <div className="mb-3 flex items-center gap-3">
-              <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
-                {category.emoji}
-              </div>
-              <div>
-                <h1 className="font-heading text-lg font-semibold leading-tight">{category.name}</h1>
-                <p className="text-xs text-muted-foreground">
-                  {label} · {fmt(perMonthTarget)}/mo
-                </p>
-              </div>
-            </div>
-            <p className={"font-heading text-3xl font-semibold tabular-nums " + col.text}>
-              <SignedAmount kind={category.kind} amount={total} />
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {rangeText.toLowerCase()} · {Math.round(pct * 100)}% of {label.toLowerCase()}
-            </p>
-            <ThresholdMeter kind={category.kind} target={denominator} amount={total} className="mt-2" height="h-2" />
-          </div>
-
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Add transaction
-            </h2>
-            <TransactionForm
-              categories={categories}
-              transactions={transactions}
-              initialCategoryId={category.id}
-            />
-          </div>
-
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              6-month trend
-            </h2>
-            <MonthBarChart
-              data={trend}
-              kind={category.kind}
-              highlightYm={currentMonthKey(now)}
-              width={300}
-              height={120}
-            />
-          </div>
-
-          <details className="rounded-2xl bg-card p-4 text-sm ring-1 ring-border">
-            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Threshold
-            </summary>
-            <div className="mt-3 grid grid-cols-[110px_1fr] items-center gap-y-2">
-              <label htmlFor="monthly">Monthly</label>
-              <input
-                id="monthly"
-                defaultValue={perMonthTarget}
-                className="rounded-md bg-background px-2 py-1.5 ring-1 ring-border outline-none focus:ring-ring"
-              />
-            </div>
-          </details>
-        </aside>
-
-        <section>
-          <TransactionList
-            category={category}
-            categories={categories}
-            transactions={txns}
-            allTransactions={transactions}
-            rangeText={rangeText}
-            now={now}
-            isInflow={isInflow}
-          />
-        </section>
-      </div>
+      <CategoryDetailBody
+        category={category}
+        categories={categories}
+        transactions={transactions}
+        targets={targets}
+        range={range}
+        rangeText={rangeText}
+        now={now}
+      />
     </div>
   );
 }

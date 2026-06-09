@@ -36,8 +36,11 @@ export async function createCategory(input: {
     emoji: input.emoji,
     kind: input.kind,
     activeFrom: input.activeFrom,
-    activeUntil: input.activeUntil,
     createdAt: new Date(),
+    // Only set `activeUntil` when actually provided. Writing `undefined`
+    // makes Mongo persist `null`, which then leaks through readers as
+    // truthy-undefined and trips checks like `activeUntil !== undefined`.
+    ...(input.activeUntil !== undefined ? { activeUntil: input.activeUntil } : {}),
   };
 
   await db.collection<CategoryDocument>(COLLECTIONS.categories).insertOne(doc);

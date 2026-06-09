@@ -9,6 +9,7 @@ import { useFormStatus } from "react-dom";
 import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { TransactionForm } from "@/components/budget/TransactionForm";
+import { useNotify } from "@/components/notify";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
 
@@ -143,14 +144,16 @@ function AddIncomeSourceDialog({
     createIncomeSourceAction,
     INCOME_ACTION_INITIAL,
   );
+  const notify = useNotify();
   const lastOk = useRef(state.ok);
   useEffect(() => {
     if (!open) lastOk.current = state.ok; // resync when dialog reopens
     else if (state.ok > lastOk.current && !state.error) {
       lastOk.current = state.ok;
+      notify.success("Income source added");
       onOpenChange(false);
     }
-  }, [open, state, onOpenChange]);
+  }, [open, state, onOpenChange, notify]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
