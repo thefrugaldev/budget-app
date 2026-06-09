@@ -152,6 +152,16 @@ function DetailsForm({
   // history; the server action enforces the same rule (defense-in-depth).
   const kindLocked = txCount > 0;
 
+  // Opt-in active-until: a `<input type="month">` with no value renders an
+  // odd "—— ——" placeholder and primes the user to click into a control they
+  // probably didn't want. Hide it behind a "Set end date" button instead.
+  // Removing the input from the DOM submits no `activeUntil` field, which
+  // the server action interprets as clearActiveUntil — same outcome as
+  // submitting an empty value, but without the visual noise.
+  const [showEndDate, setShowEndDate] = useState(
+    category.activeUntil !== undefined,
+  );
+
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="id" value={category.id} />
@@ -174,56 +184,87 @@ function DetailsForm({
           className="rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
         />
       </div>
-      <label className="block space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">Kind</span>
-        <select
-          name="kind"
-          defaultValue={category.kind}
-          disabled={kindLocked}
-          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {KIND_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {kindLocked && (
+      {kindLocked ? (
+        // Disabled <select> elements don't participate in form submission,
+        // so we'd silently drop the kind value on every Details save and
+        // the action would throw "kind is required". Render the picker as
+        // a read-only summary line with a hidden input carrying the value
+        // instead — also a cleaner visual than a permanently-disabled
+        // dropdown.
+        <div className="space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">
+            Kind
+          </span>
+          <p className="text-sm">{KIND_LABELS[category.kind]}</p>
           <span className="block text-[11px] text-muted-foreground">
-            Locked: changing kind on a category with {txCount} transaction
-            {txCount === 1 ? "" : "s"} would re-interpret existing data.
+            Locked: {txCount} transaction{txCount === 1 ? "" : "s"} would be
+            re-interpreted by a kind change. Delete or move them first.
           </span>
-        )}
-      </label>
-      <div className="grid grid-cols-2 gap-2">
+          <input type="hidden" name="kind" value={category.kind} />
+        </div>
+      ) : (
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">
-            Active from
-          </span>
-          <input
-            name="activeFrom"
-            type="month"
-            defaultValue={category.activeFrom}
-            required
+          <span className="text-xs font-medium text-muted-foreground">Kind</span>
+          <select
+            name="kind"
+            defaultValue={category.kind}
             className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
-          />
+          >
+            {KIND_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </label>
-        <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">
+      )}
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">
+          Active from
+        </span>
+        <input
+          name="activeFrom"
+          type="month"
+          defaultValue={category.activeFrom}
+          required
+          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+        />
+      </label>
+      {showEndDate ? (
+        <div className="space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">
             Active until
           </span>
-          <input
-            name="activeUntil"
-            type="month"
-            defaultValue={category.activeUntil ?? ""}
-            className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
-          />
-        </label>
-      </div>
-      <p className="text-[11px] text-muted-foreground">
-        Leave Active until empty for an open-ended category. End / Reopen
-        buttons below are shortcuts for the common cases.
-      </p>
+          <div className="flex items-center gap-2">
+            <input
+              name="activeUntil"
+              type="month"
+              defaultValue={category.activeUntil ?? ""}
+              required
+              className="flex-1 rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={() => setShowEndDate(false)}
+              className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Clear
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Saving with an end date set retires the category from the
+            overview after that month. Clear to leave open-ended.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowEndDate(true)}
+          className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          + Set end date
+        </button>
+      )}
       {state.error && (
         <p role="alert" className="text-xs text-destructive">
           {state.error}
