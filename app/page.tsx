@@ -1,4 +1,4 @@
-import { AddCategoryTile } from "@/components/budget/AddCategoryDialog";
+import { AddCategoryTile } from "@/components/budget/AddCategoryTile";
 import { AddMenu } from "@/components/budget/AddMenu";
 import { CategoryCard } from "@/components/budget/CategoryCard";
 import { HeaderIncome } from "@/components/budget/HeaderIncome";

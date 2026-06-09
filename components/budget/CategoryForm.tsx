@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 
 import { createCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { useNotify } from "@/components/notify";
+import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { currentMonthKey } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { CategoryKind } from "@/types/budget";
@@ -169,21 +169,8 @@ export function CategoryForm({
       )}
 
       <div className="flex justify-end pt-1">
-        <SubmitButton />
+        <FormSubmitButton label="Add category" pendingLabel="Adding…" />
       </div>
     </form>
-  );
-}
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
-    >
-      {pending ? "Adding…" : "Add category"}
-    </button>
   );
 }

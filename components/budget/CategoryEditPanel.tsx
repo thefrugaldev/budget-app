@@ -1,13 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 
 import {
-  deleteCategoryAction,
-  deleteCategoryTargetAction,
-  endCategoryAction,
-  reopenCategoryAction,
   updateCategoryAction,
   upsertCategoryTargetAction,
 } from "@/app/actions/categories";
@@ -15,7 +10,10 @@ import {
   CATEGORY_ACTION_INITIAL,
   type CategoryActionState,
 } from "@/app/actions/category-state";
+import { CategoryLifecycleActions } from "@/components/budget/CategoryLifecycleActions";
+import { CategoryTargetHistory } from "@/components/budget/CategoryTargetHistory";
 import { useNotify } from "@/components/notify";
+import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import {
   currentMonthKey,
   fmt,
@@ -24,11 +22,11 @@ import {
   resolveTargetForMonth,
   targetLabel,
 } from "@/lib/budget";
-import { cn } from "@/lib/utils";
 import type { Category, CategoryKind, CategoryTarget } from "@/types/budget";
 
-// `satisfies Record<CategoryKind, string>` makes adding a 4th kind a compile
-// error here rather than a silent select-option omission at runtime.
+// `as const satisfies Record<CategoryKind, string>` makes a future
+// `CategoryKind` addition a compile error here rather than a silent
+// select-option omission at runtime.
 const KIND_LABELS = {
   expense: "Expense",
   savings: "Savings",
@@ -40,18 +38,20 @@ const KIND_OPTIONS = (Object.keys(KIND_LABELS) as readonly CategoryKind[]).map(
 
 /**
  * The replacement for the placeholder `<details>` "Threshold" disclosure on
- * the category detail page. Three sub-forms compose the panel:
+ * the category detail page. Four sub-sections compose the panel:
  *
- *  1. Details — name, emoji, kind, activeFrom.
- *  2. Target  — monthly value with an "apply this month" toggle that switches
+ *  1. Details — name, emoji, kind (locked when the category has transactions),
+ *     and active range (`activeFrom` + optional `activeUntil`).
+ *  2. Target — monthly value with an "apply this month" toggle that switches
  *     the new target row's `effectiveFrom` between `currentMonth` (override)
  *     and `nextMonth(currentMonth)` (default, story 18).
  *  3. Lifecycle — End category (sets `activeUntil = currentMonth`) when the
- *     category has any history, vs. hard-delete (story 27) when it's empty.
- *
- * The Target history disclosure underneath shows the raw `CategoryTarget`
- * timeline with row-level edit/insert/delete (story 20). It's collapsed by
- * default — the inline target form covers the 90% case.
+ *     category has any history, vs. hard-delete (story 27) when it's empty,
+ *     plus Reopen when the category is already ended. Implemented in
+ *     `CategoryLifecycleActions` so the redirect-on-delete flow is colocated
+ *     with the other lifecycle controls.
+ *  4. Target history — the timeline of `CategoryTarget` rows with row-level
+ *     edit / insert / delete (story 20). Implemented in `CategoryTargetHistory`.
  */
 export function CategoryEditPanel({
   category,
@@ -93,7 +93,7 @@ export function CategoryEditPanel({
           thisMonth={thisMonth}
         />
         <hr className="border-border" />
-        <LifecycleActions
+        <CategoryLifecycleActions
           category={category}
           isEnded={isEnded}
           canHardDelete={canHardDelete}
@@ -101,7 +101,7 @@ export function CategoryEditPanel({
           targetRowCount={myTargets.length}
         />
         <hr className="border-border" />
-        <TargetHistorySection
+        <CategoryTargetHistory
           categoryId={category.id}
           targets={myTargets}
           kind={category.kind}
@@ -112,10 +112,10 @@ export function CategoryEditPanel({
 }
 
 /**
- * Generic "fire-and-toast" effect. Same pattern as
- * `useSuccessEffect` in IncomeEditDialog, generalized to the category state
- * shape. The toast message is computed lazily so callers can close over fast-
- * changing form state without bookkeeping.
+ * "Fire-and-toast" effect with lazy message computation. Same pattern as
+ * IncomeEditDialog's `useSuccessEffect`, scoped to the category state shape.
+ * The message is computed inside the success branch so it picks up the
+ * latest form state at commit time.
  */
 function useToastOnSuccess(
   state: CategoryActionState,
@@ -230,7 +230,7 @@ function DetailsForm({
         </p>
       )}
       <div className="flex justify-end">
-        <SubmitButton label="Save details" pendingLabel="Saving…" />
+        <FormSubmitButton label="Save details" pendingLabel="Saving…" />
       </div>
     </form>
   );
@@ -305,346 +305,12 @@ function TargetForm({
         </p>
       )}
       <div className="flex justify-end">
-        <SubmitButton
+        <FormSubmitButton
           label="Save target"
           pendingLabel="Saving…"
           disabled={disabled}
         />
       </div>
     </form>
-  );
-}
-
-function LifecycleActions({
-  category,
-  isEnded,
-  canHardDelete,
-  txCount,
-  targetRowCount,
-}: {
-  category: Category;
-  isEnded: boolean;
-  canHardDelete: boolean;
-  txCount: number;
-  targetRowCount: number;
-}) {
-  const [endState, endAction] = useActionState(
-    endCategoryAction,
-    CATEGORY_ACTION_INITIAL,
-  );
-  const [reopenState, reopenAction] = useActionState(
-    reopenCategoryAction,
-    CATEGORY_ACTION_INITIAL,
-  );
-  // Delete is special: the action calls `redirect("/")` on success, so this
-  // hook's state only ever transitions on the *failure* branch. No toast on
-  // success either — the redirect navigates away before a toast could land,
-  // and the overview is the implicit confirmation surface.
-  const [deleteState, deleteAction] = useActionState(
-    deleteCategoryAction,
-    CATEGORY_ACTION_INITIAL,
-  );
-
-  useToastOnSuccess(
-    endState,
-    () => `${category.name} ended after ${monthLabel(currentMonthKey())}`,
-  );
-  useToastOnSuccess(reopenState, () => `${category.name} reopened`);
-
-  const error = endState.error ?? reopenState.error ?? deleteState.error;
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Status
-      </p>
-      {isEnded ? (
-        <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-2 text-xs">
-          <span>
-            Ended after{" "}
-            <span className="font-medium">
-              {monthLabel(category.activeUntil!)}
-            </span>
-          </span>
-          <form action={reopenAction}>
-            <input type="hidden" name="id" value={category.id} />
-            <SubmitButton
-              label="Reopen"
-              pendingLabel="Reopening…"
-              variant="ghost"
-            />
-          </form>
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Active since {monthLabel(category.activeFrom)}.
-        </p>
-      )}
-
-      {canHardDelete ? (
-        <form action={deleteAction}>
-          <input type="hidden" name="id" value={category.id} />
-          <SubmitButton
-            label="Delete category"
-            pendingLabel="Deleting…"
-            variant="destructive"
-          />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Only available because this category has no transactions or
-            historical target changes.
-          </p>
-        </form>
-      ) : (
-        !isEnded && (
-          <form action={endAction}>
-            <input type="hidden" name="id" value={category.id} />
-            <SubmitButton
-              label="End category"
-              pendingLabel="Ending…"
-              variant="destructive"
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {txCount > 0
-                ? `${txCount} transaction${txCount === 1 ? "" : "s"} prevent hard delete — end to retire while preserving history.`
-                : `${targetRowCount} target rows prevent hard delete — end to retire while preserving history.`}
-            </p>
-          </form>
-        )
-      )}
-
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function TargetHistorySection({
-  categoryId,
-  targets,
-  kind,
-}: {
-  categoryId: string;
-  targets: CategoryTarget[];
-  kind: CategoryKind;
-}) {
-  const [showAddRow, setShowAddRow] = useState(false);
-  return (
-    <details className="group">
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground">
-        View {targetLabel(kind).toLowerCase()} history
-        <span className="ml-1 font-normal normal-case text-muted-foreground">
-          ({targets.length} row{targets.length === 1 ? "" : "s"})
-        </span>
-      </summary>
-      <div className="mt-3 space-y-2">
-        {targets.map((row, idx) => (
-          <TargetRowForm
-            key={`${row.categoryId}:${row.effectiveFrom}`}
-            row={row}
-            // `targets` arrives newest-first, so the last item is the earliest.
-            // Removing the earliest leaves months below it resolving to a $0
-            // target — guard at the UI layer; the action enforces it too.
-            canDelete={targets.length > 1 && idx !== targets.length - 1}
-          />
-        ))}
-        {showAddRow ? (
-          <NewTargetRowForm
-            categoryId={categoryId}
-            onDone={() => setShowAddRow(false)}
-            onCancel={() => setShowAddRow(false)}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowAddRow(true)}
-            className="w-full rounded-md border border-dashed border-border px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            + Insert target row
-          </button>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function TargetRowForm({
-  row,
-  canDelete,
-}: {
-  row: CategoryTarget;
-  canDelete: boolean;
-}) {
-  const [monthly, setMonthly] = useState(row.monthly.toString());
-
-  const [updateState, updateAction] = useActionState(
-    upsertCategoryTargetAction,
-    CATEGORY_ACTION_INITIAL,
-  );
-  const [deleteState, deleteAction] = useActionState(
-    deleteCategoryTargetAction,
-    CATEGORY_ACTION_INITIAL,
-  );
-  useToastOnSuccess(
-    updateState,
-    () => `Target updated for ${monthLabel(row.effectiveFrom)}`,
-  );
-  useToastOnSuccess(
-    deleteState,
-    () => `Target row removed (${monthLabel(row.effectiveFrom)})`,
-  );
-
-  const error = updateState.error ?? deleteState.error;
-  const parsed = Number(monthly);
-  const unchanged = Number.isFinite(parsed) && parsed === row.monthly;
-
-  return (
-    <div className="rounded-md bg-background p-2 ring-1 ring-border">
-      <form action={updateAction} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="categoryId" value={row.categoryId} />
-        <input type="hidden" name="effectiveFrom" value={row.effectiveFrom} />
-        <span className="min-w-[110px] text-xs font-medium">
-          {monthLabel(row.effectiveFrom)}
-        </span>
-        <input
-          name="monthly"
-          type="number"
-          step="0.01"
-          min="0"
-          inputMode="decimal"
-          value={monthly}
-          onChange={(e) => setMonthly(e.target.value)}
-          required
-          aria-label={`Monthly target effective ${row.effectiveFrom}`}
-          className="w-28 rounded-md bg-background px-2 py-1 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
-        />
-        <SubmitButton
-          label="Save"
-          pendingLabel="…"
-          disabled={unchanged}
-          variant="compact"
-        />
-      </form>
-      <form action={deleteAction} className="mt-1 flex justify-end">
-        <input type="hidden" name="categoryId" value={row.categoryId} />
-        <input type="hidden" name="effectiveFrom" value={row.effectiveFrom} />
-        <SubmitButton
-          label="Remove"
-          pendingLabel="…"
-          disabled={!canDelete}
-          variant="ghost-destructive"
-        />
-      </form>
-      {error && (
-        <p role="alert" className="mt-1 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function NewTargetRowForm({
-  categoryId,
-  onDone,
-  onCancel,
-}: {
-  categoryId: string;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const [state, action] = useActionState(
-    upsertCategoryTargetAction,
-    CATEGORY_ACTION_INITIAL,
-  );
-  useToastOnSuccess(state, () => "Target row added", onDone);
-
-  return (
-    <form
-      action={action}
-      className="space-y-2 rounded-md bg-background p-2 ring-1 ring-border"
-    >
-      <input type="hidden" name="categoryId" value={categoryId} />
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          name="effectiveFrom"
-          type="month"
-          required
-          aria-label="Effective from"
-          className="rounded-md bg-background px-2 py-1 text-sm ring-1 ring-border outline-none focus:ring-ring"
-        />
-        <input
-          name="monthly"
-          type="number"
-          step="0.01"
-          min="0"
-          inputMode="decimal"
-          placeholder="$0/mo"
-          required
-          aria-label="Monthly target"
-          className="w-28 rounded-md bg-background px-2 py-1 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
-        />
-      </div>
-      {state.error && (
-        <p role="alert" className="text-xs text-destructive">
-          {state.error}
-        </p>
-      )}
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
-        >
-          Cancel
-        </button>
-        <SubmitButton label="Add row" pendingLabel="Adding…" variant="compact" />
-      </div>
-    </form>
-  );
-}
-
-type SubmitVariant =
-  | "primary"
-  | "compact"
-  | "ghost"
-  | "destructive"
-  | "ghost-destructive";
-
-function SubmitButton({
-  label,
-  pendingLabel,
-  disabled,
-  variant = "primary",
-}: {
-  label: string;
-  pendingLabel: string;
-  disabled?: boolean;
-  variant?: SubmitVariant;
-}) {
-  const { pending } = useFormStatus();
-  const base = "disabled:cursor-not-allowed disabled:opacity-50";
-  const styles: Record<SubmitVariant, string> = {
-    primary:
-      "rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80",
-    compact:
-      "rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/80",
-    ghost:
-      "rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
-    destructive:
-      "rounded-md bg-destructive/10 px-3 py-1.5 text-sm font-medium text-destructive ring-1 ring-destructive/20 hover:bg-destructive/20",
-    "ghost-destructive":
-      "rounded-md px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10",
-  };
-  return (
-    <button
-      type="submit"
-      disabled={pending || disabled}
-      className={cn(styles[variant], base)}
-    >
-      {pending ? pendingLabel : label}
-    </button>
   );
 }

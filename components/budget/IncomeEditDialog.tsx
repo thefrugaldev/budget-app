@@ -3,7 +3,6 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { Pencil } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 
 import { endCategoryAction } from "@/app/actions/categories";
 import {
@@ -19,6 +18,7 @@ import {
   type IncomeActionState,
 } from "@/app/actions/income-state";
 import { useNotify } from "@/components/notify";
+import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { fmt, monthLabel, nextMonth } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
@@ -278,11 +278,11 @@ function IncomeSourceForm({
           Apply this month ({monthLabel(currentMonth)})
         </label>
         <div className="flex items-center justify-between gap-2 pt-1">
-          <SubmitButton
+          <FormSubmitButton
             label="Save baseline"
             pendingLabel="Saving…"
             disabled={saveDisabled}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-60"
+            variant="compact"
           />
         </div>
         {error && (
@@ -297,10 +297,10 @@ function IncomeSourceForm({
               form above still posts `categoryId` because that's what
               updateIncomeBaselineAction expects. */}
           <input type="hidden" name="id" value={source.id} />
-          <SubmitButton
+          <FormSubmitButton
             label="End source"
             pendingLabel="Ending…"
-            className="rounded-md px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+            variant="ghost-destructive"
           />
         </form>
       )}
@@ -367,35 +367,12 @@ function AddSourceForm({
         >
           Cancel
         </button>
-        <SubmitButton
+        <FormSubmitButton
           label="Add source"
           pendingLabel="Adding…"
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-60"
+          variant="compact"
         />
       </div>
     </form>
-  );
-}
-
-function SubmitButton({
-  label,
-  pendingLabel,
-  className,
-  disabled,
-}: {
-  label: string;
-  pendingLabel: string;
-  className: string;
-  disabled?: boolean;
-}) {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending || disabled}
-      className={className}
-    >
-      {pending ? pendingLabel : label}
-    </button>
   );
 }
