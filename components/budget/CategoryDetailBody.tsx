@@ -12,6 +12,7 @@ import {
   aggregateRange,
   currentMonthKey,
   fmt,
+  monthLabelShort,
   monthlyTotalsLastN,
   resolveTargetForMonth,
   targetLabel,
@@ -121,18 +122,29 @@ export function CategoryDetailBody({
           {isNegative && (
             <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-rose-500" />
           )}
-          <div className="mb-3 flex items-center gap-3">
-            <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
-              {category.emoji}
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
+                {category.emoji}
+              </div>
+              <div>
+                <h1 className="font-heading text-lg font-semibold leading-tight">
+                  {category.name}
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  {label} · {fmt(perMonthTarget)}/mo
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-heading text-lg font-semibold leading-tight">
-                {category.name}
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                {label} · {fmt(perMonthTarget)}/mo
-              </p>
-            </div>
+            {category.activeUntil && (
+              <span
+                className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900"
+                title={`Ended after ${category.activeUntil}`}
+              >
+                Ended {monthLabelShort(category.activeUntil)}{" "}
+                {category.activeUntil.slice(0, 4)}
+              </span>
+            )}
           </div>
           <p className={cn("font-heading text-3xl font-semibold tabular-nums", col.text)}>
             <SignedAmount kind={category.kind} amount={total} />
