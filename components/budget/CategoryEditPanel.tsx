@@ -27,11 +27,16 @@ import {
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind, CategoryTarget } from "@/types/budget";
 
-const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
-  { value: "expense", label: "Expense" },
-  { value: "savings", label: "Savings" },
-  { value: "income", label: "Income" },
-];
+// `satisfies Record<CategoryKind, string>` makes adding a 4th kind a compile
+// error here rather than a silent select-option omission at runtime.
+const KIND_LABELS = {
+  expense: "Expense",
+  savings: "Savings",
+  income: "Income",
+} as const satisfies Record<CategoryKind, string>;
+const KIND_OPTIONS = (Object.keys(KIND_LABELS) as readonly CategoryKind[]).map(
+  (value) => ({ value, label: KIND_LABELS[value] }),
+);
 
 /**
  * The replacement for the placeholder `<details>` "Threshold" disclosure on
@@ -80,7 +85,7 @@ export function CategoryEditPanel({
         Edit category
       </h2>
       <div className="space-y-4">
-        <DetailsForm category={category} />
+        <DetailsForm category={category} txCount={txCount} />
         <hr className="border-border" />
         <TargetForm
           category={category}
@@ -128,12 +133,24 @@ function useToastOnSuccess(
   }, [state, onSuccess, notify, computeMessage]);
 }
 
-function DetailsForm({ category }: { category: Category }) {
+function DetailsForm({
+  category,
+  txCount,
+}: {
+  category: Category;
+  txCount: number;
+}) {
   const [state, action] = useActionState(
     updateCategoryAction,
     CATEGORY_ACTION_INITIAL,
   );
   useToastOnSuccess(state, () => "Category updated");
+
+  // Changing kind on a category with transactions silently re-interprets the
+  // data — every row flips sign vocabulary, the savings rate is computed
+  // against a different bucket, etc. Lock the picker as soon as there's any
+  // history; the server action enforces the same rule (defense-in-depth).
+  const kindLocked = txCount > 0;
 
   return (
     <form action={action} className="space-y-3">
@@ -162,7 +179,8 @@ function DetailsForm({ category }: { category: Category }) {
         <select
           name="kind"
           defaultValue={category.kind}
-          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+          disabled={kindLocked}
+          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         >
           {KIND_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -170,6 +188,12 @@ function DetailsForm({ category }: { category: Category }) {
             </option>
           ))}
         </select>
+        {kindLocked && (
+          <span className="block text-[11px] text-muted-foreground">
+            Locked: changing kind on a category with {txCount} transaction
+            {txCount === 1 ? "" : "s"} would re-interpret existing data.
+          </span>
+        )}
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block space-y-1">
@@ -416,11 +440,14 @@ function TargetHistorySection({
         </span>
       </summary>
       <div className="mt-3 space-y-2">
-        {targets.map((row) => (
+        {targets.map((row, idx) => (
           <TargetRowForm
             key={`${row.categoryId}:${row.effectiveFrom}`}
             row={row}
-            canDelete={targets.length > 1}
+            // `targets` arrives newest-first, so the last item is the earliest.
+            // Removing the earliest leaves months below it resolving to a $0
+            // target — guard at the UI layer; the action enforces it too.
+            canDelete={targets.length > 1 && idx !== targets.length - 1}
           />
         ))}
         {showAddRow ? (

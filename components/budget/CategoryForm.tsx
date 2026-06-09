@@ -10,23 +10,26 @@ import { currentMonthKey } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { CategoryKind } from "@/types/budget";
 
-const KIND_LABELS: Record<CategoryKind, string> = {
+// `satisfies Record<CategoryKind, ...>` (vs. an explicit annotation) keeps the
+// type narrow — each key keeps its literal value — while still forcing a
+// compile error if a future `CategoryKind` lands without a matching entry.
+const KIND_LABELS = {
   expense: "Expense",
   savings: "Savings",
   income: "Income",
-};
+} as const satisfies Record<CategoryKind, string>;
 
-const KIND_HINTS: Record<CategoryKind, string> = {
+const KIND_HINTS = {
   expense: "Money flowing out — caps you don't want to exceed.",
   savings: "Buckets you're contributing to — goals you want to hit.",
   income: "Streams of money in — baselines you compare against.",
-};
+} as const satisfies Record<CategoryKind, string>;
 
-const KIND_PLACEHOLDERS: Record<CategoryKind, { name: string; emoji: string }> = {
+const KIND_PLACEHOLDERS = {
   expense: { name: "Streaming", emoji: "📺" },
   savings: { name: "Vacation", emoji: "🌴" },
   income: { name: "Side gig", emoji: "💼" },
-};
+} as const satisfies Record<CategoryKind, { name: string; emoji: string }>;
 
 export type CategoryFormProps = {
   /** When set, locks the kind picker and bakes the value into the submitted form. */

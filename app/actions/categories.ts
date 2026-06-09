@@ -110,6 +110,20 @@ export async function updateCategoryAction(
       throw new Error("Active until must be on or after Active from");
     }
 
+    // Re-check the kind-change gate server-side. Changing kind on a category
+    // with transactions silently re-interprets every existing row (expense
+    // outflow becomes income inflow, sign labels flip, savings rate skews).
+    // The UI disables the picker when `txCount > 0`, but a forged form post
+    // could still hit this — defense-in-depth.
+    if (kind !== cat.kind) {
+      const txCount = await countTransactionsForCategory(id);
+      if (txCount > 0) {
+        throw new Error(
+          "Can't change kind on a category with transactions — move them or delete first",
+        );
+      }
+    }
+
     await updateCategory(id, {
       name,
       emoji,
@@ -251,9 +265,15 @@ export async function upsertCategoryTargetAction(
 }
 
 /**
- * Deletes a target row by composite key. Disallows removing the only target
- * row a category has — without at least one row, `resolveTargetForMonth`
- * returns 0 and the threshold meter goes mute.
+ * Deletes a target row by composite key. Two guards:
+ *
+ *  - Disallows removing the only target row — without one, `resolveTargetForMonth`
+ *    returns 0 and the threshold meter goes mute everywhere.
+ *  - Disallows removing the *earliest* row — months below the surviving floor
+ *    would silently fall back to 0 and the threshold meter on historical
+ *    ranges (`?range=ytd`, `last-12-months`) would flatline for those months.
+ *    Users who really want to backdate the start should edit the earliest
+ *    row's `monthly` instead, or insert a new row at an earlier date first.
  */
 export async function deleteCategoryTargetAction(
   prev: CategoryActionState,
@@ -271,6 +291,14 @@ export async function deleteCategoryTargetAction(
     const rows = await listCategoryTargetsFor(categoryId);
     if (rows.length <= 1) {
       throw new Error("Can't remove the only target row");
+    }
+    const earliest = rows.reduce((a, b) =>
+      a.effectiveFrom < b.effectiveFrom ? a : b,
+    );
+    if (earliest.effectiveFrom === effectiveFrom) {
+      throw new Error(
+        "Can't remove the earliest target row — edit its value or insert an earlier row first",
+      );
     }
 
     await deleteCategoryTarget(categoryId, effectiveFrom);
