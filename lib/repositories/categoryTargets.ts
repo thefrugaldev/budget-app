@@ -110,3 +110,12 @@ export async function deleteCategoryTarget(
     .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
     .deleteOne({ categoryId, effectiveFrom });
 }
+
+// Wipes every target row for `categoryId`. Used by the category hard-delete
+// path so the orphaned rows don't linger.
+export async function deleteAllCategoryTargets(categoryId: string): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
+    .deleteMany({ categoryId });
+}

@@ -50,8 +50,11 @@ export async function createCategory(input: {
 type CategoryPatch = {
   name?: string;
   emoji?: string;
+  kind?: Category["kind"];
   activeFrom?: string;
   activeUntil?: string;
+  /** `null` clears the field via `$unset`; `undefined` leaves it alone. */
+  clearActiveUntil?: boolean;
 };
 
 // Returns true if a matching category was found and patched.
@@ -61,15 +64,37 @@ export async function updateCategory(
 ): Promise<boolean> {
   const set: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
+    if (key === "clearActiveUntil") continue;
     if (value !== undefined) set[key] = value;
   }
-  if (Object.keys(set).length === 0) return false;
+
+  const unset: Record<string, "" | true> = {};
+  if (patch.clearActiveUntil) unset.activeUntil = "";
+
+  if (Object.keys(set).length === 0 && Object.keys(unset).length === 0) {
+    return false;
+  }
+
+  const update: Record<string, unknown> = {};
+  if (Object.keys(set).length > 0) update.$set = set;
+  if (Object.keys(unset).length > 0) update.$unset = unset;
 
   const db = await getDb();
   const result = await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .updateOne({ _id: id }, { $set: set });
+    .updateOne({ _id: id }, update);
   return result.matchedCount > 0;
+}
+
+// Hard delete: removes the category. Callers must ensure that no transactions
+// reference it and target rows are handled separately (the server action
+// composes the full cleanup).
+export async function deleteCategory(id: string): Promise<boolean> {
+  const db = await getDb();
+  const result = await db
+    .collection<CategoryDocument>(COLLECTIONS.categories)
+    .deleteOne({ _id: id });
+  return result.deletedCount > 0;
 }
 
 export async function getCategoriesByIds(

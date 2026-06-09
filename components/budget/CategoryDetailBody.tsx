@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { CategoryEditPanel } from "@/components/budget/CategoryEditPanel";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
@@ -99,6 +100,15 @@ export function CategoryDetailBody({
     [visibleTxns, category.id, range],
   );
 
+  // Live count of this category's transactions across all of time. Drives the
+  // Delete / End-category gate inside `CategoryEditPanel` — when the user
+  // optimistically deletes the last transaction, the Delete button flips on
+  // immediately without waiting for revalidation.
+  const txCountForCategory = useMemo(
+    () => visibleTxns.filter((t) => t.categoryId === category.id).length,
+    [visibleTxns, category.id],
+  );
+
   return (
     <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
       <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
@@ -163,19 +173,12 @@ export function CategoryDetailBody({
           />
         </div>
 
-        <details className="rounded-2xl bg-card p-4 text-sm ring-1 ring-border">
-          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Threshold
-          </summary>
-          <div className="mt-3 grid grid-cols-[110px_1fr] items-center gap-y-2">
-            <label htmlFor="monthly">Monthly</label>
-            <input
-              id="monthly"
-              defaultValue={perMonthTarget}
-              className="rounded-md bg-background px-2 py-1.5 ring-1 ring-border outline-none focus:ring-ring"
-            />
-          </div>
-        </details>
+        <CategoryEditPanel
+          category={category}
+          targets={targets}
+          txCount={txCountForCategory}
+          now={now}
+        />
       </aside>
 
       <section>

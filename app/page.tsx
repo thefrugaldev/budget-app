@@ -1,3 +1,4 @@
+import { AddCategoryTile } from "@/components/budget/AddCategoryDialog";
 import { AddMenu } from "@/components/budget/AddMenu";
 import { CategoryCard } from "@/components/budget/CategoryCard";
 import { HeaderIncome } from "@/components/budget/HeaderIncome";
@@ -8,6 +9,7 @@ import {
   computeSavingsRate,
   currentMonthKey,
   fmt,
+  isCategoryActiveInRange,
   isRangePreset,
   rangeLabel,
   resolveRange,
@@ -47,8 +49,17 @@ export default async function Home({
   );
   const aggregateById = new Map(aggregates.map((row) => [row.categoryId, row]));
 
-  const expenses = categories.filter((c) => c.kind === "expense");
-  const savings = categories.filter((c) => c.kind === "savings");
+  // Story 11: hide categories whose lifecycle doesn't overlap the active range
+  // from the overview. The detail page still loads them by id (story 12), so a
+  // user can always navigate back into an ended category's history.
+  const inRange = categories.filter((c) =>
+    isCategoryActiveInRange(c, range.ymStart, range.ymEnd),
+  );
+  const expenses = inRange.filter((c) => c.kind === "expense");
+  const savings = inRange.filter((c) => c.kind === "savings");
+  // Income aggregation continues to read from the unfiltered category set so
+  // current-month baselines include sources that pre-date or post-date the
+  // selected range.
   const incomeCategories = categories.filter((c) => c.kind === "income");
 
   const expenseTotal = expenses.reduce(
@@ -111,6 +122,7 @@ export default async function Home({
             />
           );
         })}
+        <AddCategoryTile kind="expense" />
       </div>
 
       <div className="mt-8">
@@ -129,6 +141,7 @@ export default async function Home({
               />
             );
           })}
+          <AddCategoryTile kind="savings" />
         </div>
       </div>
 

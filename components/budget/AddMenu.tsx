@@ -8,12 +8,13 @@ import { useFormStatus } from "react-dom";
 
 import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
+import { AddCategoryDialog } from "@/components/budget/AddCategoryDialog";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import { useNotify } from "@/components/notify";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
 
-type Sheet = "transaction" | "income" | null;
+type Sheet = "transaction" | "category" | "income" | null;
 
 /**
  * Bottom-right floating "+" — a popover menu (Base UI `<Menu>`) per the
@@ -21,9 +22,9 @@ type Sheet = "transaction" | "income" | null;
  *
  * - Add transaction → full TransactionForm dialog with the standalone category
  *   picker step (story 29).
- * - Add category → disabled placeholder; the wiring lands with the category
- *   CRUD chunk. The option is visible now so the menu surface is complete
- *   (story 14) without misleading the user about what works.
+ * - Add category → category-form dialog with a kind picker restricted to
+ *   expense / savings (story 59). Income has its own dedicated entry below
+ *   so the picker doesn't include it — that'd be a confusing duplicate.
  * - Add income source → small dialog wrapping `createIncomeSourceAction`
  *   (story 56). Mirrors the "+ Add another income source" path inside the
  *   header pencil's modal, but reachable from anywhere on the page.
@@ -58,18 +59,11 @@ export function AddMenu({
                 <span>Add transaction</span>
               </Menu.Item>
               <Menu.Item
-                disabled
-                aria-disabled
-                aria-label="Add category (coming soon)"
-                className="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-muted-foreground outline-none"
+                onClick={() => setSheet("category")}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 outline-none data-[highlighted]:bg-muted"
               >
-                <span className="flex items-center gap-2">
-                  <Plus className="size-4" aria-hidden />
-                  <span>Add category</span>
-                </span>
-                <span aria-hidden className="text-[10px] uppercase tracking-wide">
-                  Soon
-                </span>
+                <Plus className="size-4 text-muted-foreground" aria-hidden />
+                <span>Add category</span>
               </Menu.Item>
               <Menu.Item
                 onClick={() => setSheet("income")}
@@ -88,6 +82,11 @@ export function AddMenu({
         onOpenChange={(open) => setSheet(open ? "transaction" : null)}
         categories={categories}
         transactions={transactions}
+      />
+      <AddCategoryDialog
+        open={sheet === "category"}
+        onOpenChange={(open) => setSheet(open ? "category" : null)}
+        allowedKinds={["expense", "savings"] as const}
       />
       <AddIncomeSourceDialog
         open={sheet === "income"}

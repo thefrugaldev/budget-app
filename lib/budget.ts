@@ -265,6 +265,23 @@ export function isCategoryActiveForMonth(category: Category, ym: string): boolea
   return true;
 }
 
+/**
+ * Returns true if the category's `[activeFrom, activeUntil]` window overlaps
+ * the `[rangeStart, rangeEnd]` window at all (any single shared month). Used
+ * by the Pulse overview to hide categories that are entirely outside the
+ * active range — the detail page still loads them by id so history is
+ * always reachable (story 12).
+ */
+export function isCategoryActiveInRange(
+  category: Category,
+  rangeStart: string,
+  rangeEnd: string,
+): boolean {
+  if (category.activeFrom > rangeEnd) return false;
+  if (category.activeUntil && category.activeUntil < rangeStart) return false;
+  return true;
+}
+
 export type RangeAggregate = {
   categoryId: string;
   total: number;

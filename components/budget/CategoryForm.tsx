@@ -1,0 +1,186 @@
+"use client";
+
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+
+import { createCategoryAction } from "@/app/actions/categories";
+import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { useNotify } from "@/components/notify";
+import { currentMonthKey } from "@/lib/budget";
+import { cn } from "@/lib/utils";
+import type { CategoryKind } from "@/types/budget";
+
+const KIND_LABELS: Record<CategoryKind, string> = {
+  expense: "Expense",
+  savings: "Savings",
+  income: "Income",
+};
+
+const KIND_HINTS: Record<CategoryKind, string> = {
+  expense: "Money flowing out — caps you don't want to exceed.",
+  savings: "Buckets you're contributing to — goals you want to hit.",
+  income: "Streams of money in — baselines you compare against.",
+};
+
+const KIND_PLACEHOLDERS: Record<CategoryKind, { name: string; emoji: string }> = {
+  expense: { name: "Streaming", emoji: "📺" },
+  savings: { name: "Vacation", emoji: "🌴" },
+  income: { name: "Side gig", emoji: "💼" },
+};
+
+export type CategoryFormProps = {
+  /** When set, locks the kind picker and bakes the value into the submitted form. */
+  presetKind?: CategoryKind;
+  /** Restrict the picker to a subset of kinds (e.g. ["expense", "savings"]). */
+  allowedKinds?: readonly CategoryKind[];
+  onSuccess?: (id: string) => void;
+  className?: string;
+};
+
+/**
+ * Form for creating a new category. Three call sites:
+ *
+ *   - Inline `+ Add category` tiles in the Expenses and Savings sections of
+ *     the Pulse page — `presetKind` is set, so the kind picker collapses to
+ *     a single chip;
+ *   - Floating `+` menu's `Add category` option — `allowedKinds` limits the
+ *     picker to expense/savings (income has its own dedicated menu entry);
+ *   - Category-detail-page sidebar's `Add another` shortcut (future), where
+ *     no preset is given.
+ *
+ * Always writes both a new `Category` document and an initial `CategoryTarget`
+ * row keyed at the chosen `activeFrom`.
+ */
+export function CategoryForm({
+  presetKind,
+  allowedKinds,
+  onSuccess,
+  className,
+}: CategoryFormProps) {
+  const [state, formAction] = useActionState(
+    createCategoryAction,
+    CATEGORY_ACTION_INITIAL,
+  );
+  const notify = useNotify();
+  const lastOk = useRef(state.ok);
+  useEffect(() => {
+    if (state.ok > lastOk.current && !state.error && state.id) {
+      lastOk.current = state.ok;
+      notify.success("Category added");
+      onSuccess?.(state.id);
+    }
+  }, [state, notify, onSuccess]);
+
+  const pickerKinds: readonly CategoryKind[] = presetKind
+    ? [presetKind]
+    : (allowedKinds ?? (["expense", "savings", "income"] as const));
+  const [kind, setKind] = useState<CategoryKind>(presetKind ?? pickerKinds[0]);
+  const effectiveKind = presetKind ?? kind;
+  const placeholders = KIND_PLACEHOLDERS[effectiveKind];
+
+  return (
+    <form action={formAction} className={cn("space-y-3", className)}>
+      <input type="hidden" name="kind" value={effectiveKind} />
+
+      {!presetKind && pickerKinds.length > 1 && (
+        <div role="group" aria-label="Kind" className="space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">
+            Kind
+          </span>
+          <div className="inline-flex w-full rounded-md bg-muted p-0.5 text-xs ring-1 ring-border">
+            {pickerKinds.map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setKind(k)}
+                aria-pressed={kind === k}
+                className={cn(
+                  "flex-1 rounded-[5px] px-2 py-1 font-medium transition-colors",
+                  kind === k
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {KIND_LABELS[k]}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">{KIND_HINTS[effectiveKind]}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-[64px_1fr] gap-2">
+        <input
+          name="emoji"
+          defaultValue={placeholders.emoji}
+          maxLength={4}
+          aria-label="Emoji"
+          className="rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none focus:ring-ring"
+        />
+        <input
+          name="name"
+          placeholder={placeholders.name}
+          required
+          aria-label="Name"
+          className="rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+        />
+      </div>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">
+          {effectiveKind === "expense"
+            ? "Monthly cap"
+            : effectiveKind === "savings"
+              ? "Monthly goal"
+              : "Monthly baseline"}
+        </span>
+        <input
+          name="monthly"
+          type="number"
+          step="0.01"
+          min="0"
+          inputMode="decimal"
+          placeholder="$0/mo"
+          required
+          className="w-full rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">
+          Active from
+        </span>
+        <input
+          name="activeFrom"
+          type="month"
+          defaultValue={currentMonthKey()}
+          required
+          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+        />
+      </label>
+
+      {state.error && (
+        <p role="alert" className="text-xs text-destructive">
+          {state.error}
+        </p>
+      )}
+
+      <div className="flex justify-end pt-1">
+        <SubmitButton />
+      </div>
+    </form>
+  );
+}
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+    >
+      {pending ? "Adding…" : "Add category"}
+    </button>
+  );
+}

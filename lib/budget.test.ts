@@ -6,6 +6,7 @@ import {
   computeSavingsRate,
   currentMonthlyBaseline,
   isCategoryActiveForMonth,
+  isCategoryActiveInRange,
   isRangePreset,
   matchesTransactionFilter,
   monthTotalsByCategory,
@@ -164,6 +165,58 @@ describe("isCategoryActiveForMonth", () => {
   for (const c of cases) {
     it(c.name, () => {
       expect(isCategoryActiveForMonth(c.cat, c.ym)).toBe(c.expected);
+    });
+  }
+});
+
+describe("isCategoryActiveInRange", () => {
+  const rangeCases: Array<{
+    name: string;
+    cat: Category;
+    start: string;
+    end: string;
+    expected: boolean;
+  }> = [
+    {
+      name: "category with no end always overlaps a forward range",
+      cat: expenseCat({ activeFrom: "2026-01" }),
+      start: "2026-06",
+      end: "2026-08",
+      expected: true,
+    },
+    {
+      name: "category that ends before the range starts is excluded",
+      cat: expenseCat({ activeFrom: "2025-01", activeUntil: "2025-12" }),
+      start: "2026-01",
+      end: "2026-03",
+      expected: false,
+    },
+    {
+      name: "category that starts after the range ends is excluded",
+      cat: expenseCat({ activeFrom: "2026-09" }),
+      start: "2026-01",
+      end: "2026-06",
+      expected: false,
+    },
+    {
+      name: "single-month overlap on the upper boundary is included",
+      cat: expenseCat({ activeFrom: "2026-06", activeUntil: "2026-06" }),
+      start: "2026-04",
+      end: "2026-06",
+      expected: true,
+    },
+    {
+      name: "single-month overlap on the lower boundary is included",
+      cat: expenseCat({ activeFrom: "2026-04", activeUntil: "2026-04" }),
+      start: "2026-04",
+      end: "2026-06",
+      expected: true,
+    },
+  ];
+
+  for (const c of rangeCases) {
+    it(c.name, () => {
+      expect(isCategoryActiveInRange(c.cat, c.start, c.end)).toBe(c.expected);
     });
   }
 });
