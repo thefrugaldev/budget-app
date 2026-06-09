@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -288,7 +287,6 @@ function LifecycleActions({
   txCount: number;
   targetRowCount: number;
 }) {
-  const router = useRouter();
   const [endState, endAction] = useActionState(
     endCategoryAction,
     CATEGORY_ACTION_INITIAL,
@@ -297,6 +295,10 @@ function LifecycleActions({
     reopenCategoryAction,
     CATEGORY_ACTION_INITIAL,
   );
+  // Delete is special: the action calls `redirect("/")` on success, so this
+  // hook's state only ever transitions on the *failure* branch. No toast on
+  // success either — the redirect navigates away before a toast could land,
+  // and the overview is the implicit confirmation surface.
   const [deleteState, deleteAction] = useActionState(
     deleteCategoryAction,
     CATEGORY_ACTION_INITIAL,
@@ -307,9 +309,6 @@ function LifecycleActions({
     () => `${category.name} ended after ${monthLabel(currentMonthKey())}`,
   );
   useToastOnSuccess(reopenState, () => `${category.name} reopened`);
-  useToastOnSuccess(deleteState, () => `${category.name} deleted`, () =>
-    router.push("/"),
-  );
 
   const error = endState.error ?? reopenState.error ?? deleteState.error;
 

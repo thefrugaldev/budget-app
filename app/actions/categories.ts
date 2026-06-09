@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { currentMonthKey, nextMonth } from "@/lib/budget";
 import {
@@ -157,11 +158,18 @@ export async function reopenCategoryAction(
  * Hard-deletes a category and its target rows. Server-side gate: only allowed
  * when the category has zero transactions and at most one target row (its
  * initial). Anything else gets "End category" (`activeUntil`) instead.
+ *
+ * On success, `redirect("/")` from inside the action — the alternative of
+ * returning normal state and navigating from a client `useEffect` races the
+ * post-action revalidation: Next re-renders the still-mounted detail page,
+ * `getCategoryById` returns undefined, `notFound()` fires, and the user
+ * sees a 404 flash before the client effect can route away.
  */
 export async function deleteCategoryAction(
   prev: CategoryActionState,
   formData: FormData,
 ): Promise<CategoryActionState> {
+  let deleted = false;
   try {
     const id = requireString(formData.get("id"), "id");
     const cat = await getCategoryById(id);
@@ -181,10 +189,16 @@ export async function deleteCategoryAction(
     await deleteAllCategoryTargets(id);
     await deleteCategory(id);
     revalidatePath("/");
-    return success(prev, id);
+    deleted = true;
   } catch (err) {
     return failure(prev, err);
   }
+  // `redirect()` throws a special error Next.js intercepts to issue a 303 —
+  // it MUST run outside the try/catch above, otherwise our `failure()` path
+  // swallows it and the user sees nothing happen. Suppress the unused-var
+  // warning by gating on the boolean.
+  if (deleted) redirect("/");
+  return success(prev);
 }
 
 /**

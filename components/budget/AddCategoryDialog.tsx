@@ -65,9 +65,9 @@ export function AddCategoryTile({ kind }: { kind: CategoryKind }) {
   const [open, setOpen] = useState(false);
   const label =
     kind === "expense"
-      ? "Add expense"
+      ? "Add expense category"
       : kind === "savings"
-        ? "Add savings goal"
+        ? "Add savings category"
         : "Add income source";
   return (
     <>
