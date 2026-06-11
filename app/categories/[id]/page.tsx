@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CategoryDetailBody } from "@/components/budget/CategoryDetailBody";
@@ -53,14 +52,7 @@ export default async function CategoryDetail({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        ← Back to budget
-      </Link>
-
-      <div className="mt-4 mb-6">
+      <div className="mb-6">
         <RangeSelector active={preset} basePath={`/categories/${category.id}`} />
       </div>
 
