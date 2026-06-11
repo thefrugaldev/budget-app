@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BottomTabNav } from "./BottomTabNav";
 import { PrimaryNav } from "./PrimaryNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -19,14 +20,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             Budget
           </Link>
-          <PrimaryNav />
-          {/* Right slot reserved for future user/account affordance. */}
-          <div aria-hidden className="w-[3.5rem]" />
+          {/* Desktop-only: nav and the future user/account slot. On mobile,
+              the bottom-tab nav owns navigation and the header just shows
+              the brand. `md:contents` keeps the desktop justify-between
+              layout (brand left, nav centred) unchanged. */}
+          <div className="hidden md:contents">
+            <PrimaryNav />
+            <div aria-hidden className="w-[3.5rem]" />
+          </div>
         </div>
       </header>
-      <main id="main-content" className="flex-1">
+      <main id="main-content" className="flex-1 pb-16 md:pb-0">
         {children}
       </main>
+      <BottomTabNav />
     </>
   );
 }
