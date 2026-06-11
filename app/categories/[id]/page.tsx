@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -13,6 +14,18 @@ import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
 import { listAllTransactions } from "@/lib/repositories/transactions";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  await ensureSeeded();
+  const categories = await listCategories();
+  const category = categories.find((c) => c.id === id);
+  return { title: category?.name ?? "Category" };
+}
 
 export default async function CategoryDetail({
   params,

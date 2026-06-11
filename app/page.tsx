@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { AddCategoryTile } from "@/components/budget/AddCategoryTile";
 import { AddMenu } from "@/components/budget/AddMenu";
 import { CategoryCard } from "@/components/budget/CategoryCard";
@@ -20,6 +22,12 @@ import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
 import { listAllTransactions } from "@/lib/repositories/transactions";
+
+// Hardcoded full title (not just "Pulse"): Next's title.template in the root
+// layout doesn't apply to a page in the same route segment.
+export const metadata: Metadata = {
+  title: "Pulse — Budget",
+};
 
 export default async function Home({
   searchParams,
