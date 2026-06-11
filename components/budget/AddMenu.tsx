@@ -43,7 +43,14 @@ export function AddMenu({
       <Menu.Root>
         <Menu.Trigger
           aria-label="Add"
-          className="fixed bottom-8 right-8 z-10 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-medium text-primary-foreground shadow-lg ring-1 ring-black/10 hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          /*
+           * On mobile the FAB lifts above the bottom-tab nav (#14 chunk 4).
+           * Full FAB redesign is tracked separately in #13 chunk 3 — this
+           * only handles collision so the FAB stays clear of the tab bar
+           * and the iOS safe-area inset.
+           */
+          style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+          className="fixed bottom-20 right-4 z-10 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-medium text-primary-foreground shadow-lg ring-1 ring-black/10 hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:bottom-8 md:right-8"
         >
           <Plus className="size-5" aria-hidden />
           <span>Add</span>
