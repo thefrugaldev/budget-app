@@ -61,15 +61,29 @@ function TabLink({ item, active }: { item: NavItem; active: boolean }) {
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] font-medium leading-none transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        "relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] leading-none transition-colors",
+        active
+          ? "font-semibold text-foreground"
+          : "font-medium text-muted-foreground hover:text-foreground",
       )}
     >
+      <ActiveIndicator active={active} />
       <span aria-hidden="true" className="text-lg leading-none">
         {item.icon}
       </span>
       <span>{item.label}</span>
     </Link>
+  );
+}
+
+/** 3px rod at the top of the active tab — the "you are here" signal. */
+function ActiveIndicator({ active }: { active: boolean }) {
+  if (!active) return null;
+  return (
+    <span
+      aria-hidden
+      className="absolute left-1/2 top-0 h-[3px] w-8 -translate-x-1/2 rounded-b-full bg-foreground"
+    />
   );
 }
 
@@ -91,10 +105,13 @@ function MoreTab({
       <Menu.Trigger
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-          active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          "relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+          active
+            ? "font-semibold text-foreground"
+            : "font-medium text-muted-foreground hover:text-foreground",
         )}
       >
+        <ActiveIndicator active={active} />
         <MoreHorizontal aria-hidden className="size-5" />
         <span>More</span>
       </Menu.Trigger>
