@@ -1,0 +1,151 @@
+name: Unblock dependent issues
+
+on:
+  issues:
+    types: [closed, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  unblock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // Convention: every blocked PRD has a marker like
+            //   <!-- blocked-by: 14, 15#chunk4, 15#chunk6 -->
+            // right under its banner. We resolve each blocker by checking:
+            //   - bare "N": is issue #N closed?
+            //   - "N#chunkX": is "- [x] **Chunk X" present in #N's body?
+            // When all blockers resolve, strip the banner, remove the
+            // `blocked` label, and post a comment. When some resolve,
+            // just update the marker and comment.
+
+            const { owner, repo } = context.repo;
+
+            const markerRe = /<!--\s*blocked-by:\s*([^>]+?)\s*-->/;
+            const blockerRe = /^#?(\d+)(?:#chunk(\d+))?$/;
+
+            async function isChunkDone(issueNum, chunkNum) {
+              const { data } = await github.rest.issues.get({
+                owner, repo, issue_number: issueNum,
+              });
+              const body = data.body || '';
+              // Match "- [x] **Chunk N —" (allow extra whitespace)
+              const re = new RegExp(
+                `-\\s*\\[x\\]\\s*\\*\\*Chunk\\s+${chunkNum}\\s*[—-]`,
+                'i'
+              );
+              return re.test(body);
+            }
+
+            async function isIssueClosed(issueNum) {
+              const { data } = await github.rest.issues.get({
+                owner, repo, issue_number: issueNum,
+              });
+              return data.state === 'closed';
+            }
+
+            // Strip a banner block: lines starting with `>` plus the marker
+            // line plus the following `---` separator.
+            function stripBanner(body) {
+              // Match leading blockquote (one or more `>` lines), optional
+              // blank line, the marker comment, optional blank lines, then
+              // the `---` separator, then trailing blank lines.
+              const bannerRe =
+                /^(?:>.*\n)+\s*\n<!--\s*blocked-by:[^>]*-->\s*\n+---\s*\n+/m;
+              return body.replace(bannerRe, '');
+            }
+
+            function updateMarker(body, newBlockers) {
+              return body.replace(
+                markerRe,
+                `<!-- blocked-by: ${newBlockers.join(', ')} -->`
+              );
+            }
+
+            // Find every open issue that carries the `blocked` label.
+            const { data: blockedIssues } = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'blocked', per_page: 100,
+            });
+
+            for (const issue of blockedIssues) {
+              const body = issue.body || '';
+              const m = body.match(markerRe);
+              if (!m) {
+                core.info(`#${issue.number}: has \`blocked\` label but no marker — skipping`);
+                continue;
+              }
+
+              const blockers = m[1]
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
+
+              const stillBlocking = [];
+              const justResolved = [];
+
+              for (const blocker of blockers) {
+                const bm = blocker.match(blockerRe);
+                if (!bm) {
+                  core.warning(`#${issue.number}: unrecognised blocker "${blocker}" — keeping`);
+                  stillBlocking.push(blocker);
+                  continue;
+                }
+                const issueNum = parseInt(bm[1], 10);
+                const chunkNum = bm[2] ? parseInt(bm[2], 10) : null;
+
+                let resolved;
+                try {
+                  resolved = chunkNum
+                    ? await isChunkDone(issueNum, chunkNum)
+                    : await isIssueClosed(issueNum);
+                } catch (e) {
+                  core.warning(`#${issue.number}: failed to check ${blocker}: ${e.message}`);
+                  stillBlocking.push(blocker);
+                  continue;
+                }
+
+                if (resolved) justResolved.push(blocker);
+                else stillBlocking.push(blocker);
+              }
+
+              if (justResolved.length === 0) {
+                core.info(`#${issue.number}: no blockers resolved this run`);
+                continue;
+              }
+
+              let newBody;
+              let commentBody;
+
+              if (stillBlocking.length === 0) {
+                newBody = stripBanner(body);
+                // Also drop the marker if it survived (e.g. banner wasn't in
+                // the expected blockquote shape).
+                newBody = newBody.replace(markerRe, '').replace(/^\s*\n+/, '');
+                commentBody =
+                  `🟢 Unblocked by ${justResolved.join(', ')} — ready to pick up.\n\n` +
+                  `_The blocked banner and label have been removed automatically._`;
+                await github.rest.issues.removeLabel({
+                  owner, repo, issue_number: issue.number, name: 'blocked',
+                }).catch(err => {
+                  core.warning(`#${issue.number}: failed to remove label: ${err.message}`);
+                });
+              } else {
+                newBody = updateMarker(body, stillBlocking);
+                commentBody =
+                  `Partially unblocked by ${justResolved.join(', ')}. ` +
+                  `Still blocked by: ${stillBlocking.join(', ')}.`;
+              }
+
+              await github.rest.issues.update({
+                owner, repo, issue_number: issue.number, body: newBody,
+              });
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number, body: commentBody,
+              });
+
+              core.info(`#${issue.number}: resolved ${justResolved.join(', ')}; remaining ${stillBlocking.join(', ') || 'none'}`);
+            }
