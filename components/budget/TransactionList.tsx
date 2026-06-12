@@ -39,6 +39,14 @@ type PendingDelete = {
    * and the toast's Undo button is disabled.
    */
   inFlight: boolean;
+  /**
+   * `true` once the action has resolved successfully and we're waiting for
+   * the revalidated `transactions` prop to land. Until then the row stays
+   * hidden — otherwise clearing pending eagerly causes a one-frame flash
+   * where the row and total snap back to pre-delete state before
+   * revalidation arrives.
+   */
+  awaitingRevalidation: boolean;
 };
 
 function reportDeleteError(notify: Notify) {
@@ -174,9 +182,22 @@ export function TransactionList({
         id: transaction.id,
         categoryId: transaction.categoryId,
       });
-      reportDeleteError(notify)(result);
       notify.dismiss(toastId);
-      setPending((cur) => (cur?.transaction.id === transaction.id ? null : cur));
+      if (result.error) {
+        reportDeleteError(notify)(result);
+        setPending((cur) => (cur?.transaction.id === transaction.id ? null : cur));
+        return;
+      }
+      // Action succeeded. Don't clear pending yet — the row must stay hidden
+      // until the revalidated `transactions` prop arrives, or the user sees
+      // the row + total snap back for one frame before disappearing again.
+      // A useEffect on `transactions` clears pending once the prop catches
+      // up (or — defensively — after a short fallback timeout).
+      setPending((cur) =>
+        cur?.transaction.id === transaction.id
+          ? { ...cur, awaitingRevalidation: true }
+          : cur,
+      );
     }, UNDO_WINDOW_MS);
 
     notify.undoDelete({
@@ -191,7 +212,33 @@ export function TransactionList({
         }),
     });
 
-    setPending({ transaction, timer, toastId, inFlight: false });
+    setPending({
+      transaction,
+      timer,
+      toastId,
+      inFlight: false,
+      awaitingRevalidation: false,
+    });
+  }
+
+  // Clear pending once the revalidated `transactions` prop no longer contains
+  // the deleted row. The row stays hidden through the action RTT *and* the
+  // revalidation propagation, eliminating the one-frame flash that happened
+  // when pending cleared eagerly on action resolve.
+  //
+  // Implemented as a render-time check against the previous `transactions`
+  // reference rather than a useEffect — React 19's `set-state-in-effect`
+  // rule forbids setState inside an effect, and this is the canonical
+  // "adjust state when a prop changes" pattern from the React docs.
+  const [prevTransactions, setPrevTransactions] = useState(transactions);
+  if (transactions !== prevTransactions) {
+    setPrevTransactions(transactions);
+    if (
+      pending?.awaitingRevalidation &&
+      !transactions.some((t) => t.id === pending.transaction.id)
+    ) {
+      setPending(null);
+    }
   }
 
   const hiddenId = pending?.transaction.id;
