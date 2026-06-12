@@ -169,6 +169,7 @@ export function CategoryDetailBody({
             categories={categories}
             transactions={visibleTxns}
             initialCategoryId={category.id}
+            compact
           />
         </div>
 
