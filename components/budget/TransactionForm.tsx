@@ -46,6 +46,13 @@ export type TransactionFormProps = {
   /** Submit button label override; defaults to "Add transaction" / "Save changes". */
   submitLabel?: string;
   className?: string;
+  /**
+   * Compact layout for inline placement on the category detail page (issue #15,
+   * chunk 1): hides the category picker (category is implicit), lays fields out
+   * as a single row at md+ widths, and collapses Note behind a "+ Note"
+   * expander. Mobile stays vertical but tightened.
+   */
+  compact?: boolean;
 };
 
 export function TransactionForm({
@@ -56,6 +63,7 @@ export function TransactionForm({
   onSuccess,
   submitLabel,
   className,
+  compact = false,
 }: TransactionFormProps) {
   const isEdit = editing !== undefined;
   const categoryMap = useMemo(
@@ -101,7 +109,11 @@ export function TransactionForm({
     }
   }, [state, onSuccess, notify, isEdit]);
 
-  const defaultSubmitLabel = isEdit ? "Save changes" : "Add transaction";
+  const defaultSubmitLabel = isEdit
+    ? "Save changes"
+    : compact
+      ? "Add"
+      : "Add transaction";
   // In edit mode the field key drops the category dep so re-categorization
   // doesn't remount the inputs (and discard the user's typed values). In add
   // mode the category change is the signal to re-pre-fill from history.
@@ -109,8 +121,16 @@ export function TransactionForm({
     ? `edit:${editing.id}:${resetCount}`
     : `${categoryId ?? "_none_"}:${resetCount}`;
 
+  const submitButton = (
+    <SubmitButton
+      disabled={!categoryId}
+      label={submitLabel ?? defaultSubmitLabel}
+      pendingLabel={isEdit ? "Saving…" : "Adding…"}
+    />
+  );
+
   return (
-    <form action={formAction} className={cn("space-y-3", className)}>
+    <form action={formAction} className={cn(compact ? "space-y-2" : "space-y-3", className)}>
       <input type="hidden" name="categoryId" value={categoryId ?? ""} />
       {isEdit && (
         <>
@@ -123,11 +143,13 @@ export function TransactionForm({
         </>
       )}
 
-      <CategoryPicker
-        categories={categories}
-        selectedId={categoryId}
-        onChange={setCategoryId}
-      />
+      {!compact && (
+        <CategoryPicker
+          categories={categories}
+          selectedId={categoryId}
+          onChange={setCategoryId}
+        />
+      )}
 
       <TransactionFields
         key={fieldsKey}
@@ -135,6 +157,8 @@ export function TransactionForm({
         prefill={prefill}
         vendorOptions={vendorOptions}
         useDateFromPrefill={isEdit}
+        compact={compact}
+        submitButton={compact ? submitButton : null}
       />
 
       {state.error && (
@@ -143,13 +167,9 @@ export function TransactionForm({
         </p>
       )}
 
-      <div className="flex justify-end pt-1">
-        <SubmitButton
-          disabled={!categoryId}
-          label={submitLabel ?? defaultSubmitLabel}
-          pendingLabel={isEdit ? "Saving…" : "Adding…"}
-        />
-      </div>
+      {!compact && (
+        <div className="flex justify-end pt-1">{submitButton}</div>
+      )}
     </form>
   );
 }
@@ -166,6 +186,8 @@ function TransactionFields({
   prefill,
   vendorOptions,
   useDateFromPrefill,
+  compact,
+  submitButton,
 }: {
   kind: CategoryKind | undefined;
   prefill: Transaction | undefined;
@@ -177,6 +199,10 @@ function TransactionFields({
    * without surprising re-dating.
    */
   useDateFromPrefill: boolean;
+  /** Compact one-row layout for the category detail page (issue #15 chunk 1). */
+  compact: boolean;
+  /** Rendered inside the compact row's trailing group so Add sits inline with the fields. */
+  submitButton: React.ReactNode;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const initialDate = useDateFromPrefill ? prefill?.date ?? today : today;
@@ -185,8 +211,90 @@ function TransactionFields({
   const [sign, setSign] = useState<"+" | "-">(prefill && prefill.amount < 0 ? "-" : "+");
   const [vendor, setVendor] = useState(prefill?.vendor ?? "");
   const [note, setNote] = useState(prefill?.note ?? "");
+  // Auto-open when prefill carried a note so its value remains visible — hiding
+  // a populated textarea behind a "+ Note" toggle would silently re-submit the
+  // previous transaction's note.
+  const [noteOpen, setNoteOpen] = useState(Boolean(prefill?.note));
 
   const signLabels = signLabelsFor(kind ?? "expense");
+  const vendorPlaceholder = kind === "savings" ? "Account / source" : "Vendor";
+
+  if (compact) {
+    const inputClass =
+      "w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring";
+    return (
+      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end md:gap-3">
+        <input type="hidden" name="sign" value={sign} />
+
+        <CompactField label="Date" className="md:w-36">
+          <input
+            type="date"
+            name="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            className={inputClass}
+          />
+        </CompactField>
+
+        <CompactField label="Amount" className="md:w-52">
+          <div className="flex gap-2">
+            <SignControl labels={signLabels} value={sign} onChange={setSign} />
+            <input
+              name="amount"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              required
+              className="w-full flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+            />
+          </div>
+        </CompactField>
+
+        <CompactField label="Vendor" className="md:min-w-40 md:flex-1">
+          <VendorInput
+            value={vendor}
+            onChange={setVendor}
+            options={vendorOptions}
+            placeholder={vendorPlaceholder}
+          />
+        </CompactField>
+
+        {noteOpen ? (
+          // w-full + md:order-last so the Note wraps onto its own row below the
+          // main fields at md+, while keeping its natural DOM-order spot above
+          // the trailing group on mobile (no explicit order class applies).
+          <CompactField label="Note" className="w-full md:order-last">
+            <textarea
+              name="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              placeholder="Optional"
+              className="w-full resize-none rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+            />
+          </CompactField>
+        ) : (
+          <input type="hidden" name="note" value={note} />
+        )}
+
+        <div className="flex items-end gap-2 md:ml-auto">
+          {!noteOpen && (
+            <button
+              type="button"
+              onClick={() => setNoteOpen(true)}
+              className="rounded-md bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-border hover:bg-muted/80 hover:text-foreground"
+            >
+              + Note
+            </button>
+          )}
+          {submitButton}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -224,7 +332,7 @@ function TransactionFields({
           value={vendor}
           onChange={setVendor}
           options={vendorOptions}
-          placeholder={kind === "savings" ? "Account / source" : "Vendor"}
+          placeholder={vendorPlaceholder}
         />
       </FieldRow>
 
@@ -239,6 +347,23 @@ function TransactionFields({
         />
       </FieldRow>
     </>
+  );
+}
+
+function CompactField({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={cn("flex flex-col gap-1", className)}>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
 
