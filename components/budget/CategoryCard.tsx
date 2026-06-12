@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
 import {
   fmt,
-  monthLabelShort,
+  monthLabel,
   monthlyTotalsLastN,
   targetLabel,
   thresholdColor,
@@ -59,30 +59,27 @@ export function CategoryCard({
           <div className="grid size-11 place-items-center rounded-xl bg-muted text-2xl">
             {category.emoji}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="font-medium leading-tight">{category.name}</p>
             <p className="text-xs text-muted-foreground">
               {label} · {fmt(perMonthTarget)}/mo
             </p>
+            {category.activeUntil && (
+              <p
+                className="text-xs font-medium text-rose-700 dark:text-rose-400"
+                title={`Ended after ${category.activeUntil}`}
+              >
+                Ended {monthLabel(category.activeUntil)}
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {category.activeUntil && (
-            <span
-              className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900"
-              title={`Ended after ${category.activeUntil}`}
-            >
-              Ended {monthLabelShort(category.activeUntil)}{" "}
-              {category.activeUntil.slice(0, 4)}
-            </span>
-          )}
-          <span
-            className="text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-            aria-hidden
-          >
-            →
-          </span>
-        </div>
+        <span
+          className="shrink-0 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+          aria-hidden
+        >
+          →
+        </span>
       </div>
 
       <div>
