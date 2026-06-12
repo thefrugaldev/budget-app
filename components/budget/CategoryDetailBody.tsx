@@ -173,6 +173,15 @@ export function CategoryDetailBody({
             className="mt-2"
             height="h-2"
           />
+          <div className="mt-3 -mx-1">
+            <MonthBarChart
+              data={trend}
+              kind={category.kind}
+              highlightYm={currentMonthKey(now)}
+              width={300}
+              height={76}
+            />
+          </div>
         </div>
 
         <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
@@ -184,19 +193,6 @@ export function CategoryDetailBody({
             transactions={visibleTxns}
             initialCategoryId={category.id}
             compact
-          />
-        </div>
-
-        <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            6-month trend
-          </h2>
-          <MonthBarChart
-            data={trend}
-            kind={category.kind}
-            highlightYm={currentMonthKey(now)}
-            width={300}
-            height={120}
           />
         </div>
 
