@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { CategoryEditPanel } from "@/components/budget/CategoryEditPanel";
+import { CategorySummaryActions } from "@/components/budget/CategorySummaryActions";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
@@ -110,6 +111,15 @@ export function CategoryDetailBody({
     [visibleTxns, category.id],
   );
 
+  // Mirrors the gate inside `CategoryEditPanel`: hard-delete is only legal
+  // when this category has at most one target row (its initial), so the
+  // summary card's overflow uses the same count to decide whether to expose
+  // the Delete affordance.
+  const targetRowCountForCategory = useMemo(
+    () => targets.filter((t) => t.categoryId === category.id).length,
+    [targets, category.id],
+  );
+
   return (
     <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
       <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
@@ -136,15 +146,22 @@ export function CategoryDetailBody({
                 </p>
               </div>
             </div>
-            {category.activeUntil && (
-              <span
-                className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900"
-                title={`Ended after ${category.activeUntil}`}
-              >
-                Ended {monthLabelShort(category.activeUntil)}{" "}
-                {category.activeUntil.slice(0, 4)}
-              </span>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {category.activeUntil && (
+                <span
+                  className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900"
+                  title={`Ended after ${category.activeUntil}`}
+                >
+                  Ended {monthLabelShort(category.activeUntil)}{" "}
+                  {category.activeUntil.slice(0, 4)}
+                </span>
+              )}
+              <CategorySummaryActions
+                category={category}
+                txCount={txCountForCategory}
+                targetRowCount={targetRowCountForCategory}
+              />
+            </div>
           </div>
           <p className={cn("font-heading text-3xl font-semibold tabular-nums", col.text)}>
             <SignedAmount kind={category.kind} amount={total} />
