@@ -8,6 +8,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import {
   deleteCategoryAction,
   endCategoryAction,
+  reopenCategoryAction,
 } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { useNotify } from "@/components/notify";
@@ -17,13 +18,15 @@ import type { Category } from "@/types/budget";
 
 /**
  * Summary-card affordances: an Edit pencil (no-op unless `onEdit` is wired by
- * a parent) and a ⋯ overflow exposing destructive lifecycle actions — End
- * category (when not already ended) and Delete category (when there are no
- * transactions and at most one target row). Each destructive item opens a
- * confirm dialog naming the consequence.
+ * a parent) and a ⋯ overflow exposing category lifecycle actions:
  *
- * Auto-hides the overflow when neither item would be visible (e.g. an ended
- * category that still has transactions or historical targets).
+ *  - End category — opens a confirm dialog (destructive).
+ *  - Reopen category — fires directly, no confirm (the reverse of End is
+ *    recoverable). Replaces End in the menu when the category is ended.
+ *  - Delete category — opens a confirm dialog; gated on `txCount === 0 &&
+ *    targetRowCount <= 1`, matching the server-side rule.
+ *
+ * Auto-hides the overflow when no item would be visible.
  */
 export function CategorySummaryActions({
   category,
@@ -39,10 +42,36 @@ export function CategorySummaryActions({
   const [endOpen, setEndOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  // Reopen is the inverse of End and is fully recoverable, so it skips the
+  // confirm dialog and fires straight from the menu item via React 19's
+  // useActionState — toasting success/error rather than rendering a state
+  // panel, since there's no dialog body to host one.
+  const [reopenState, reopenAction] = useActionState(
+    reopenCategoryAction,
+    CATEGORY_ACTION_INITIAL,
+  );
+  const notify = useNotify();
+  const lastReopen = useRef<{ ok: number; error: string | null }>({
+    ok: reopenState.ok,
+    error: null,
+  });
+  useEffect(() => {
+    const seen = lastReopen.current;
+    if (reopenState.ok > seen.ok) {
+      seen.ok = reopenState.ok;
+      seen.error = null;
+      notify.success(`${category.name} reopened`);
+    } else if (reopenState.error && reopenState.error !== seen.error) {
+      seen.error = reopenState.error;
+      notify.error("Could not reopen", reopenState.error);
+    }
+  }, [reopenState, notify, category.name]);
+
   const isEnded = Boolean(category.activeUntil);
   const showEnd = !isEnded;
+  const showReopen = isEnded;
   const showDelete = txCount === 0 && targetRowCount <= 1;
-  const showOverflow = showEnd || showDelete;
+  const showOverflow = showEnd || showReopen || showDelete;
 
   return (
     <div className="flex items-center gap-0.5">
@@ -71,6 +100,18 @@ export function CategorySummaryActions({
                     className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-rose-700 outline-none data-[highlighted]:bg-rose-50 dark:text-rose-400 dark:data-[highlighted]:bg-rose-950"
                   >
                     End category
+                  </Menu.Item>
+                )}
+                {showReopen && (
+                  <Menu.Item
+                    onClick={() => {
+                      const fd = new FormData();
+                      fd.set("id", category.id);
+                      reopenAction(fd);
+                    }}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 outline-none data-[highlighted]:bg-muted"
+                  >
+                    Reopen category
                   </Menu.Item>
                 )}
                 {showDelete && (

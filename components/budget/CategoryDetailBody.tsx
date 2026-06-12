@@ -13,7 +13,7 @@ import {
   aggregateRange,
   currentMonthKey,
   fmt,
-  monthLabelShort,
+  monthLabel,
   monthlyTotalsLastN,
   resolveTargetForMonth,
   targetLabel,
@@ -137,31 +137,28 @@ export function CategoryDetailBody({
               <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
                 {category.emoji}
               </div>
-              <div>
+              <div className="min-w-0">
                 <h1 className="font-heading text-lg font-semibold leading-tight">
                   {category.name}
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {label} · {fmt(perMonthTarget)}/mo
                 </p>
+                {category.activeUntil && (
+                  <p
+                    className="text-xs font-medium text-rose-700 dark:text-rose-400"
+                    title={`Ended after ${category.activeUntil}`}
+                  >
+                    Ended {monthLabel(category.activeUntil)}
+                  </p>
+                )}
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {category.activeUntil && (
-                <span
-                  className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900"
-                  title={`Ended after ${category.activeUntil}`}
-                >
-                  Ended {monthLabelShort(category.activeUntil)}{" "}
-                  {category.activeUntil.slice(0, 4)}
-                </span>
-              )}
-              <CategorySummaryActions
-                category={category}
-                txCount={txCountForCategory}
-                targetRowCount={targetRowCountForCategory}
-              />
-            </div>
+            <CategorySummaryActions
+              category={category}
+              txCount={txCountForCategory}
+              targetRowCount={targetRowCountForCategory}
+            />
           </div>
           <p className={cn("font-heading text-3xl font-semibold tabular-nums", col.text)}>
             <SignedAmount kind={category.kind} amount={total} />
