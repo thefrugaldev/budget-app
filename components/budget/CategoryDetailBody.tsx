@@ -147,12 +147,12 @@ export function CategoryDetailBody({
                   {label} · {fmt(perMonthTarget)}/mo
                 </p>
                 {category.activeUntil && (
-                  <p
-                    className="text-xs font-medium text-rose-700 dark:text-rose-400"
+                  <span
+                    className="mt-1 inline-block rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400"
                     title={`Ended after ${category.activeUntil}`}
                   >
                     Ended {monthLabel(category.activeUntil)}
-                  </p>
+                  </span>
                 )}
               </div>
             </div>
@@ -191,12 +191,18 @@ export function CategoryDetailBody({
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Add transaction
           </h2>
-          <TransactionForm
-            categories={categories}
-            transactions={visibleTxns}
-            initialCategoryId={category.id}
-            compact
-          />
+          {category.activeUntil ? (
+            <p className="text-xs text-muted-foreground">
+              This category is ended. Reopen via Edit to add transactions.
+            </p>
+          ) : (
+            <TransactionForm
+              categories={categories}
+              transactions={visibleTxns}
+              initialCategoryId={category.id}
+              compact
+            />
+          )}
         </div>
 
       </aside>
