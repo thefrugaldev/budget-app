@@ -193,6 +193,7 @@ export function CategoryEditSheet({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 transition-opacity" />
         <Dialog.Popup
+          aria-modal="true"
           className={cn(
             "fixed z-50 flex flex-col bg-card shadow-xl ring-1 ring-border outline-none",
             // Mobile: full-screen
