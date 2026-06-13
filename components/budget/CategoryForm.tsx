@@ -7,6 +7,7 @@ import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { useNotify } from "@/components/notify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
+import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { currentMonthKey } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { CategoryKind } from "@/types/budget";
@@ -85,6 +86,7 @@ export function CategoryForm({
   const [emoji, setEmoji] = useState<string>(
     KIND_PLACEHOLDERS[presetKind ?? pickerKinds[0]].emoji,
   );
+  const [activeFrom, setActiveFrom] = useState<string>(currentMonthKey());
 
   return (
     <form action={formAction} className={cn("space-y-3", className)}>
@@ -155,18 +157,18 @@ export function CategoryForm({
         />
       </label>
 
-      <label className="block space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">
+      <div className="space-y-1">
+        <span className="block text-xs font-medium text-muted-foreground">
           Active from
         </span>
-        <input
+        <MonthPickerField
+          value={activeFrom}
+          onChange={setActiveFrom}
           name="activeFrom"
-          type="month"
-          defaultValue={currentMonthKey()}
           required
-          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+          ariaLabel="Active from"
         />
-      </label>
+      </div>
 
       {state.error && (
         <p role="alert" className="text-xs text-destructive">

@@ -22,6 +22,7 @@ import {
 import { CategoryLifecycleActions } from "@/components/budget/CategoryLifecycleActions";
 import { CategoryTargetHistory } from "@/components/budget/CategoryTargetHistory";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
+import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { useNotify } from "@/components/notify";
 import {
   currentMonthKey,
@@ -268,31 +269,31 @@ export function CategoryEditSheet({
                     </select>
                   </label>
                 )}
-                <label className="block space-y-1">
-                  <span className="text-xs font-medium text-muted-foreground">
+                <div className="space-y-1">
+                  <span className="block text-xs font-medium text-muted-foreground">
                     Active from
                   </span>
-                  <input
-                    type="month"
+                  <MonthPickerField
                     value={activeFrom}
-                    onChange={(e) => setActiveFrom(e.target.value)}
+                    onChange={setActiveFrom}
                     required
-                    className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+                    ariaLabel="Active from"
                   />
-                </label>
+                </div>
                 {showEndDate ? (
                   <div className="space-y-1">
                     <span className="block text-xs font-medium text-muted-foreground">
                       Active until
                     </span>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="month"
-                        value={activeUntil}
-                        onChange={(e) => setActiveUntil(e.target.value)}
-                        required
-                        className="flex-1 rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
-                      />
+                      <div className="flex-1">
+                        <MonthPickerField
+                          value={activeUntil}
+                          onChange={setActiveUntil}
+                          required
+                          ariaLabel="Active until"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
