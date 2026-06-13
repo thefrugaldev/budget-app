@@ -376,8 +376,17 @@ function Row({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <p className="truncate">
-            <span className="font-medium">{t.vendor ?? "—"}</span>
-            <span className="ml-2 text-xs text-muted-foreground">{dayLabel(t.date, now)}</span>
+            <span className="font-medium">
+              <span className="sr-only">Vendor: </span>
+              {t.vendor ?? "—"}
+            </span>
+            <span className="mx-1.5 text-muted-foreground" aria-hidden="true">
+              ·
+            </span>
+            <span className="text-xs text-muted-foreground">
+              <span className="sr-only">Date: </span>
+              {dayLabel(t.date, now)}
+            </span>
           </p>
           <span
             className={cn(
