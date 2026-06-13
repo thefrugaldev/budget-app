@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { CategoryEditSheet } from "@/components/budget/CategoryEditSheet";
 import { CategorySummaryActions } from "@/components/budget/CategorySummaryActions";
+import { EndedBadge } from "@/components/budget/EndedBadge";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
@@ -13,7 +14,6 @@ import {
   aggregateRange,
   currentMonthKey,
   fmt,
-  monthLabel,
   monthlyTotalsLastN,
   resolveTargetForMonth,
   targetLabel,
@@ -147,12 +147,7 @@ export function CategoryDetailBody({
                   {label} · {fmt(perMonthTarget)}/mo
                 </p>
                 {category.activeUntil && (
-                  <span
-                    className="mt-1 inline-block rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400"
-                    title={`Ended after ${category.activeUntil}`}
-                  >
-                    Ended {monthLabel(category.activeUntil)}
-                  </span>
+                  <EndedBadge ym={category.activeUntil} className="mt-1" />
                 )}
               </div>
             </div>
