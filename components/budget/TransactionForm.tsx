@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/transactions";
 import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
 import { useNotify } from "@/components/notify";
+import { DatePickerField } from "@/components/ui/DatePickerField";
 import {
   mostRecentTransactionInCategory,
   signLabelsFor,
@@ -220,20 +221,17 @@ function TransactionFields({
   const vendorPlaceholder = kind === "savings" ? "Account / source" : "Vendor";
 
   if (compact) {
-    const inputClass =
-      "w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring";
     return (
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end md:gap-3">
         <input type="hidden" name="sign" value={sign} />
 
-        <CompactField label="Date" className="md:w-36">
-          <input
-            type="date"
-            name="date"
+        <CompactField label="Date" className="md:w-44">
+          <DatePickerField
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={setDate}
+            name="date"
             required
-            className={inputClass}
+            ariaLabel="Transaction date"
           />
         </CompactField>
 
@@ -301,13 +299,12 @@ function TransactionFields({
       <input type="hidden" name="sign" value={sign} />
 
       <FieldRow label="Date">
-        <input
-          type="date"
-          name="date"
+        <DatePickerField
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={setDate}
+          name="date"
           required
-          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+          ariaLabel="Transaction date"
         />
       </FieldRow>
 

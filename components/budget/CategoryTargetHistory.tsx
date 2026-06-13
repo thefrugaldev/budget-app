@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/category-state";
 import { useNotify } from "@/components/notify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
+import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { monthLabel, targetLabel } from "@/lib/budget";
 import type { CategoryKind, CategoryTarget } from "@/types/budget";
 
@@ -184,6 +185,7 @@ function NewTargetRowForm({
     CATEGORY_ACTION_INITIAL,
   );
   useToastOnSuccess(state, () => "Target row added", onDone);
+  const [effectiveFrom, setEffectiveFrom] = useState("");
 
   return (
     <form
@@ -192,13 +194,15 @@ function NewTargetRowForm({
     >
       <input type="hidden" name="categoryId" value={categoryId} />
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          name="effectiveFrom"
-          type="month"
-          required
-          aria-label="Effective from"
-          className="rounded-md bg-background px-2 py-1 text-sm ring-1 ring-border outline-none focus:ring-ring"
-        />
+        <div className="w-44">
+          <MonthPickerField
+            value={effectiveFrom}
+            onChange={setEffectiveFrom}
+            name="effectiveFrom"
+            required
+            ariaLabel="Effective from"
+          />
+        </div>
         <input
           name="monthly"
           type="number"

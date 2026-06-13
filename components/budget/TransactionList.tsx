@@ -9,6 +9,7 @@ import { deleteTransactionAction } from "@/app/actions/transactions";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import { useNotify } from "@/components/notify";
+import { DateRangeField } from "@/components/ui/DateRangeField";
 import {
   dayLabel,
   matchesTransactionFilter,
@@ -316,7 +317,7 @@ function FilterRow({
   vendorOptions: string[];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-2xl bg-card p-3 ring-1 ring-border sm:grid-cols-[1fr_140px_140px_140px]">
+    <div className="grid grid-cols-1 gap-2 rounded-2xl bg-card p-3 ring-1 ring-border sm:grid-cols-[1fr_160px_minmax(220px,1fr)]">
       <input
         type="search"
         placeholder="Search vendor or note…"
@@ -338,19 +339,14 @@ function FilterRow({
           </option>
         ))}
       </select>
-      <input
-        type="date"
-        value={filter.dateFrom ?? ""}
-        onChange={(e) => onChange({ ...filter, dateFrom: e.target.value })}
-        aria-label="From date"
-        className="rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
-      />
-      <input
-        type="date"
-        value={filter.dateTo ?? ""}
-        onChange={(e) => onChange({ ...filter, dateTo: e.target.value })}
-        aria-label="To date"
-        className="rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+      <DateRangeField
+        from={filter.dateFrom ?? ""}
+        to={filter.dateTo ?? ""}
+        onChange={({ from, to }) =>
+          onChange({ ...filter, dateFrom: from, dateTo: to })
+        }
+        ariaLabel="Date range"
+        placeholder="Any date"
       />
     </div>
   );
