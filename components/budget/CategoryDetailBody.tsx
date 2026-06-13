@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { CategoryEditPanel } from "@/components/budget/CategoryEditPanel";
+import { CategoryEditSheet } from "@/components/budget/CategoryEditSheet";
 import { CategorySummaryActions } from "@/components/budget/CategorySummaryActions";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
@@ -56,6 +56,7 @@ export function CategoryDetailBody({
   now: Date;
 }) {
   const [hiddenId, setHiddenId] = useState<string | undefined>(undefined);
+  const [editOpen, setEditOpen] = useState(false);
 
   const visibleTxns = useMemo(
     () =>
@@ -103,15 +104,16 @@ export function CategoryDetailBody({
   );
 
   // Live count of this category's transactions across all of time. Drives the
-  // Delete / End-category gate inside `CategoryEditPanel` — when the user
-  // optimistically deletes the last transaction, the Delete button flips on
-  // immediately without waiting for revalidation.
+  // Delete / End-category gate inside `CategoryEditSheet` and the summary
+  // card overflow — when the user optimistically deletes the last transaction,
+  // the Delete affordance flips on immediately without waiting for
+  // revalidation.
   const txCountForCategory = useMemo(
     () => visibleTxns.filter((t) => t.categoryId === category.id).length,
     [visibleTxns, category.id],
   );
 
-  // Mirrors the gate inside `CategoryEditPanel`: hard-delete is only legal
+  // Mirrors the gate inside `CategoryEditSheet`: hard-delete is only legal
   // when this category has at most one target row (its initial), so the
   // summary card's overflow uses the same count to decide whether to expose
   // the Delete affordance.
@@ -158,6 +160,7 @@ export function CategoryDetailBody({
               category={category}
               txCount={txCountForCategory}
               targetRowCount={targetRowCountForCategory}
+              onEdit={() => setEditOpen(true)}
             />
           </div>
           <p className={cn("font-heading text-3xl font-semibold tabular-nums", col.text)}>
@@ -196,12 +199,6 @@ export function CategoryDetailBody({
           />
         </div>
 
-        <CategoryEditPanel
-          category={category}
-          targets={targets}
-          txCount={txCountForCategory}
-          now={now}
-        />
       </aside>
 
       <section>
@@ -216,6 +213,15 @@ export function CategoryDetailBody({
           onHiddenIdChange={setHiddenId}
         />
       </section>
+
+      <CategoryEditSheet
+        category={category}
+        targets={targets}
+        txCount={txCountForCategory}
+        now={now}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
     </div>
   );
 }
