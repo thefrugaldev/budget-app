@@ -26,6 +26,27 @@ const EMPTY_FILTER: TransactionFilter = {
   dateTo: "",
 };
 
+// On desktop the Add transaction card is in the left rail and already in view,
+// so a plain anchor link is silent. Move focus to the first input + flash a
+// transient ring on the card so the click has visible feedback regardless of
+// whether the scroll moved anything.
+function focusAddTransactionForm() {
+  const target = document.getElementById("add-transaction");
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Skip hidden inputs (React server-action plumbing prepends several to
+  // any `<form action={...}>`); the first visible control on the Add form
+  // is the DatePickerField trigger button.
+  const firstFocusable = target.querySelector<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]):not([type="hidden"]), [tabindex]:not([tabindex="-1"])',
+  );
+  firstFocusable?.focus({ preventScroll: true });
+  target.classList.add("ring-2", "ring-ring");
+  window.setTimeout(() => {
+    target.classList.remove("ring-2", "ring-ring");
+  }, 1200);
+}
+
 type Notify = ReturnType<typeof useNotify>;
 
 type PendingDelete = {
@@ -289,10 +310,32 @@ export function TransactionList({
           />
         ))}
         {filtered.length === 0 && (
-          <li className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {transactions.length === 0
-              ? "No transactions in this range."
-              : "No transactions match the filter."}
+          <li className="flex flex-col items-center gap-3 px-4 py-8 text-center text-sm text-muted-foreground">
+            {transactions.length === 0 ? (
+              <>
+                <p>No transactions in this range.</p>
+                {!category.activeUntil && (
+                  <button
+                    type="button"
+                    onClick={focusAddTransactionForm}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Add a transaction →
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <p>No transactions match the filter.</p>
+                <button
+                  type="button"
+                  onClick={() => setFilter(EMPTY_FILTER)}
+                  className="cursor-pointer rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-border hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
           </li>
         )}
       </ul>

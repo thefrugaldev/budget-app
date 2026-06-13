@@ -180,7 +180,10 @@ export function CategoryDetailBody({
           </div>
         </div>
 
-        <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
+        <div
+          id="add-transaction"
+          className="rounded-2xl bg-card p-4 ring-1 ring-border scroll-mt-20 transition-[box-shadow,--tw-ring-color] duration-300"
+        >
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Add transaction
           </h2>
