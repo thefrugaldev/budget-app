@@ -5,7 +5,6 @@ import {
   monthlyTotalsLastN,
   targetLabel,
   thresholdColor,
-  thresholdFor,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import { EndedBadge } from "./EndedBadge";
@@ -33,8 +32,7 @@ export function CategoryCard({
   /** Used to draw the 6-month sparkline (independent of range). */
   transactions: Transaction[];
 }) {
-  const state = thresholdFor(category.kind, denominator, total);
-  const col = thresholdColor(category.kind, state);
+  const col = thresholdColor(category.kind, denominator, total);
   const pct = denominator === 0 ? 0 : total / denominator;
   const isInflow = category.kind !== "expense";
   const label = targetLabel(category.kind);

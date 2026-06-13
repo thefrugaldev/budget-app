@@ -18,7 +18,6 @@ import {
   resolveTargetForMonth,
   targetLabel,
   thresholdColor,
-  thresholdFor,
   type RangeSelection,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
@@ -74,8 +73,7 @@ export function CategoryDetailBody({
   const total = agg.total;
   const denominator = agg.denominator;
   const perMonthTarget = resolveTargetForMonth(category.id, range.ymEnd, targets);
-  const state = thresholdFor(category.kind, denominator, total);
-  const col = thresholdColor(category.kind, state);
+  const col = thresholdColor(category.kind, denominator, total);
   const pct = denominator === 0 ? 0 : total / denominator;
   const isInflow = category.kind !== "expense";
   const label = targetLabel(category.kind);

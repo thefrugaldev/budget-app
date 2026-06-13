@@ -1,5 +1,5 @@
 import type { CategoryKind } from "@/types/budget";
-import { thresholdColor, thresholdFor } from "@/lib/budget";
+import { thresholdColor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
 export function ThresholdMeter({
@@ -15,8 +15,7 @@ export function ThresholdMeter({
   className?: string;
   height?: string;
 }) {
-  const state = thresholdFor(kind, target, amount);
-  const col = thresholdColor(kind, state);
+  const col = thresholdColor(kind, target, amount);
   const pct = target === 0 ? 0 : amount / target;
   const barWidth = Math.max(0, Math.min(100, pct * 100));
   return (
