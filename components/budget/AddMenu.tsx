@@ -45,10 +45,10 @@ export function AddMenu({
         <Menu.Trigger
           aria-label="Add"
           /*
-           * On mobile the FAB lifts above the bottom-tab nav (#14 chunk 4).
-           * Full FAB redesign is tracked separately in #13 chunk 3 — this
-           * only handles collision so the FAB stays clear of the tab bar
-           * and the iOS safe-area inset.
+           * Mobile: FAB lifts above the bottom-tab nav (#14 chunk 4) with
+           * an iOS safe-area inset margin. The Pulse page also pads its
+           * bottom by FAB height + safe-area so the last card scrolls
+           * clear of the FAB (#13 chunk 3).
            */
           style={{ marginBottom: "env(safe-area-inset-bottom)" }}
           className="fixed bottom-20 right-4 z-10 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-medium text-primary-foreground shadow-lg ring-1 ring-black/10 hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:bottom-8 md:right-8"
