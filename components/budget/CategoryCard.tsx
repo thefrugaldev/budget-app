@@ -2,13 +2,13 @@ import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
 import {
   fmt,
-  monthLabel,
   monthlyTotalsLastN,
   targetLabel,
   thresholdColor,
   thresholdFor,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
+import { EndedBadge } from "./EndedBadge";
 import { SignedAmount } from "./SignedAmount";
 import { ThresholdMeter } from "./ThresholdMeter";
 
@@ -65,12 +65,7 @@ export function CategoryCard({
               {label} · {fmt(perMonthTarget)}/mo
             </p>
             {category.activeUntil && (
-              <p
-                className="text-xs font-medium text-rose-700 dark:text-rose-400"
-                title={`Ended after ${category.activeUntil}`}
-              >
-                Ended {monthLabel(category.activeUntil)}
-              </p>
+              <EndedBadge ym={category.activeUntil} className="mt-1" />
             )}
           </div>
         </div>

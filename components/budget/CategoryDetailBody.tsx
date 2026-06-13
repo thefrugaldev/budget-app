@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { CategoryEditSheet } from "@/components/budget/CategoryEditSheet";
 import { CategorySummaryActions } from "@/components/budget/CategorySummaryActions";
+import { EndedBadge } from "@/components/budget/EndedBadge";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
@@ -13,7 +14,6 @@ import {
   aggregateRange,
   currentMonthKey,
   fmt,
-  monthLabel,
   monthlyTotalsLastN,
   resolveTargetForMonth,
   targetLabel,
@@ -147,12 +147,7 @@ export function CategoryDetailBody({
                   {label} · {fmt(perMonthTarget)}/mo
                 </p>
                 {category.activeUntil && (
-                  <p
-                    className="text-xs font-medium text-rose-700 dark:text-rose-400"
-                    title={`Ended after ${category.activeUntil}`}
-                  >
-                    Ended {monthLabel(category.activeUntil)}
-                  </p>
+                  <EndedBadge ym={category.activeUntil} className="mt-1" />
                 )}
               </div>
             </div>
@@ -191,12 +186,18 @@ export function CategoryDetailBody({
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Add transaction
           </h2>
-          <TransactionForm
-            categories={categories}
-            transactions={visibleTxns}
-            initialCategoryId={category.id}
-            compact
-          />
+          {category.activeUntil ? (
+            <p className="text-xs text-muted-foreground">
+              This category is ended. Reopen via Edit to add transactions.
+            </p>
+          ) : (
+            <TransactionForm
+              categories={categories}
+              transactions={visibleTxns}
+              initialCategoryId={category.id}
+              compact
+            />
+          )}
         </div>
 
       </aside>
