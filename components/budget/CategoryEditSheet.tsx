@@ -21,6 +21,7 @@ import {
 } from "@/app/actions/category-state";
 import { CategoryLifecycleActions } from "@/components/budget/CategoryLifecycleActions";
 import { CategoryTargetHistory } from "@/components/budget/CategoryTargetHistory";
+import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { useNotify } from "@/components/notify";
 import {
   currentMonthKey,
@@ -223,12 +224,11 @@ export function CategoryEditSheet({
               <section className="space-y-3">
                 <SectionHeader title="Details" dirty={detailsDirty} />
                 <div className="grid grid-cols-[64px_1fr] gap-2">
-                  <input
+                  <EmojiPickerButton
                     value={emoji}
-                    onChange={(e) => setEmoji(e.target.value)}
-                    maxLength={4}
-                    aria-label="Emoji"
-                    className="rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none focus:ring-ring"
+                    onChange={setEmoji}
+                    nameHint={name}
+                    ariaLabel="Choose category emoji"
                   />
                   <input
                     value={name}

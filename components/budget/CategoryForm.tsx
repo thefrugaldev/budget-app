@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 
 import { createCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { useNotify } from "@/components/notify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { currentMonthKey } from "@/lib/budget";
@@ -80,6 +81,10 @@ export function CategoryForm({
   const [kind, setKind] = useState<CategoryKind>(presetKind ?? pickerKinds[0]);
   const effectiveKind = presetKind ?? kind;
   const placeholders = KIND_PLACEHOLDERS[effectiveKind];
+  const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState<string>(
+    KIND_PLACEHOLDERS[presetKind ?? pickerKinds[0]].emoji,
+  );
 
   return (
     <form action={formAction} className={cn("space-y-3", className)}>
@@ -113,15 +118,16 @@ export function CategoryForm({
       )}
 
       <div className="grid grid-cols-[64px_1fr] gap-2">
-        <input
-          name="emoji"
-          defaultValue={placeholders.emoji}
-          maxLength={4}
-          aria-label="Emoji"
-          className="rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none focus:ring-ring"
+        <EmojiPickerButton
+          value={emoji}
+          onChange={setEmoji}
+          nameHint={name}
+          ariaLabel="Choose category emoji"
         />
         <input
           name="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           placeholder={placeholders.name}
           required
           aria-label="Name"
