@@ -9,6 +9,7 @@ import { useFormStatus } from "react-dom";
 import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { AddCategoryDialog } from "@/components/budget/AddCategoryDialog";
+import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import { useNotify } from "@/components/notify";
 import { cn } from "@/lib/utils";
@@ -152,6 +153,19 @@ function AddIncomeSourceDialog({
   );
   const notify = useNotify();
   const lastOk = useRef(state.ok);
+  const [emoji, setEmoji] = useState("💰");
+  const [name, setName] = useState("");
+  // Reset emoji/name when the dialog transitions from open → closed, so the
+  // next opening starts fresh. Render-time prev comparison (React 19's
+  // set-state-in-effect rule forbids the more obvious useEffect form).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (!open) {
+      setEmoji("💰");
+      setName("");
+    }
+  }
   useEffect(() => {
     if (!open) lastOk.current = state.ok; // resync when dialog reopens
     else if (state.ok > lastOk.current && !state.error) {
@@ -174,15 +188,16 @@ function AddIncomeSourceDialog({
           </Dialog.Description>
           <form action={formAction} className="mt-4 space-y-3">
             <div className="grid grid-cols-[64px_1fr] gap-2">
-              <input
-                name="emoji"
-                defaultValue="💰"
-                maxLength={4}
-                aria-label="Emoji"
-                className="rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none focus:ring-ring"
+              <EmojiPickerButton
+                value={emoji}
+                onChange={setEmoji}
+                nameHint={name}
+                ariaLabel="Choose income source emoji"
               />
               <input
                 name="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="Side gig"
                 required
                 className="rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"

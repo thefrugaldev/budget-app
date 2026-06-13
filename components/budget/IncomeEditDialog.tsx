@@ -17,6 +17,7 @@ import {
   INCOME_ACTION_INITIAL,
   type IncomeActionState,
 } from "@/app/actions/income-state";
+import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { useNotify } from "@/components/notify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { fmt, monthLabel, nextMonth } from "@/lib/budget";
@@ -320,6 +321,8 @@ function AddSourceForm({
     INCOME_ACTION_INITIAL,
   );
   useSuccessEffect(state, () => "Income source added", onDone);
+  const [emoji, setEmoji] = useState("💰");
+  const [name, setName] = useState("");
 
   return (
     <form
@@ -330,15 +333,16 @@ function AddSourceForm({
         New income source
       </p>
       <div className="grid grid-cols-[64px_1fr] gap-2">
-        <input
-          name="emoji"
-          defaultValue="💰"
-          maxLength={4}
-          aria-label="Emoji"
-          className="rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none focus:ring-ring"
+        <EmojiPickerButton
+          value={emoji}
+          onChange={setEmoji}
+          nameHint={name}
+          ariaLabel="Choose income source emoji"
         />
         <input
           name="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           placeholder="Side gig"
           required
           className="rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
