@@ -1,14 +1,11 @@
 "use client";
 
 import { Dialog } from "@base-ui/react/dialog";
-import { Pencil } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
+import { MoreHorizontal, Pencil } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 
-import { endCategoryAction } from "@/app/actions/categories";
-import {
-  CATEGORY_ACTION_INITIAL,
-  type CategoryActionState,
-} from "@/app/actions/category-state";
+import { type CategoryActionState } from "@/app/actions/category-state";
 import {
   createIncomeSourceAction,
   updateIncomeBaselineAction,
@@ -17,6 +14,7 @@ import {
   INCOME_ACTION_INITIAL,
   type IncomeActionState,
 } from "@/app/actions/income-state";
+import { EndCategoryDialog } from "@/components/budget/CategoryLifecycleDialogs";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { useNotify } from "@/components/notify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
@@ -176,16 +174,7 @@ function IncomeSourceForm({
     updateIncomeBaselineAction,
     INCOME_ACTION_INITIAL,
   );
-  // End / Reopen of an income source now goes through the shared
-  // `endCategoryAction` so there's a single end-category path regardless
-  // of which surface the user clicks from. The two-action split this used
-  // to have was incidental (different revalidation + message), and the
-  // shared action's `assertIncomeCategory` guard was redundant — the
-  // header pencil only ever surfaces income categories.
-  const [endState, endAction] = useActionState(
-    endCategoryAction,
-    CATEGORY_ACTION_INITIAL,
-  );
+  const [endOpen, setEndOpen] = useState(false);
 
   // Messages are computed lazily inside useSuccessEffect's success branch,
   // so the closure picks up the *latest* applyThisMonth / currentMonth at
@@ -198,13 +187,8 @@ function IncomeSourceForm({
       )}`,
     onDone,
   );
-  useSuccessEffect(
-    endState,
-    () => `${source.name} ended after ${monthLabel(currentMonth)}`,
-    onDone,
-  );
 
-  const error = updateState.error ?? endState.error;
+  const error = updateState.error;
 
   // Disable Save when there's nothing to persist: the yearly value matches
   // the current baseline AND the apply-toggle isn't asking us to write a
@@ -223,7 +207,7 @@ function IncomeSourceForm({
     >
       <form action={updateAction} className="space-y-2">
         <input type="hidden" name="categoryId" value={source.id} />
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           <span className="grid size-8 place-items-center rounded-md bg-muted text-lg">
             {source.emoji}
           </span>
@@ -244,6 +228,32 @@ function IncomeSourceForm({
               </p>
             )}
           </div>
+          {!isEnded && (
+            <Menu.Root>
+              <Menu.Trigger
+                aria-label={`Actions for ${source.name}`}
+                className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Positioner
+                  sideOffset={4}
+                  align="end"
+                  className="z-50 outline-none"
+                >
+                  <Menu.Popup className="min-w-44 rounded-xl bg-card p-1 text-sm shadow-xl ring-1 ring-border outline-none">
+                    <Menu.Item
+                      onClick={() => setEndOpen(true)}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-rose-700 outline-none data-[highlighted]:bg-rose-50 dark:text-rose-400 dark:data-[highlighted]:bg-rose-950"
+                    >
+                      End source
+                    </Menu.Item>
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-muted-foreground" htmlFor={`yearly-${source.id}`}>
@@ -292,19 +302,13 @@ function IncomeSourceForm({
           </p>
         )}
       </form>
-      {!isEnded && (
-        <form action={endAction} className="mt-2 flex justify-end">
-          {/* endCategoryAction reads `id` (not `categoryId`); the update
-              form above still posts `categoryId` because that's what
-              updateIncomeBaselineAction expects. */}
-          <input type="hidden" name="id" value={source.id} />
-          <FormSubmitButton
-            label="End source"
-            pendingLabel="Ending…"
-            variant="ghost-destructive"
-          />
-        </form>
-      )}
+      <EndCategoryDialog
+        open={endOpen}
+        onOpenChange={setEndOpen}
+        category={{ id: source.id, name: source.name }}
+        noun="source"
+        onSuccess={onDone}
+      />
     </div>
   );
 }
