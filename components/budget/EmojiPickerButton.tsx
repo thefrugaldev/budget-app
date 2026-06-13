@@ -2,7 +2,7 @@
 
 import { Popover } from "@base-ui/react/popover";
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { EmojiStyle, Theme, type EmojiClickData } from "emoji-picker-react";
@@ -90,6 +90,23 @@ const NAME_HINTS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["wine", ["🍷"]],
 ] as const;
 
+// The app uses Tailwind's class-based dark mode (`.dark` on the html element)
+// rather than `prefers-color-scheme`. `emoji-picker-react`'s `Theme.AUTO`
+// follows the system preference, which mismatches the app's class strategy.
+// Watch the html element for class changes and pass an explicit Theme.
+function useAppTheme(): Theme {
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setIsDark(root.classList.contains("dark"));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return isDark ? Theme.DARK : Theme.LIGHT;
+}
+
 function suggestionsFor(nameHint: string | undefined): readonly string[] {
   if (!nameHint) return [];
   const lower = nameHint.toLowerCase().trim();
@@ -148,6 +165,7 @@ export function EmojiPickerButton({
 
   const [open, setOpen] = useState(false);
   const suggestions = useMemo(() => suggestionsFor(nameHint), [nameHint]);
+  const theme = useAppTheme();
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -155,7 +173,7 @@ export function EmojiPickerButton({
       <Popover.Trigger
         aria-label={ariaLabel}
         className={cn(
-          "rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+          "cursor-pointer rounded-md bg-background px-2 py-1.5 text-center text-lg ring-1 ring-border outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
           className,
         )}
       >
@@ -181,7 +199,7 @@ export function EmojiPickerButton({
                         set(e);
                         setOpen(false);
                       }}
-                      className="rounded-md bg-background px-2 py-1 text-lg ring-1 ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="cursor-pointer rounded-md bg-background px-2 py-1 text-lg ring-1 ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {e}
                     </button>
@@ -195,7 +213,7 @@ export function EmojiPickerButton({
                 setOpen(false);
               }}
               emojiStyle={EmojiStyle.NATIVE}
-              theme={Theme.AUTO}
+              theme={theme}
               lazyLoadEmojis
               previewConfig={{ showPreview: false }}
               skinTonesDisabled
