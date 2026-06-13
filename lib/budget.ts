@@ -148,24 +148,37 @@ export function thresholdFor(
 
 export type ThresholdPalette = {
   text: string;
-  bg: string;
-  ring: string;
-  dot: string;
   bar: string;
 };
 
-const PALETTE = {
-  green: { text: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40", ring: "ring-emerald-200 dark:ring-emerald-900", dot: "bg-emerald-500", bar: "bg-emerald-500" },
-  yellow: { text: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40", ring: "ring-amber-200 dark:ring-amber-900", dot: "bg-amber-500", bar: "bg-amber-500" },
-  orange: { text: "text-orange-700 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-950/40", ring: "ring-orange-200 dark:ring-orange-900", dot: "bg-orange-500", bar: "bg-orange-500" },
-  red: { text: "text-rose-700 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40", ring: "ring-rose-200 dark:ring-rose-900", dot: "bg-rose-500", bar: "bg-rose-500" },
+const SIGNAL = {
+  good: { text: "text-signal-good-foreground", bar: "bg-signal-good" },
+  warn: { text: "text-signal-warn-foreground", bar: "bg-signal-warn" },
+  bad: { text: "text-signal-bad-foreground", bar: "bg-signal-bad" },
 } satisfies Record<string, ThresholdPalette>;
 
-export function thresholdColor(kind: Category["kind"], state: ThresholdState): ThresholdPalette {
-  if (kind === "expense") {
-    return { under: PALETTE.green, near: PALETTE.yellow, at: PALETTE.orange, over: PALETTE.red }[state];
+/**
+ * Render-layer mapping from (kind, target, amount) to one of three signals.
+ *
+ *   expense   → good when under cap, warn when ≥90% of cap, bad when exceeded.
+ *   non-expense (savings/income) → good for any net-positive contribution
+ *     regardless of how far along; bad only when the period nets negative
+ *     (withdrawal / reversal). A "savings at 50% of goal" is progress, not
+ *     a warning — separate from the four-state `ThresholdState` which keeps
+ *     under/near/at/over for headline copy.
+ */
+export function thresholdColor(
+  kind: Category["kind"],
+  target: number,
+  amount: number,
+): ThresholdPalette {
+  if (kind !== "expense") {
+    return amount < 0 ? SIGNAL.bad : SIGNAL.good;
   }
-  return { under: PALETTE.red, near: PALETTE.orange, at: PALETTE.yellow, over: PALETTE.green }[state];
+  const state = thresholdFor(kind, target, amount);
+  if (state === "over") return SIGNAL.bad;
+  if (state === "at") return SIGNAL.warn;
+  return SIGNAL.good;
 }
 
 export function ytdTotalsByCategory(

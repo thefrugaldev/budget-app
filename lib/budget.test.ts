@@ -19,6 +19,7 @@ import {
   resolveTargetForMonth,
   signLabelsFor,
   targetLabel,
+  thresholdColor,
   thresholdFor,
   vendorSuggestionsForCategory,
   ytdTotalsByCategory,
@@ -561,6 +562,52 @@ describe("thresholdFor income kind — positive-side boundaries", () => {
     const cat = incomeCat();
     expect(thresholdFor(cat.kind, 5000, 6000)).toBe("over");
   });
+});
+
+describe("thresholdColor — three-signal palette", () => {
+  // Locks the green/amber/red mapping. The headline regression: a savings
+  // contribution at 50% of goal used to render red (matching an over-cap
+  // expense). The non-expense branch is now sign-driven, not state-driven.
+  type Kind = Category["kind"];
+  const cases: Array<{
+    name: string;
+    kind: Kind;
+    target: number;
+    amount: number;
+    signal: "good" | "warn" | "bad";
+  }> = [
+    { name: "expense well under cap → good", kind: "expense", target: 800, amount: 100, signal: "good" },
+    { name: "expense at 75% of cap (near) → good", kind: "expense", target: 800, amount: 600, signal: "good" },
+    { name: "expense at 95% of cap (at) → warn", kind: "expense", target: 800, amount: 760, signal: "warn" },
+    { name: "expense at exactly the cap → warn", kind: "expense", target: 800, amount: 800, signal: "warn" },
+    { name: "expense beyond cap → bad", kind: "expense", target: 800, amount: 900, signal: "bad" },
+    { name: "expense with a net refund → good (no cap pressure)", kind: "expense", target: 800, amount: -50, signal: "good" },
+    { name: "savings at 50% of goal → good (bug fix)", kind: "savings", target: 1000, amount: 500, signal: "good" },
+    { name: "savings exceeded goal → good", kind: "savings", target: 1000, amount: 1500, signal: "good" },
+    { name: "savings net-negative (withdrawal) → bad", kind: "savings", target: 1000, amount: -200, signal: "bad" },
+    { name: "income partial month → good", kind: "income", target: 8000, amount: 3000, signal: "good" },
+    { name: "income net-negative (reversal) → bad", kind: "income", target: 8000, amount: -100, signal: "bad" },
+    { name: "savings target=0 with positive contribution → good", kind: "savings", target: 0, amount: 50, signal: "good" },
+  ];
+
+  const SIGNAL_TEXT = {
+    good: "text-signal-good-foreground",
+    warn: "text-signal-warn-foreground",
+    bad: "text-signal-bad-foreground",
+  };
+  const SIGNAL_BAR = {
+    good: "bg-signal-good",
+    warn: "bg-signal-warn",
+    bad: "bg-signal-bad",
+  };
+
+  for (const c of cases) {
+    it(c.name, () => {
+      const col = thresholdColor(c.kind, c.target, c.amount);
+      expect(col.text).toBe(SIGNAL_TEXT[c.signal]);
+      expect(col.bar).toBe(SIGNAL_BAR[c.signal]);
+    });
+  }
 });
 
 describe("resolveRange", () => {
