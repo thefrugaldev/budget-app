@@ -289,10 +289,31 @@ export function TransactionList({
           />
         ))}
         {filtered.length === 0 && (
-          <li className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {transactions.length === 0
-              ? "No transactions in this range."
-              : "No transactions match the filter."}
+          <li className="flex flex-col items-center gap-3 px-4 py-8 text-center text-sm text-muted-foreground">
+            {transactions.length === 0 ? (
+              <>
+                <p>No transactions in this range.</p>
+                {!category.activeUntil && (
+                  <a
+                    href="#add-transaction"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Add a transaction →
+                  </a>
+                )}
+              </>
+            ) : (
+              <>
+                <p>No transactions match the filter.</p>
+                <button
+                  type="button"
+                  onClick={() => setFilter(EMPTY_FILTER)}
+                  className="cursor-pointer rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-border hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
           </li>
         )}
       </ul>

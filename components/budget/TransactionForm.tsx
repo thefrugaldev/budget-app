@@ -283,7 +283,7 @@ function TransactionFields({
             <button
               type="button"
               onClick={() => setNoteOpen(true)}
-              className="rounded-md bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-border hover:bg-muted/80 hover:text-foreground"
+              className="cursor-pointer rounded-md bg-muted px-3 py-2 text-sm font-medium text-muted-foreground ring-1 ring-border hover:bg-muted/80 hover:text-foreground"
             >
               + Note
             </button>
