@@ -68,6 +68,7 @@ export async function updateIncomeBaselineAction(
       effectiveFrom,
     });
     revalidatePath("/");
+    revalidatePath("/income");
     return success(prev);
   } catch (err) {
     return failure(prev, err);
@@ -103,6 +104,7 @@ export async function createIncomeSourceAction(
     });
 
     revalidatePath("/");
+    revalidatePath("/income");
     return success(prev);
   } catch (err) {
     return failure(prev, err);
@@ -147,6 +149,7 @@ export async function cancelScheduledBaselineAction(
     await assertIncomeCategory(categoryId);
     await deleteCategoryTarget(categoryId, effectiveFrom);
     revalidatePath("/");
+    revalidatePath("/income");
     return success(prev);
   } catch (err) {
     return failure(prev, err);

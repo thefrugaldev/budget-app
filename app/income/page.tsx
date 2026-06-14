@@ -30,8 +30,7 @@ export default async function IncomePage() {
     listCategoryTargets(),
   ]);
 
-  const now = new Date();
-  const thisMonth = currentMonthKey(now);
+  const thisMonth = currentMonthKey();
   const incomeCategories = categories.filter((c) => c.kind === "income");
   const activeIncome = incomeCategories.filter((c) =>
     isCategoryActiveForMonth(c, thisMonth),
