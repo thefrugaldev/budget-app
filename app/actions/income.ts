@@ -9,10 +9,14 @@ import {
 } from "@/lib/repositories/categories";
 import {
   createCategoryTarget,
+  deleteCategoryTarget,
   upsertCategoryTarget,
 } from "@/lib/repositories/categoryTargets";
 
-import { parseYearly } from "./income-parsers";
+import {
+  parseCancelScheduledBaselineInput,
+  parseYearly,
+} from "./income-parsers";
 import type { IncomeActionState } from "./income-state";
 
 function requireString(raw: FormDataEntryValue | null, field: string): string {
@@ -111,3 +115,31 @@ export async function createIncomeSourceAction(
 // path regardless of which surface the user clicks. The income-only
 // `assertIncomeCategory` guard it had was incidental — the header pencil
 // only ever lists income categories anyway.
+
+/**
+ * Deletes a future-effective `CategoryTarget` row keyed by
+ * `(categoryId, effectiveFrom)` — the "I queued a raise next month and
+ * changed my mind" path. Rejects if `effectiveFrom <= currentMonth`, since
+ * the current (or past) baseline isn't a "scheduled change" and removing it
+ * would silently strand the source without a baseline for that month.
+ */
+export async function cancelScheduledBaselineAction(
+  prev: IncomeActionState,
+  formData: FormData,
+): Promise<IncomeActionState> {
+  try {
+    const { categoryId, effectiveFrom } =
+      parseCancelScheduledBaselineInput(formData);
+    await assertIncomeCategory(categoryId);
+
+    if (effectiveFrom <= currentMonthKey()) {
+      throw new Error("Can only cancel a future-effective baseline");
+    }
+
+    await deleteCategoryTarget(categoryId, effectiveFrom);
+    revalidatePath("/");
+    return success(prev);
+  } catch (err) {
+    return failure(prev, err);
+  }
+}

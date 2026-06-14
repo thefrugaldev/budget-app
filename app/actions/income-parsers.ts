@@ -1,3 +1,5 @@
+import { parseMonthKey } from "./category-parsers";
+
 /**
  * Parses a user-entered yearly amount. Accepts currency-formatted strings
  * (`"$90,000"`, `"$ 90,000.50"`) and bare numerics. Throws on empty input,
@@ -22,4 +24,24 @@ export function parseYearly(raw: FormDataEntryValue | null): number {
     throw new Error("Yearly amount must be greater than zero");
   }
   return n;
+}
+
+/**
+ * Parses the FormData submitted to `cancelScheduledBaselineAction`. Validates
+ * the `(categoryId, effectiveFrom)` pair shape only — the action layer is
+ * responsible for the "effectiveFrom must be in the future" business rule,
+ * since it depends on the clock.
+ */
+export function parseCancelScheduledBaselineInput(formData: FormData): {
+  categoryId: string;
+  effectiveFrom: string;
+} {
+  const rawId = formData.get("categoryId");
+  if (typeof rawId !== "string" || rawId.trim() === "") {
+    throw new Error("categoryId is required");
+  }
+  return {
+    categoryId: rawId.trim(),
+    effectiveFrom: parseMonthKey(formData.get("effectiveFrom"), "Effective from"),
+  };
 }

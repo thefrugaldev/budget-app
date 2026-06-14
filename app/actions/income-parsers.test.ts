@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { parseYearly } from "./income-parsers";
+import {
+  parseCancelScheduledBaselineInput,
+  parseYearly,
+} from "./income-parsers";
+
+function makeFormData(entries: Record<string, string | null>): FormData {
+  const fd = new FormData();
+  for (const [key, value] of Object.entries(entries)) {
+    if (value !== null) fd.set(key, value);
+  }
+  return fd;
+}
 
 describe("parseYearly", () => {
   it("accepts a bare numeric string", () => {
@@ -38,5 +49,44 @@ describe("parseYearly", () => {
 
   it("rejects negative values", () => {
     expect(() => parseYearly("-100")).toThrow(/greater than zero/i);
+  });
+});
+
+describe("parseCancelScheduledBaselineInput", () => {
+  it("returns the trimmed categoryId and parsed effectiveFrom for well-formed input", () => {
+    const fd = makeFormData({
+      categoryId: "  salary  ",
+      effectiveFrom: "2026-09",
+    });
+    expect(parseCancelScheduledBaselineInput(fd)).toEqual({
+      categoryId: "salary",
+      effectiveFrom: "2026-09",
+    });
+  });
+
+  it("rejects missing categoryId", () => {
+    const fd = makeFormData({ effectiveFrom: "2026-09" });
+    expect(() => parseCancelScheduledBaselineInput(fd)).toThrow(
+      /categoryId is required/,
+    );
+  });
+
+  it("rejects whitespace-only categoryId", () => {
+    const fd = makeFormData({ categoryId: "   ", effectiveFrom: "2026-09" });
+    expect(() => parseCancelScheduledBaselineInput(fd)).toThrow(
+      /categoryId is required/,
+    );
+  });
+
+  it("rejects missing effectiveFrom", () => {
+    const fd = makeFormData({ categoryId: "salary" });
+    expect(() => parseCancelScheduledBaselineInput(fd)).toThrow(
+      /Effective from is required/,
+    );
+  });
+
+  it("rejects malformed effectiveFrom", () => {
+    const fd = makeFormData({ categoryId: "salary", effectiveFrom: "Sept 2026" });
+    expect(() => parseCancelScheduledBaselineInput(fd)).toThrow(/YYYY-MM/);
   });
 });
