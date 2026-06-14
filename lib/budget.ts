@@ -270,7 +270,10 @@ export function resolveTargetForMonth(
 
 /**
  * Inclusive lifecycle check against `activeFrom`/`activeUntil`. `activeUntil`
- * is optional — undefined means "no end".
+ * is optional — undefined means "no end". A row whose `activeUntil === ym`
+ * is still active here (the month is part of its window); the income page's
+ * status pill reads that same row as "ended" — see `classifyIncomeSourceStatus`
+ * in `lib/income.ts`.
  */
 export function isCategoryActiveForMonth(category: Category, ym: string): boolean {
   if (ym < category.activeFrom) return false;
