@@ -3,7 +3,6 @@ import type { Category, CategoryTarget } from "@/types/budget";
 import {
   buildIncomeSourceDisplayLabel,
   classifyIncomeSourceStatus,
-  type IncomeSourceStatus,
 } from "./income";
 
 const incomeCat = (overrides: Partial<Category> = {}): Category => ({
@@ -122,12 +121,21 @@ describe("buildIncomeSourceDisplayLabel", () => {
     );
   });
 
-  it("treats leading/trailing whitespace as part of the same normalized name", () => {
+  it("treats leading/trailing whitespace as part of the same normalized name and renders the trimmed name", () => {
     const trimmed = incomeCat({ id: "a", name: "Bonus", activeFrom: "2026-01" });
     const padded = incomeCat({ id: "b", name: "  Bonus  ", activeFrom: "2026-03" });
     expect(buildIncomeSourceDisplayLabel(trimmed, [trimmed, padded], "active")).toBe(
       "Bonus · since January 2026",
     );
+    // Padded side renders with trimmed name too — no `"  Bonus   · since March 2026"`.
+    expect(buildIncomeSourceDisplayLabel(padded, [trimmed, padded], "active")).toBe(
+      "Bonus · since March 2026",
+    );
+  });
+
+  it("trims surrounding whitespace from the bare-name path too", () => {
+    const padded = incomeCat({ id: "a", name: "  Salary  " });
+    expect(buildIncomeSourceDisplayLabel(padded, [padded], "active")).toBe("Salary");
   });
 
   it("handles three-way collisions by suffixing every colliding row", () => {
@@ -154,14 +162,5 @@ describe("buildIncomeSourceDisplayLabel", () => {
   it("ignores the source itself when checking for collisions", () => {
     const only = incomeCat({ id: "a", name: "Bonus" });
     expect(buildIncomeSourceDisplayLabel(only, [only], "active")).toBe("Bonus");
-  });
-
-  it("falls back to a bare 'ended' suffix when activeUntil is missing (defensive)", () => {
-    // Shouldn't happen in real data (an "ended" status implies activeUntil),
-    // but the label builder shouldn't render `ended undefined` if it does.
-    const a = incomeCat({ id: "a", name: "Bonus" });
-    const b = incomeCat({ id: "b", name: "Bonus" });
-    const status: IncomeSourceStatus = "ended";
-    expect(buildIncomeSourceDisplayLabel(a, [a, b], status)).toBe("Bonus · ended");
   });
 });

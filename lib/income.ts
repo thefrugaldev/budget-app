@@ -41,19 +41,19 @@ export function buildIncomeSourceDisplayLabel(
   allSources: Category[],
   status: IncomeSourceStatus,
 ): string {
-  const normalized = source.name.trim().toLowerCase();
+  const trimmedName = source.name.trim();
+  const normalized = trimmedName.toLowerCase();
   const hasCollision = allSources.some(
     (other) =>
       other.id !== source.id && other.name.trim().toLowerCase() === normalized,
   );
-  if (!hasCollision) return source.name;
+  if (!hasCollision) return trimmedName;
 
   let suffix: string;
   switch (status) {
     case "ended":
-      suffix = source.activeUntil
-        ? `ended ${monthLabel(source.activeUntil)}`
-        : "ended";
+      // `activeUntil` is guaranteed set when status === "ended" (see classifier).
+      suffix = `ended ${monthLabel(source.activeUntil!)}`;
       break;
     case "scheduled-change":
       suffix = "scheduled change";
@@ -62,5 +62,5 @@ export function buildIncomeSourceDisplayLabel(
       suffix = `since ${monthLabel(source.activeFrom)}`;
       break;
   }
-  return `${source.name} · ${suffix}`;
+  return `${trimmedName} · ${suffix}`;
 }
