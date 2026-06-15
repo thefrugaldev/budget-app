@@ -33,7 +33,11 @@ export function IncomeSourceEditor({
   currentMonth: string;
   onClose: () => void;
 }) {
-  const initialYearly = currentMonthly * 12;
+  // Round to cents on read so the input doesn't display float-drift like
+  // 99999.99999999999 after a $100k yearly was stored as 8333.333…/mo. The
+  // same rounded value drives the dirty comparison below, so a reopened
+  // clean form stays clean.
+  const initialYearly = Math.round(currentMonthly * 12 * 100) / 100;
   const [yearlyInput, setYearlyInput] = useState(initialYearly.toString());
   const [applyThisMonth, setApplyThisMonth] = useState(false);
 
@@ -61,6 +65,14 @@ export function IncomeSourceEditor({
   return (
     <form
       action={formAction}
+      onSubmit={(e) => {
+        // Save baseline is hidden when the form is clean, but the form
+        // itself still has `action={formAction}` — pressing Enter inside
+        // the yearly input would otherwise submit a no-op write and toast
+        // a misleading "Baseline updated". Short-circuit at the submit
+        // boundary so Enter on a clean form is silent.
+        if (!dirty) e.preventDefault();
+      }}
       className="mt-3 space-y-2 border-t border-border pt-3"
     >
       <input type="hidden" name="categoryId" value={source.id} />
