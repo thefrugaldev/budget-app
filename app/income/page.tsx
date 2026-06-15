@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
 import { AddIncomeSourceLauncher } from "@/components/budget/AddIncomeSourceLauncher";
+import { IncomeSourceCard } from "@/components/budget/IncomeSourceCard";
 import {
   currentMonthKey,
   currentMonthlyBaseline,
   fmt,
-  isCategoryActiveForMonth,
 } from "@/lib/budget";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
@@ -16,12 +16,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * `/income` page scaffold (chunk 3 of #39). Renders inside `AppShell` like
- * every other route, reads the same `(categories, targets)` data the Pulse
- * header reads, and surfaces a stub list of source names. The Pulse header
- * pencil still owns editing until chunk 7 retires the modal — this page
- * exists to be a real navigation destination (story 22) and to host the
- * card UI and lifecycle actions that land in chunks 4–6.
+ * `/income` page (chunks 3–4 of #39). Renders inside `AppShell` like every
+ * other route, reads the same `(categories, targets)` data the Pulse header
+ * reads, and surfaces each income source as a read-mode card with a status
+ * pill and one-sentence baseline summary. Ended sources stay in the list so
+ * chunk 6's Reopen affordance has a row to attach to. The Pulse header
+ * pencil still owns editing until chunk 7 retires the modal.
  */
 export default async function IncomePage() {
   await ensureSeeded();
@@ -32,11 +32,14 @@ export default async function IncomePage() {
 
   const thisMonth = currentMonthKey();
   const incomeCategories = categories.filter((c) => c.kind === "income");
-  const activeIncome = incomeCategories.filter((c) =>
-    isCategoryActiveForMonth(c, thisMonth),
-  );
 
-  const totalMonthly = currentMonthlyBaseline(activeIncome, targets, thisMonth);
+  // currentMonthlyBaseline already filters to sources active *this* month,
+  // so ended/future sources don't inflate the headline figure.
+  const totalMonthly = currentMonthlyBaseline(
+    incomeCategories,
+    targets,
+    thisMonth,
+  );
   const totalYearly = totalMonthly * 12;
 
   return (
@@ -46,7 +49,7 @@ export default async function IncomePage() {
           <h1 className="font-heading text-3xl font-semibold tracking-tight">
             Income
           </h1>
-          {activeIncome.length > 0 && (
+          {totalMonthly > 0 && (
             <p className="mt-2 text-sm text-muted-foreground">
               <span className="font-medium text-foreground tabular-nums">
                 {fmt(totalYearly)}
@@ -61,23 +64,21 @@ export default async function IncomePage() {
             </p>
           )}
         </div>
-        {activeIncome.length > 0 && <AddIncomeSourceLauncher />}
+        {incomeCategories.length > 0 && <AddIncomeSourceLauncher />}
       </header>
 
-      {activeIncome.length === 0 ? (
+      {incomeCategories.length === 0 ? (
         <EmptyState />
       ) : (
-        <ul className="space-y-2">
-          {activeIncome.map((c) => (
-            <li
+        <ul className="space-y-3">
+          {incomeCategories.map((c) => (
+            <IncomeSourceCard
               key={c.id}
-              className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-border"
-            >
-              <span aria-hidden className="text-xl">
-                {c.emoji}
-              </span>
-              <span className="font-medium">{c.name}</span>
-            </li>
+              source={c}
+              allSources={incomeCategories}
+              targets={targets}
+              currentMonth={thisMonth}
+            />
           ))}
         </ul>
       )}
