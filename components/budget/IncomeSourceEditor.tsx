@@ -4,8 +4,8 @@ import { useActionState, useState } from "react";
 
 import { updateIncomeBaselineAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
-import { useActionSuccessToast } from "@/components/notify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
+import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { monthLabel, nextMonth } from "@/lib/budget";
 import type { Category } from "@/types/budget";
 
