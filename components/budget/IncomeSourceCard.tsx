@@ -9,18 +9,23 @@ import { cn } from "@/lib/utils";
 
 /**
  * Read-mode card for an income source on `/income` (chunk 4 of #39). Renders
- * emoji + display label + status pill on a single row, with a one-sentence
- * baseline summary beneath. No edit chrome yet — the inline editor lands in
- * chunk 5 and the lifecycle ⋯ menu in chunk 6.
+ * emoji + display label + an exception-only status pill on a single row, with
+ * a one-sentence baseline summary beneath. No edit chrome yet — the inline
+ * editor lands in chunk 5 and the lifecycle ⋯ menu in chunk 6.
+ *
+ * Status pill is rendered only for exceptions — "Scheduled change" and
+ * "Ended" — so a card with no pill reads as the default "ongoing" state.
+ * Active was originally specced as its own pill but proved to be visual tax
+ * on the common case (the default state doesn't earn screen space).
  *
  * Display rules per PRD:
  *  - "active": `$X/yr · $Y/mo`
  *  - "scheduled-change": `$X/yr · $Y/mo → $Z/yr starting <month>`
  *  - "ended": `Ended after <month> · last baseline $X/yr`
  *
- * Accessibility: each card is a labelled `<li>` whose `aria-label` reads
- * "<display label> · <status>" so the status pill is part of the row
- * announcement instead of a colour cue (story 18).
+ * Accessibility: each card is a labelled `<li>` whose `aria-label` is the
+ * display label, plus the pill copy when one is shown — so screen readers
+ * announce the exception status rather than depending on colour (story 18).
  */
 export function IncomeSourceCard({
   source,
@@ -40,10 +45,10 @@ export function IncomeSourceCard({
 
   return (
     <li
-      aria-label={`${label} · ${pillCopy}`}
+      aria-label={pillCopy ? `${label} · ${pillCopy}` : label}
       className={cn(
-        "flex items-center gap-3 rounded-2xl bg-card p-4 ring-1",
-        status === "ended" ? "ring-border opacity-75" : "ring-border",
+        "flex items-center gap-3 rounded-2xl bg-card p-4 ring-1 ring-border",
+        status === "ended" && "opacity-75",
       )}
     >
       <span
@@ -55,7 +60,9 @@ export function IncomeSourceCard({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-medium leading-tight">{label}</span>
-          <StatusPill status={status} copy={pillCopy} />
+          {status !== "active" && pillCopy && (
+            <StatusPill status={status} copy={pillCopy} />
+          )}
         </div>
         <p className="mt-1 text-sm text-muted-foreground tabular-nums">
           {summary}
@@ -69,17 +76,15 @@ function StatusPill({
   status,
   copy,
 }: {
-  status: IncomeSourceStatus;
+  status: Exclude<IncomeSourceStatus, "active">;
   copy: string;
 }) {
   const palette = {
-    active:
-      "bg-muted text-muted-foreground",
     "scheduled-change":
       "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
     ended:
       "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
-  } satisfies Record<IncomeSourceStatus, string>;
+  } satisfies Record<Exclude<IncomeSourceStatus, "active">, string>;
   return (
     <span
       className={cn(
@@ -95,10 +100,10 @@ function StatusPill({
 function statusPillCopy(
   source: Category,
   status: IncomeSourceStatus,
-): string {
+): string | null {
   switch (status) {
     case "active":
-      return "Active";
+      return null;
     case "scheduled-change":
       return "Scheduled change";
     case "ended":
