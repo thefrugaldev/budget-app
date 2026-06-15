@@ -1,16 +1,11 @@
 "use client";
 
 import { Pencil } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
-import { updateIncomeBaselineAction } from "@/app/actions/income";
-import {
-  INCOME_ACTION_INITIAL,
-  type IncomeActionState,
-} from "@/app/actions/income-state";
-import { useNotify } from "@/components/notify";
-import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
-import { fmt, monthLabel, nextMonth, resolveTargetForMonth } from "@/lib/budget";
+import { IncomeSourceEditor } from "@/components/budget/IncomeSourceEditor";
+import { IncomeSourceStatusPill } from "@/components/budget/IncomeSourceStatusPill";
+import { fmt, monthLabel, resolveTargetForMonth } from "@/lib/budget";
 import {
   buildIncomeSourceDisplayLabel,
   classifyIncomeSourceStatus,
@@ -23,9 +18,9 @@ import type { Category, CategoryTarget } from "@/types/budget";
  * Read-mode + inline editor card for an income source on `/income`
  * (chunks 4–5 of #39). Renders emoji + display label + an exception-only
  * status pill on a single row, with a one-sentence baseline summary
- * beneath. The Edit pencil expands an inline editor (yearly + apply-this-
- * month + Save baseline) that fires `updateIncomeBaselineAction`. Lifecycle
- * affordances (⋯ menu, leading Reopen on ended rows) land in chunk 6.
+ * beneath. The Edit pencil expands `IncomeSourceEditor` beneath the row.
+ * Lifecycle affordances (⋯ menu, leading Reopen on ended rows) land in
+ * chunk 6.
  *
  * Status pill is rendered only for exceptions — "Scheduled change" and
  * "Ended" — so a card with no pill reads as the default "ongoing" state.
@@ -92,7 +87,7 @@ export function IncomeSourceCard({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-medium leading-tight">{label}</span>
             {status !== "active" && pillCopy && (
-              <StatusPill status={status} copy={pillCopy} />
+              <IncomeSourceStatusPill status={status} copy={pillCopy} />
             )}
           </div>
           <p className="mt-1 text-sm text-muted-foreground tabular-nums">
@@ -120,162 +115,6 @@ export function IncomeSourceCard({
         />
       )}
     </li>
-  );
-}
-
-/**
- * Inline editor mounted beneath the card header when the user clicks the
- * pencil. Owns yearly + apply-this-month state, fires
- * `updateIncomeBaselineAction`, and emits a success toast through
- * `useNotify`. The Save baseline button is conditionally rendered (not
- * just disabled) so a clean form doesn't show an inert primary CTA
- * (story 7).
- *
- * Dirty rule mirrors the modal's original logic: a write is meaningful
- * either when the yearly value diverges from the resolved current monthly
- * or when the user explicitly checks "apply this month" (writing a
- * current-month-effective row over the default next-month one).
- */
-function IncomeSourceEditor({
-  source,
-  currentMonthly,
-  currentMonth,
-  onClose,
-}: {
-  source: Category;
-  currentMonthly: number;
-  currentMonth: string;
-  onClose: () => void;
-}) {
-  const initialYearly = currentMonthly * 12;
-  const [yearlyInput, setYearlyInput] = useState(initialYearly.toString());
-  const [applyThisMonth, setApplyThisMonth] = useState(false);
-
-  const [state, formAction] = useActionState(
-    updateIncomeBaselineAction,
-    INCOME_ACTION_INITIAL,
-  );
-
-  useSuccessToast(
-    state,
-    () =>
-      `Baseline updated · effective ${monthLabel(
-        applyThisMonth ? currentMonth : nextMonth(currentMonth),
-      )}`,
-    onClose,
-  );
-
-  const parsedYearly = Number(yearlyInput);
-  const yearlyUnchanged =
-    Number.isFinite(parsedYearly) && parsedYearly === initialYearly;
-  const dirty = !yearlyUnchanged || applyThisMonth;
-
-  const yearlyId = `income-yearly-${source.id}`;
-
-  return (
-    <form
-      action={formAction}
-      className="mt-3 space-y-2 border-t border-border pt-3"
-    >
-      <input type="hidden" name="categoryId" value={source.id} />
-      <div className="flex items-center gap-2">
-        <label
-          className="text-xs text-muted-foreground"
-          htmlFor={yearlyId}
-        >
-          Yearly
-        </label>
-        <input
-          id={yearlyId}
-          name="yearly"
-          type="number"
-          step="0.01"
-          min="0"
-          inputMode="decimal"
-          value={yearlyInput}
-          onChange={(e) => setYearlyInput(e.target.value)}
-          autoFocus
-          className="flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
-        />
-      </div>
-      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-        <input
-          type="checkbox"
-          name="applyThisMonth"
-          checked={applyThisMonth}
-          onChange={(e) => setApplyThisMonth(e.target.checked)}
-          className="size-3.5 accent-foreground"
-        />
-        Apply this month ({monthLabel(currentMonth)})
-      </label>
-      {state.error && (
-        <p role="alert" className="text-xs text-destructive">
-          {state.error}
-        </p>
-      )}
-      <div className="flex items-center justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          Cancel
-        </button>
-        {dirty && (
-          <FormSubmitButton
-            label="Save baseline"
-            pendingLabel="Saving…"
-            variant="compact"
-          />
-        )}
-      </div>
-    </form>
-  );
-}
-
-/**
- * Detects the action's success transition (the `ok` counter increments
- * with no `error`), fires a toast computed lazily so the closure picks up
- * the latest `applyThisMonth` at commit time, and closes the editor.
- */
-function useSuccessToast(
-  state: IncomeActionState,
-  computeMessage: () => string,
-  onSuccess: () => void,
-) {
-  const notify = useNotify();
-  const lastSeen = useRef(state.ok);
-  useEffect(() => {
-    if (state.ok > lastSeen.current && !state.error) {
-      lastSeen.current = state.ok;
-      notify.success(computeMessage());
-      onSuccess();
-    }
-  }, [state, notify, computeMessage, onSuccess]);
-}
-
-function StatusPill({
-  status,
-  copy,
-}: {
-  status: Exclude<IncomeSourceStatus, "active">;
-  copy: string;
-}) {
-  const palette = {
-    "scheduled-change":
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
-    ended:
-      "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
-  } satisfies Record<Exclude<IncomeSourceStatus, "active">, string>;
-  return (
-    <span
-      className={cn(
-        "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
-        palette[status],
-      )}
-    >
-      {copy}
-    </span>
   );
 }
 

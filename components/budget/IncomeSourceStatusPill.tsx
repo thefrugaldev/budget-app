@@ -1,0 +1,33 @@
+import type { IncomeSourceStatus } from "@/lib/income";
+import { cn } from "@/lib/utils";
+
+/**
+ * Exception-only pill rendered alongside the income source's display label
+ * on `/income`. Only renders for "scheduled-change" and "ended" — the
+ * "active" state is the default and reads as no pill, so the visual
+ * vocabulary stays quiet on the common case.
+ */
+export function IncomeSourceStatusPill({
+  status,
+  copy,
+}: {
+  status: Exclude<IncomeSourceStatus, "active">;
+  copy: string;
+}) {
+  const palette = {
+    "scheduled-change":
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+    ended:
+      "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
+  } satisfies Record<Exclude<IncomeSourceStatus, "active">, string>;
+  return (
+    <span
+      className={cn(
+        "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
+        palette[status],
+      )}
+    >
+      {copy}
+    </span>
+  );
+}
