@@ -10,6 +10,7 @@ import {
 import {
   createCategoryTarget,
   deleteCategoryTarget,
+  listCategoryTargetsFor,
   upsertCategoryTarget,
 } from "@/lib/repositories/categoryTargets";
 
@@ -62,16 +63,46 @@ export async function updateIncomeBaselineAction(
     const thisMonth = currentMonthKey();
     const effectiveFrom = applyThisMonth ? thisMonth : nextMonth(thisMonth);
 
+    const monthly = yearly / 12;
     await upsertCategoryTarget({
       categoryId,
-      monthly: yearly / 12,
+      monthly,
       effectiveFrom,
     });
+
+    // Collapse redundant immediately-next future target(s). After this write,
+    // resolving any month M >= effectiveFrom returns the most recent target
+    // with effectiveFrom <= M. So a future row whose `monthly` equals the
+    // chain value coming from our write is a no-op for every month it
+    // covers — removing it changes nothing. Walk forward, deleting while
+    // the chain stays at the same monthly; stop at the first mismatch.
+    //
+    // Without this cleanup an "Apply this month" edit that matches a queued
+    // future change leaves both rows in place — the card then reads as
+    // "Scheduled change → $X starting next month" even though nothing
+    // actually changes ($X is already in effect). See PR #47 / issue #39.
+    await collapseRedundantForwardTargets(categoryId, effectiveFrom, monthly);
+
     revalidatePath("/");
     revalidatePath("/income");
     return success(prev);
   } catch (err) {
     return failure(prev, err);
+  }
+}
+
+async function collapseRedundantForwardTargets(
+  categoryId: string,
+  fromEffective: string,
+  chainMonthly: number,
+): Promise<void> {
+  const all = await listCategoryTargetsFor(categoryId);
+  const future = all
+    .filter((t) => t.effectiveFrom > fromEffective)
+    .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+  for (const t of future) {
+    if (t.monthly !== chainMonthly) return;
+    await deleteCategoryTarget(categoryId, t.effectiveFrom);
   }
 }
 

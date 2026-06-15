@@ -1,4 +1,10 @@
-import type { Category, CategoryTarget } from "@/types/budget";
+"use client";
+
+import { Pencil } from "lucide-react";
+import { useRef, useState } from "react";
+
+import { IncomeSourceEditor } from "@/components/budget/IncomeSourceEditor";
+import { IncomeSourceStatusPill } from "@/components/budget/IncomeSourceStatusPill";
 import { fmt, monthLabel, resolveTargetForMonth } from "@/lib/budget";
 import {
   buildIncomeSourceDisplayLabel,
@@ -6,12 +12,15 @@ import {
   type IncomeSourceStatus,
 } from "@/lib/income";
 import { cn } from "@/lib/utils";
+import type { Category, CategoryTarget } from "@/types/budget";
 
 /**
- * Read-mode card for an income source on `/income` (chunk 4 of #39). Renders
- * emoji + display label + an exception-only status pill on a single row, with
- * a one-sentence baseline summary beneath. No edit chrome yet — the inline
- * editor lands in chunk 5 and the lifecycle ⋯ menu in chunk 6.
+ * Read-mode + inline editor card for an income source on `/income`
+ * (chunks 4–5 of #39). Renders emoji + display label + an exception-only
+ * status pill on a single row, with a one-sentence baseline summary
+ * beneath. The Edit pencil expands `IncomeSourceEditor` beneath the row.
+ * Lifecycle affordances (⋯ menu, leading Reopen on ended rows) land in
+ * chunk 6.
  *
  * Status pill is rendered only for exceptions — "Scheduled change" and
  * "Ended" — so a card with no pill reads as the default "ongoing" state.
@@ -42,58 +51,70 @@ export function IncomeSourceCard({
   const label = buildIncomeSourceDisplayLabel(source, allSources, status);
   const summary = baselineSummary(source, targets, currentMonth, status);
   const pillCopy = statusPillCopy(source, status);
+  const currentMonthly = resolveTargetForMonth(
+    source.id,
+    currentMonth,
+    targets,
+  );
+
+  const [editing, setEditing] = useState(false);
+  const editTriggerRef = useRef<HTMLButtonElement>(null);
+  const canEdit = status !== "ended";
+
+  const closeEditor = () => {
+    setEditing(false);
+    // Restore focus to the pencil so keyboard users land back where they
+    // left off (story 17).
+    requestAnimationFrame(() => editTriggerRef.current?.focus());
+  };
 
   return (
     <li
       aria-label={pillCopy ? `${label} · ${pillCopy}` : label}
       className={cn(
-        "flex items-center gap-3 rounded-2xl bg-card p-4 ring-1 ring-border",
+        "rounded-2xl bg-card p-4 ring-1 ring-border",
         status === "ended" && "opacity-75",
       )}
     >
-      <span
-        aria-hidden
-        className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-2xl"
-      >
-        {source.emoji}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-medium leading-tight">{label}</span>
-          {status !== "active" && pillCopy && (
-            <StatusPill status={status} copy={pillCopy} />
-          )}
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden
+          className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-2xl"
+        >
+          {source.emoji}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-medium leading-tight">{label}</span>
+            {status !== "active" && pillCopy && (
+              <IncomeSourceStatusPill status={status} copy={pillCopy} />
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+            {summary}
+          </p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground tabular-nums">
-          {summary}
-        </p>
+        {canEdit && !editing && (
+          <button
+            ref={editTriggerRef}
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={`Edit ${label}`}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground ring-1 ring-border transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Pencil className="size-3.5" aria-hidden />
+          </button>
+        )}
       </div>
-    </li>
-  );
-}
-
-function StatusPill({
-  status,
-  copy,
-}: {
-  status: Exclude<IncomeSourceStatus, "active">;
-  copy: string;
-}) {
-  const palette = {
-    "scheduled-change":
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
-    ended:
-      "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
-  } satisfies Record<Exclude<IncomeSourceStatus, "active">, string>;
-  return (
-    <span
-      className={cn(
-        "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
-        palette[status],
+      {editing && canEdit && (
+        <IncomeSourceEditor
+          source={source}
+          currentMonthly={currentMonthly}
+          currentMonth={currentMonth}
+          onClose={closeEditor}
+        />
       )}
-    >
-      {copy}
-    </span>
+    </li>
   );
 }
 
