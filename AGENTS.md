@@ -13,13 +13,17 @@ This repo uses **pnpm** (`packageManager: pnpm@11.5.2` in `package.json`; `pnpm-
 <!-- BEGIN:code-organization -->
 # Code organization
 
-**One component per file.** Each React component (anything that renders JSX and is `PascalCase`) lives in its own `.tsx` file named after the component. No private sub-components nested inside the same file as their parent — extract them and import like any other dependency. Pure helpers and types specific to a single component may stay co-located, but additional components should not.
+Four principles apply across **every** top-level source directory (`components/`, `hooks/`, `lib/`, `types/`). They're the same idea expressed at four levels of zoom.
 
-**Group components by module under `components/`.** Don't dump every file under a single flat directory, and don't go to the other extreme of one folder per file. Components that belong to the same feature live in a shared module subfolder — for example, income-related components under `components/budget/income/`, category-related ones under `components/budget/category/`. The right granularity is the one where related files sit next to each other and unrelated ones don't; when in doubt, follow the language model from `CONTEXT.md`.
+**1. One thing per file.** A file exports one logical unit. For `components/`, that's one `PascalCase` component (no private nested sub-components — extract them). For `hooks/`, one `useFoo`. For `lib/`, one cohesive set of pure helpers around a single concept (a `parseX` and a `formatX` can co-habit; two unrelated families shouldn't). For `types/`, one domain area's type set. Helpers and types strictly internal to that one unit may stay co-located; anything reusable moves.
 
-**Hooks live in `hooks/`, not under `components/`.** A `.ts`/`.tsx` file that exports a `useFoo` belongs at the top-level `hooks/` directory, sibling to `components/`, `lib/`, and `app/`. This keeps the `components/` tree about *rendered surface area* and gives hooks a discoverable home regardless of which component first needed them. Import as `@/hooks/useFoo`. The notify package's own `useNotify` is a known interim exception pending the audit in #48.
+**2. Group by module, not by kind, inside each directory.** Don't dump every file flat at the root of a directory, and don't go to the other extreme of one folder per file. Files that belong to the same feature live next to each other in a module subfolder: income files under `components/budget/income/` and `lib/income/` (or grow `lib/income.ts` into `lib/income/` when it earns it), category files under `components/budget/category/` and `lib/category.ts`, and so on. The module names should track the language model in [[CONTEXT.md]] — Category, Income, Transaction, Vendor, etc.
 
-**Shared infrastructure is shared from day one.** A hook or helper that more than one component could reasonably use belongs in its shared home (e.g. `hooks/`, `lib/budget/`, `lib/income/`) on first introduction — not co-located with its first consumer and lifted later. When in doubt, extract on first use rather than second.
+**3. Co-locate related, separate unrelated.** Tests live next to the source they cover (`lib/budget/index.test.ts` next to `lib/budget/index.ts`). Pure helpers used by one component may stay co-located in that component's file or module. The granularity is "you'd open these files in the same minute" — if you would, they should be neighbours; if not, they shouldn't.
 
-These conventions are enforced by review, not by tooling. Some pre-existing files predate the rule — see #48 for the audit. New and touched files should follow it.
+**4. Dedicated home per kind.** `components/` is for rendered surface area, `hooks/` for React hooks, `lib/` for pure helpers and business logic, `types/` for shared type definitions, `app/` for App Router routes only. Don't mix kinds within one directory: a hook does not live under `components/`, a pure helper does not live under `hooks/`. Imports use the matching alias (`@/components/...`, `@/hooks/...`, `@/lib/...`, `@/types/...`).
+
+**Shared infrastructure is shared from day one.** A unit that more than one consumer could reasonably use goes to its shared home on first introduction — not co-located with its first caller and lifted later. When in doubt, extract on first use rather than second.
+
+These conventions are enforced by review, not by tooling. Some pre-existing files predate the rules — audit tracked in #48 (`refactor` label). New and touched files should follow them.
 <!-- END:code-organization -->
