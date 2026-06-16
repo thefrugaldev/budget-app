@@ -89,13 +89,9 @@ describe("groupTransactionsByDay", () => {
       opts,
     );
     const [row] = groups[0].rows;
-    expect(row.kind).toBe("streak");
-    expect((row as { count: number }).count).toBe(3);
-    expect((row as { transactionIds: string[] }).transactionIds).toEqual([
-      "a",
-      "b",
-      "c",
-    ]);
+    if (row.kind !== "streak") throw new Error("expected a streak row");
+    expect(row.count).toBe(3);
+    expect(row.transactionIds).toEqual(["a", "b", "c"]);
   });
 
   it("nets purchases and refunds in the day subtotal", () => {
@@ -228,5 +224,22 @@ describe("groupTransactionsByDay", () => {
     expect(groups[0].label).toBe("Today");
     expect(groups[1].label).toBe("Yesterday");
     expect(groups[2].label).toBe("Mon, Jun 8");
+  });
+
+  it("labels dates across a month boundary with the long form", () => {
+    // today = Jun 1; yesterday is May 31 — must read "Sun, May 31", not a
+    // June-flavoured "Sun, Jun 31"-style mistake.
+    const today = new Date("2026-06-01T00:00:00Z");
+    const groups = groupTransactionsByDay(
+      [
+        tx({ id: "a", date: "2026-06-01" }),
+        tx({ id: "b", date: "2026-05-31" }),
+        tx({ id: "c", date: "2026-05-30" }),
+      ],
+      { today },
+    );
+    expect(groups[0].label).toBe("Today");
+    expect(groups[1].label).toBe("Yesterday");
+    expect(groups[2].label).toBe("Sat, May 30");
   });
 });

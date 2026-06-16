@@ -62,6 +62,12 @@ export type GroupOptions = {
  *     `(vendor, amount)` bucket. Transactions sharing a key gather together
  *     regardless of where they appeared in the input — the streak displays
  *     where its first member did.
+ *
+ * Intra-day output is only as deterministic as the input: with the same set
+ * of transactions in a different order, `firstIdx` and `transactionIds` will
+ * shift. Callers that need cross-call stability (React keys, "primary" id
+ * picks) should pre-sort the list — by `id`, repository-side sort key, or
+ * similar — before passing it in.
  */
 export function groupTransactionsByDay(
   transactions: Transaction[],
@@ -79,7 +85,7 @@ export function groupTransactionsByDay(
     else byDate.set(date, [t]);
   }
 
-  const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  const dates = [...byDate.keys()].sort((a, b) => b.localeCompare(a));
 
   return dates.map((date) => {
     const txns = byDate.get(date)!;
