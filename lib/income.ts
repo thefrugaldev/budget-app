@@ -4,6 +4,29 @@ import { monthLabel } from "./budget";
 export type IncomeSourceStatus = "active" | "scheduled-change" | "ended";
 
 /**
+ * Soonest `CategoryTarget` row for `categoryId` with
+ * `effectiveFrom > currentMonth`. Returns `undefined` when no
+ * future-effective row exists.
+ *
+ * Used by the `/income` card display (to surface the queued change in the
+ * summary line) and by the per-row actions menu (to populate the
+ * `cancelScheduledBaselineAction` form with the right `effectiveFrom`).
+ */
+export function nextScheduledTarget(
+  categoryId: string,
+  currentMonth: string,
+  targets: CategoryTarget[],
+): CategoryTarget | undefined {
+  let best: CategoryTarget | undefined;
+  for (const t of targets) {
+    if (t.categoryId !== categoryId) continue;
+    if (t.effectiveFrom <= currentMonth) continue;
+    if (!best || t.effectiveFrom < best.effectiveFrom) best = t;
+  }
+  return best;
+}
+
+/**
  * Classifies an income source's row status for the `/income` page status pill.
  *
  * - "ended" wins when `activeUntil <= currentMonth` — the source has been

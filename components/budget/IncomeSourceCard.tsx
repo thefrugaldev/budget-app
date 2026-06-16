@@ -3,6 +3,7 @@
 import { Pencil } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { IncomeSourceCardActions } from "@/components/budget/IncomeSourceCardActions";
 import { IncomeSourceEditor } from "@/components/budget/IncomeSourceEditor";
 import { IncomeSourceStatusPill } from "@/components/budget/IncomeSourceStatusPill";
 import { fmt, monthLabel, resolveTargetForMonth } from "@/lib/budget";
@@ -10,17 +11,19 @@ import {
   buildIncomeSourceDisplayLabel,
   classifyIncomeSourceStatus,
   type IncomeSourceStatus,
+  nextScheduledTarget,
 } from "@/lib/income";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryTarget } from "@/types/budget";
 
 /**
  * Read-mode + inline editor card for an income source on `/income`
- * (chunks 4–5 of #39). Renders emoji + display label + an exception-only
+ * (chunks 4–6 of #39). Renders emoji + display label + an exception-only
  * status pill on a single row, with a one-sentence baseline summary
- * beneath. The Edit pencil expands `IncomeSourceEditor` beneath the row.
- * Lifecycle affordances (⋯ menu, leading Reopen on ended rows) land in
- * chunk 6.
+ * beneath. The Edit pencil expands `IncomeSourceEditor` beneath the row;
+ * `IncomeSourceCardActions` adds the per-row ⋯ menu (End / Cancel
+ * scheduled change / Reopen / Delete) and the leading `Reopen` button on
+ * ended rows.
  *
  * Status pill is rendered only for exceptions — "Scheduled change" and
  * "Ended" — so a card with no pill reads as the default "ongoing" state.
@@ -41,11 +44,14 @@ export function IncomeSourceCard({
   allSources,
   targets,
   currentMonth,
+  txCount,
 }: {
   source: Category;
   allSources: Category[];
   targets: CategoryTarget[];
   currentMonth: string;
+  /** Transaction count on this source — gates hard-delete in the ⋯ menu. */
+  txCount: number;
 }) {
   const status = classifyIncomeSourceStatus(source, currentMonth, targets);
   const label = buildIncomeSourceDisplayLabel(source, allSources, status);
@@ -56,10 +62,16 @@ export function IncomeSourceCard({
     currentMonth,
     targets,
   );
+  const scheduledTarget = nextScheduledTarget(source.id, currentMonth, targets);
+  const targetRowCount = targets.reduce(
+    (n, t) => (t.categoryId === source.id ? n + 1 : n),
+    0,
+  );
+  const isEnded = status === "ended";
 
   const [editing, setEditing] = useState(false);
   const editTriggerRef = useRef<HTMLButtonElement>(null);
-  const canEdit = status !== "ended";
+  const canEdit = !isEnded;
 
   const closeEditor = () => {
     setEditing(false);
@@ -105,6 +117,13 @@ export function IncomeSourceCard({
             <Pencil className="size-3.5" aria-hidden />
           </button>
         )}
+        <IncomeSourceCardActions
+          source={source}
+          isEnded={isEnded}
+          txCount={txCount}
+          targetRowCount={targetRowCount}
+          scheduledTarget={scheduledTarget}
+        />
       </div>
       {editing && canEdit && (
         <IncomeSourceEditor
@@ -156,22 +175,4 @@ function baselineSummary(
     }
   }
   return base;
-}
-
-/**
- * Soonest target row for `categoryId` with `effectiveFrom > currentMonth`.
- * Returns `undefined` when no future-effective row exists.
- */
-function nextScheduledTarget(
-  categoryId: string,
-  currentMonth: string,
-  targets: CategoryTarget[],
-): CategoryTarget | undefined {
-  let best: CategoryTarget | undefined;
-  for (const t of targets) {
-    if (t.categoryId !== categoryId) continue;
-    if (t.effectiveFrom <= currentMonth) continue;
-    if (!best || t.effectiveFrom < best.effectiveFrom) best = t;
-  }
-  return best;
 }

@@ -3,6 +3,7 @@ import type { Category, CategoryTarget } from "@/types/budget";
 import {
   buildIncomeSourceDisplayLabel,
   classifyIncomeSourceStatus,
+  nextScheduledTarget,
 } from "./income";
 
 const incomeCat = (overrides: Partial<Category> = {}): Category => ({
@@ -162,5 +163,42 @@ describe("buildIncomeSourceDisplayLabel", () => {
   it("ignores the source itself when checking for collisions", () => {
     const only = incomeCat({ id: "a", name: "Bonus" });
     expect(buildIncomeSourceDisplayLabel(only, [only], "active")).toBe("Bonus");
+  });
+});
+
+describe("nextScheduledTarget", () => {
+  it("returns undefined when there are no future-effective targets", () => {
+    const targets: CategoryTarget[] = [
+      { categoryId: "salary", monthly: 7500, effectiveFrom: "2026-01" },
+      { categoryId: "salary", monthly: 8000, effectiveFrom: "2026-06" },
+    ];
+    expect(nextScheduledTarget("salary", "2026-06", targets)).toBeUndefined();
+  });
+
+  it("returns the soonest future-effective row", () => {
+    const targets: CategoryTarget[] = [
+      { categoryId: "salary", monthly: 7500, effectiveFrom: "2026-01" },
+      { categoryId: "salary", monthly: 9000, effectiveFrom: "2026-09" },
+      { categoryId: "salary", monthly: 8500, effectiveFrom: "2026-07" },
+    ];
+    expect(nextScheduledTarget("salary", "2026-06", targets)).toEqual({
+      categoryId: "salary",
+      monthly: 8500,
+      effectiveFrom: "2026-07",
+    });
+  });
+
+  it("treats a target effective at the current month as the current baseline (not scheduled)", () => {
+    const targets: CategoryTarget[] = [
+      { categoryId: "salary", monthly: 8000, effectiveFrom: "2026-06" },
+    ];
+    expect(nextScheduledTarget("salary", "2026-06", targets)).toBeUndefined();
+  });
+
+  it("ignores rows for other categories", () => {
+    const targets: CategoryTarget[] = [
+      { categoryId: "bonus", monthly: 1000, effectiveFrom: "2026-07" },
+    ];
+    expect(nextScheduledTarget("salary", "2026-06", targets)).toBeUndefined();
   });
 });

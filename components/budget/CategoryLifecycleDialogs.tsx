@@ -3,15 +3,30 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { useActionState, useEffect, useRef } from "react";
 
-import {
-  deleteCategoryAction,
-  endCategoryAction,
-} from "@/app/actions/categories";
+import { endCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { useNotify } from "@/components/notify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
+import {
+  type ActionState,
+  useActionSuccessToast,
+} from "@/hooks/useActionSuccessToast";
 import { currentMonthKey, monthLabel } from "@/lib/budget";
 import type { Category } from "@/types/budget";
+
+type LifecycleNoun = "category" | "source";
+
+/**
+ * Server-action signature accepted by `DeleteCategoryDialog`. The dialog
+ * only reads `ok` and `error`, so callers can hand any action whose state
+ * shape extends `ActionState` (e.g. `deleteCategoryAction` returns the
+ * wider `CategoryActionState`, `deleteIncomeSourceAction` returns
+ * `IncomeActionState`).
+ */
+type DeleteAction = (
+  prev: ActionState,
+  formData: FormData,
+) => Promise<ActionState>;
 
 /**
  * Confirm-step dialogs for the destructive lifecycle actions. Shared between
@@ -35,7 +50,7 @@ export function EndCategoryDialog({
   onOpenChange: (next: boolean) => void;
   /** The end dialog only needs the id (for the action) and name (for copy). */
   category: Pick<Category, "id" | "name">;
-  noun?: "category" | "source";
+  noun?: LifecycleNoun;
   /** Fires once the end-action succeeds, after the success toast. */
   onSuccess?: () => void;
 }) {
@@ -97,18 +112,41 @@ export function DeleteCategoryDialog({
   open,
   onOpenChange,
   category,
+  noun = "category",
+  action,
+  onSuccess,
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
-  category: Category;
+  category: Pick<Category, "id" | "name">;
+  noun?: LifecycleNoun;
+  /**
+   * Server action to call. Must accept `id` from the form and conform to
+   * the structural `ActionState` shape ({ok, error}). The category-side
+   * `deleteCategoryAction` redirects on success and never returns to the
+   * client; the income-side `deleteIncomeSourceAction` returns normally
+   * and the dialog's success effect closes + toasts.
+   */
+  action: DeleteAction;
+  /** Fires once the delete-action returns success (after toast + close). */
+  onSuccess?: () => void;
 }) {
-  const [state, formAction] = useActionState(
-    deleteCategoryAction,
-    CATEGORY_ACTION_INITIAL,
+  const [state, formAction] = useActionState(action, CATEGORY_ACTION_INITIAL);
+
+  // Success effect is a no-op for actions that `redirect()` — the component
+  // unmounts before useEffect can run, and `state.ok` never increments
+  // because the action never returns to the client. For non-redirecting
+  // actions (income surface), this closes the dialog and emits a toast.
+  useActionSuccessToast(
+    state,
+    () => `${noun === "source" ? "Income source" : "Category"} deleted`,
+    () => {
+      onOpenChange(false);
+      onSuccess?.();
+    },
   );
-  // `deleteCategoryAction` calls `redirect("/")` on success — the page
-  // unmounts before any client effect could run, so no success toast or
-  // explicit close is needed here.
+
+  const Noun = noun === "source" ? "source" : "category";
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -119,7 +157,7 @@ export function DeleteCategoryDialog({
             Delete {category.name}?
           </Dialog.Title>
           <Dialog.Description className="mt-2 text-sm text-muted-foreground">
-            Delete {category.name} permanently? This category has no
+            Delete {category.name} permanently? This {Noun} has no
             transactions so it can be fully removed.
           </Dialog.Description>
           <form action={formAction} className="mt-5 flex justify-end gap-2">
