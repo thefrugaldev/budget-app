@@ -1,19 +1,17 @@
-import type { Category, CategoryTarget } from "@/types/budget";
-import {
-  currentMonthlyBaseline,
-  fmt,
-  isCategoryActiveForMonth,
-  nextMonth,
-  resolveTargetForMonth,
-} from "@/lib/budget";
+import { Pencil } from "lucide-react";
+import Link from "next/link";
 
-import { IncomeEditDialog, type IncomeSourceRow } from "./IncomeEditDialog";
+import { currentMonthlyBaseline, fmt } from "@/lib/budget";
+import type { Category, CategoryTarget } from "@/types/budget";
 
 /**
  * Right-side header treatment on the Pulse page. Shows annualized total
- * income at the current month with an edit affordance — opens a modal that
- * lists each income source individually (story 8) so the user can update one
- * source without retyping the others.
+ * income at the current month with a pencil affordance — a `<Link>` to the
+ * dedicated `/income` page (chunk 7 of #39 retired the inline edit modal).
+ *
+ * Using a real link, not a `<button>`, so middle-click / Cmd-click open
+ * `/income` in a new tab the same way every other nav target does
+ * (story 21).
  */
 export function HeaderIncome({
   incomeCategories,
@@ -24,34 +22,14 @@ export function HeaderIncome({
   targets: CategoryTarget[];
   currentMonth: string;
 }) {
-  // Filter once; both the annualized total and the modal's per-source rows
-  // operate on the same "active right now" set.
-  const activeIncomeCategories = incomeCategories.filter((c) =>
-    isCategoryActiveForMonth(c, currentMonth),
-  );
+  // `currentMonthlyBaseline` already filters to sources active *this* month,
+  // so ended/future sources don't inflate the headline figure.
   const totalMonthly = currentMonthlyBaseline(
-    activeIncomeCategories,
+    incomeCategories,
     targets,
     currentMonth,
   );
   const totalYearly = totalMonthly * 12;
-
-  const next = nextMonth(currentMonth);
-  const sources: IncomeSourceRow[] = activeIncomeCategories.map((c) => {
-    const current = resolveTargetForMonth(c.id, currentMonth, targets);
-    const upcoming = resolveTargetForMonth(c.id, next, targets);
-    return {
-      id: c.id,
-      name: c.name,
-      emoji: c.emoji,
-      currentMonthly: current,
-      // Only surfaced to the modal when distinct from the current baseline —
-      // gives the user a visible "your change is scheduled" signal even
-      // though the header total can't reflect a future-month value.
-      nextMonthly: upcoming === current ? null : upcoming,
-      activeUntil: c.activeUntil,
-    };
-  });
 
   return (
     <div className="flex items-start gap-3">
@@ -66,11 +44,13 @@ export function HeaderIncome({
           </span>
         </p>
       </div>
-      <IncomeEditDialog
-        sources={sources}
-        currentMonth={currentMonth}
-        triggerClassName="mt-1"
-      />
+      <Link
+        href="/income"
+        aria-label="Edit income"
+        className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground ring-1 ring-border transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Pencil className="size-3.5" aria-hidden />
+      </Link>
     </div>
   );
 }
