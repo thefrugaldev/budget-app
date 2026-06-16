@@ -10,6 +10,7 @@ import {
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
+import { listAllTransactions } from "@/lib/repositories/transactions";
 
 export const metadata: Metadata = {
   title: "Income",
@@ -25,13 +26,22 @@ export const metadata: Metadata = {
  */
 export default async function IncomePage() {
   await ensureSeeded();
-  const [categories, targets] = await Promise.all([
+  const [categories, targets, transactions] = await Promise.all([
     listCategories(),
     listCategoryTargets(),
+    listAllTransactions(),
   ]);
 
   const thisMonth = currentMonthKey();
   const incomeCategories = categories.filter((c) => c.kind === "income");
+
+  // Bucket transaction counts by categoryId in one pass — the ⋯ menu needs
+  // it to gate hard-delete (zero transactions). Cheaper than N round-trips
+  // to `countTransactionsForCategory` at this app's scale.
+  const txCountByCategory = new Map<string, number>();
+  for (const t of transactions) {
+    txCountByCategory.set(t.categoryId, (txCountByCategory.get(t.categoryId) ?? 0) + 1);
+  }
 
   // currentMonthlyBaseline already filters to sources active *this* month,
   // so ended/future sources don't inflate the headline figure.
@@ -78,6 +88,7 @@ export default async function IncomePage() {
               allSources={incomeCategories}
               targets={targets}
               currentMonth={thisMonth}
+              txCount={txCountByCategory.get(c.id) ?? 0}
             />
           ))}
         </ul>

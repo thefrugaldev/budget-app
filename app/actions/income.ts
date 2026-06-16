@@ -5,14 +5,17 @@ import { revalidatePath } from "next/cache";
 import { currentMonthKey, nextMonth } from "@/lib/budget";
 import {
   createCategory,
+  deleteCategory,
   getCategoryById,
 } from "@/lib/repositories/categories";
 import {
   createCategoryTarget,
+  deleteAllCategoryTargets,
   deleteCategoryTarget,
   listCategoryTargetsFor,
   upsertCategoryTarget,
 } from "@/lib/repositories/categoryTargets";
+import { countTransactionsForCategory } from "@/lib/repositories/transactions";
 
 import {
   parseCancelScheduledBaselineInput,
@@ -179,6 +182,47 @@ export async function cancelScheduledBaselineAction(
 
     await assertIncomeCategory(categoryId);
     await deleteCategoryTarget(categoryId, effectiveFrom);
+    revalidatePath("/");
+    revalidatePath("/income");
+    return success(prev);
+  } catch (err) {
+    return failure(prev, err);
+  }
+}
+
+/**
+ * Hard-deletes an income source and its target rows. Server-side gate
+ * mirrors `deleteCategoryAction`: only allowed when the source has zero
+ * transactions and at most one target row (its initial baseline). Anything
+ * else gets "End source" instead.
+ *
+ * Unlike `deleteCategoryAction`, this action does **not** `redirect()` —
+ * the `/income` list is the surface, and the deleted row simply drops out
+ * of the next render. The category-side action redirects because it's
+ * driven from a detail page that would 404 after the entity is gone; the
+ * list view has no such race.
+ */
+export async function deleteIncomeSourceAction(
+  prev: IncomeActionState,
+  formData: FormData,
+): Promise<IncomeActionState> {
+  try {
+    const id = requireString(formData.get("id"), "id");
+    await assertIncomeCategory(id);
+
+    const [txCount, targets] = await Promise.all([
+      countTransactionsForCategory(id),
+      listCategoryTargetsFor(id),
+    ]);
+    if (txCount > 0) {
+      throw new Error("Source has transactions — end it instead of deleting");
+    }
+    if (targets.length > 1) {
+      throw new Error("Source has target history — end it instead of deleting");
+    }
+
+    await deleteAllCategoryTargets(id);
+    await deleteCategory(id);
     revalidatePath("/");
     revalidatePath("/income");
     return success(prev);

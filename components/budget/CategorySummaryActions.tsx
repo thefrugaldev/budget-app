@@ -4,7 +4,10 @@ import { Menu } from "@base-ui/react/menu";
 import { MoreHorizontal, Pencil } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 
-import { reopenCategoryAction } from "@/app/actions/categories";
+import {
+  deleteCategoryAction,
+  reopenCategoryAction,
+} from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import {
   DeleteCategoryDialog,
@@ -134,6 +137,7 @@ export function CategorySummaryActions({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         category={category}
+        action={deleteCategoryAction}
       />
     </div>
   );
