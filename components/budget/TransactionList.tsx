@@ -498,7 +498,7 @@ function DaySection({
             />
           ) : (
             <StreakRow
-              key={`${group.date}:${row.vendor}:${row.amount}`}
+              key={`${group.date}:${row.vendor}`}
               streak={row}
               kind={kind}
               isInflow={isInflow}
@@ -515,14 +515,15 @@ function DaySection({
 }
 
 /**
- * A collapsed run of identical `(vendor, amount)` transactions, shown as one
- * row: `Whole Foods · 4× $87.42` on the left, the run's signed total on the
- * right (stories 4). The whole row is a disclosure button — clicking it (or
- * the global "Expand all") reveals the underlying transactions, each a normal
+ * A day's run of ≥ 2 transactions at one vendor, shown as a single row:
+ * `Whole Foods · 4× $87.42` when every amount matches, or `Whole Foods · 3
+ * transactions` when they differ, with the run's netted signed total on the
+ * right (story 4). The whole row is a disclosure button — clicking it (or the
+ * global "Expand all") reveals the underlying transactions, each a normal
  * `Row` with its overflow menu intact, so any single one stays editable /
  * deletable (story 5).
  *
- * The count and total are read straight off the freshly-regrouped streak, so
+ * Count and total are read straight off the freshly-regrouped streak, so
  * editing or deleting an underlying row updates them with no extra bookkeeping
  * (story 6); a delete that drops the run to one transaction dissolves the
  * streak back into a plain `Row` on the next render.
@@ -547,7 +548,13 @@ function StreakRow({
   const [open, setOpen] = useState(false);
   const expanded = expandAll || open;
   const panelId = useId();
-  const total = streak.amount * streak.count;
+  const total = streak.subtotal;
+  // Uniform run → show the shared unit price ("4× $87.42"); mixed amounts →
+  // just the count, with the netted total carried on the right.
+  const breakdown =
+    streak.amount !== undefined
+      ? `${streak.count}× ${fmtExact(streak.amount)}`
+      : `${streak.count} transactions`;
   const underlying = streak.transactionIds
     .map((id) => byId.get(id))
     .filter((t): t is Transaction => Boolean(t));
@@ -572,7 +579,7 @@ function StreakRow({
           <span className="text-foreground">{streak.vendor}</span>
           <span className="text-muted-foreground">
             {" · "}
-            {streak.count}× {fmtExact(streak.amount)}
+            {breakdown}
           </span>
         </span>
         <span

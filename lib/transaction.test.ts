@@ -47,7 +47,7 @@ describe("groupTransactionsByDay", () => {
     ]);
   });
 
-  it("collapses a same-day (vendor, amount) run of ≥ 2 into a CollapsedStreak", () => {
+  it("collapses a same-vendor uniform run of ≥ 2 into a CollapsedStreak with a unit amount", () => {
     const groups = groupTransactionsByDay(
       [
         tx({ id: "a", amount: 87.42 }),
@@ -57,16 +57,43 @@ describe("groupTransactionsByDay", () => {
       ],
       opts,
     );
+    const [row] = groups[0].rows;
+    if (row.kind !== "streak") throw new Error("expected a streak row");
+    // Every member shares 87.42 → `amount` is populated so the UI can show
+    // "4× $87.42".
+    expect(row).toMatchObject({
+      kind: "streak",
+      vendor: "Whole Foods",
+      amount: 87.42,
+      count: 4,
+      transactionIds: ["a", "b", "c", "d"],
+    });
+    expect(row.subtotal).toBeCloseTo(349.68, 2);
+    expect(groups[0].subtotal).toBeCloseTo(349.68, 2);
+  });
+
+  it("collapses a same-vendor run at different amounts; subtotal sums, amount omitted (the realistic case)", () => {
+    const groups = groupTransactionsByDay(
+      [
+        tx({ id: "a", vendor: "Whole Foods", amount: 45 }),
+        tx({ id: "b", vendor: "Whole Foods", amount: 92.5 }),
+        tx({ id: "c", vendor: "Whole Foods", amount: 85 }),
+      ],
+      opts,
+    );
     expect(groups[0].rows).toEqual([
       {
         kind: "streak",
         vendor: "Whole Foods",
-        amount: 87.42,
-        count: 4,
-        transactionIds: ["a", "b", "c", "d"],
+        count: 3,
+        subtotal: 222.5,
+        transactionIds: ["a", "b", "c"],
       },
     ]);
-    expect(groups[0].subtotal).toBeCloseTo(349.68, 2);
+    const [row] = groups[0].rows;
+    if (row.kind !== "streak") throw new Error("expected a streak row");
+    // Amounts vary → no single unit price to show.
+    expect(row.amount).toBeUndefined();
   });
 
   it("leaves count-of-one rows as SingleRow", () => {
@@ -94,7 +121,7 @@ describe("groupTransactionsByDay", () => {
     expect(row.transactionIds).toEqual(["a", "b", "c"]);
   });
 
-  it("nets purchases and refunds in the day subtotal", () => {
+  it("nets a purchase and a refund at one vendor into a single streak (subtotal 40)", () => {
     const groups = groupTransactionsByDay(
       [
         tx({ id: "a", vendor: "Target", amount: 50 }),
@@ -103,7 +130,17 @@ describe("groupTransactionsByDay", () => {
       opts,
     );
     expect(groups[0].subtotal).toBe(40);
-    expect(groups[0].rows).toHaveLength(2); // (50) and (-10) are different amounts → no collapse
+    // Same vendor, differing amounts → one streak whose subtotal nets the
+    // refund; `amount` is omitted.
+    expect(groups[0].rows).toEqual([
+      {
+        kind: "streak",
+        vendor: "Target",
+        count: 2,
+        subtotal: 40,
+        transactionIds: ["a", "b"],
+      },
+    ]);
   });
 
   it("reports a negative subtotal for an all-refund day", () => {
@@ -131,6 +168,7 @@ describe("groupTransactionsByDay", () => {
         vendor: "Target",
         amount: -10,
         count: 2,
+        subtotal: -20,
         transactionIds: ["a", "b"],
       },
     ]);
@@ -166,6 +204,7 @@ describe("groupTransactionsByDay", () => {
         vendor: "Whole Foods",
         amount: 12,
         count: 4,
+        subtotal: 48,
         transactionIds: ["s0", "s1", "s2", "s3"],
       },
     ]);
@@ -183,8 +222,8 @@ describe("groupTransactionsByDay", () => {
     ]);
   });
 
-  it("orders rows within a day by first-occurrence of each (vendor, amount) bucket", () => {
-    // Interleaved input: WF1, Cost1, WF2, Cost2, WF3 — both keys appear ≥ 2x.
+  it("orders rows within a day by first-occurrence of each vendor bucket", () => {
+    // Interleaved input: WF1, Cost1, WF2, Cost2, WF3 — both vendors appear ≥ 2x.
     // WF appears first → streak displays at WF's position; Cost streaks second.
     const wf1 = tx({ id: "wf1", vendor: "Whole Foods", amount: 50 });
     const co1 = tx({ id: "co1", vendor: "Costco", amount: 80 });
@@ -199,6 +238,7 @@ describe("groupTransactionsByDay", () => {
         vendor: "Whole Foods",
         amount: 50,
         count: 3,
+        subtotal: 150,
         transactionIds: ["wf1", "wf2", "wf3"],
       },
       {
@@ -206,6 +246,7 @@ describe("groupTransactionsByDay", () => {
         vendor: "Costco",
         amount: 80,
         count: 2,
+        subtotal: 160,
         transactionIds: ["co1", "co2"],
       },
     ]);
