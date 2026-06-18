@@ -12,19 +12,24 @@ export type SingleRow = {
 };
 
 /**
- * Run of ≥ 2 transactions in the same day with the same `(vendor, amount)`.
- * Notes are intentionally *not* part of the streak key — twenty Whole Foods
- * $87.42 charges with varying free-text notes are still a streak; the
- * disclosure preserves each underlying row so the notes remain reachable.
+ * Run of ≥ 2 transactions at the same vendor in the same day, *regardless of
+ * amount*. Real days have several trips to one vendor at different prices
+ * (#17 follow-up, 2026-06-18) — not just exact duplicates — so the key is
+ * vendor + day; neither amount nor note participates.
  *
- * `amount` is signed (per `Transaction.amount`); a CollapsedStreak of two
- * −$10 refunds reports `amount: -10, count: 2`.
+ * `subtotal` is the signed sum of the run, so refunds net (a +$50 and a −$10
+ * at Target report `subtotal: 40, count: 2`). `amount` is set *only* when
+ * every member shares one amount — the uniform-duplicate case (e.g. 19× $87.42)
+ * — which lets the UI show a per-unit "N× $X"; it is undefined when amounts
+ * vary. The disclosure preserves each underlying row, so individual amounts
+ * and notes stay reachable.
  */
 export type CollapsedStreak = {
   kind: "streak";
   vendor: string;
-  amount: number;
   count: number;
+  subtotal: number;
+  amount?: number;
   transactionIds: string[];
 };
 
@@ -47,10 +52,11 @@ export type GroupOptions = {
 
 /**
  * Groups a transaction list into day buckets, newest-first. Within each day,
- * transactions sharing `(vendor, amount)` collapse into one `CollapsedStreak`
- * when their count is ≥ 2; lone transactions stay as `SingleRow`. Transactions
- * with no vendor (`undefined` / blank) never collapse — "20× of nothing"
- * would mislead, so each is emitted as its own `SingleRow`.
+ * transactions sharing a `vendor` collapse into one `CollapsedStreak` when
+ * their count is ≥ 2 (whatever their amounts); lone transactions stay as
+ * `SingleRow`. Transactions with no vendor (`undefined` / blank) never
+ * collapse — "3× of nothing" would mislead, so each is emitted as its own
+ * `SingleRow`.
  *
  * Pure and deterministic. Date filtering is the caller's job — pass only the
  * transactions you want grouped, and the streak math naturally collapses on
@@ -58,10 +64,10 @@ export type GroupOptions = {
  *
  * Ordering:
  *   - Days: newest first by `date` (lexicographic on "YYYY-MM-DD" is correct).
- *   - Rows within a day: by the first-occurrence index of each
- *     `(vendor, amount)` bucket. Transactions sharing a key gather together
- *     regardless of where they appeared in the input — the streak displays
- *     where its first member did.
+ *   - Rows within a day: by the first-occurrence index of each `vendor`
+ *     bucket. Transactions sharing a vendor gather together regardless of
+ *     where they appeared in the input — the streak displays where its first
+ *     member did.
  *
  * Intra-day output is only as deterministic as the input: with the same set
  * of transactions in a different order, `firstIdx` and `transactionIds` will
@@ -101,7 +107,6 @@ export function groupTransactionsByDay(
 type Bucket = {
   firstIdx: number;
   vendor: string;
-  amount: number;
   txns: Transaction[];
 };
 
@@ -110,31 +115,30 @@ function collapseStreaks(transactions: Transaction[]): TransactionRow[] {
 
   transactions.forEach((tx, idx) => {
     const vendor = tx.vendor?.trim();
-    // No vendor → a unique key per transaction id, so it never groups with
-    // anything (a single-element bucket stays a SingleRow).
-    const key = vendor ? `v:${vendor}:${tx.amount}` : `solo:${tx.id}`;
+    // Key by vendor alone — a vendor's transactions on a day collapse together
+    // whatever their amounts. No vendor → a unique key per transaction id, so
+    // blank-vendor rows never group (a single-element bucket stays a SingleRow).
+    const key = vendor ? `v:${vendor}` : `solo:${tx.id}`;
     const existing = buckets.get(key);
     if (existing) existing.txns.push(tx);
-    else
-      buckets.set(key, {
-        firstIdx: idx,
-        vendor: vendor ?? "",
-        amount: tx.amount,
-        txns: [tx],
-      });
+    else buckets.set(key, { firstIdx: idx, vendor: vendor ?? "", txns: [tx] });
   });
 
   return [...buckets.values()]
     .sort((a, b) => a.firstIdx - b.firstIdx)
-    .map((b) =>
-      b.vendor && b.txns.length >= 2
-        ? {
-            kind: "streak",
-            vendor: b.vendor,
-            amount: b.amount,
-            count: b.txns.length,
-            transactionIds: b.txns.map((t) => t.id),
-          }
-        : { kind: "single", transaction: b.txns[0] },
-    );
+    .map((b): TransactionRow => {
+      if (!b.vendor || b.txns.length < 2) {
+        return { kind: "single", transaction: b.txns[0] };
+      }
+      const amounts = b.txns.map((t) => t.amount);
+      const uniform = amounts.every((a) => a === amounts[0]);
+      return {
+        kind: "streak",
+        vendor: b.vendor,
+        count: b.txns.length,
+        subtotal: amounts.reduce((s, a) => s + a, 0),
+        amount: uniform ? amounts[0] : undefined,
+        transactionIds: b.txns.map((t) => t.id),
+      };
+    });
 }
