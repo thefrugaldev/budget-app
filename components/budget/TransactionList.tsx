@@ -587,7 +587,9 @@ export function TransactionList({
     <>
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          {filtered.length > 0 && (
+          {/* Top-level select-all only exists while selecting — the resting
+              list is for reading, not managing (issue #17 chunk 4 follow-up). */}
+          {selection.selectionMode && filtered.length > 0 && (
             <Checkbox
               label="Select all transactions"
               checked={areAllSelected(selection.selected, allIds)}
@@ -600,16 +602,36 @@ export function TransactionList({
             {filtered.length} transactions · {rangeText.toLowerCase()}
           </h2>
         </div>
-        {hasStreaks && (
-          <button
-            type="button"
-            onClick={() => setExpandAll((v) => !v)}
-            aria-pressed={expandAll}
-            className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {expandAll ? "Collapse all" : "Expand all"}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {hasStreaks && (
+            <button
+              type="button"
+              onClick={() => setExpandAll((v) => !v)}
+              aria-pressed={expandAll}
+              className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {expandAll ? "Collapse all" : "Expand all"}
+            </button>
+          )}
+          {/* Selection is an explicit mode entered here (or via long-press on
+              mobile / Space on a focused row) — checkboxes stay out of the
+              default reading view until asked for. Kept available while in mode
+              even if a filter empties the list, so there's always an exit. */}
+          {(filtered.length > 0 || selection.selectionMode) && (
+            <button
+              type="button"
+              onClick={() =>
+                selection.selectionMode
+                  ? selection.cancel()
+                  : selection.enterSelectionMode()
+              }
+              aria-pressed={selection.selectionMode}
+              className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {selection.selectionMode ? "Done" : "Select"}
+            </button>
+          )}
+        </div>
       </div>
 
       <FilterRow filter={filter} onChange={setFilter} vendorOptions={vendorOptions} />
@@ -779,13 +801,15 @@ function DaySection({
   return (
     <section aria-label={`${group.label}, ${fmtExact(group.subtotal)}`}>
       <h3 className="sticky top-14 z-10 flex items-baseline gap-2 border-b border-border bg-background px-1 pb-2.5 pt-4 text-sm font-semibold">
-        <Checkbox
-          label={`Select all on ${group.label}`}
-          checked={areAllSelected(selection.selected, dayIds)}
-          indeterminate={areSomeSelected(selection.selected, dayIds)}
-          onCheckedChange={(on) => selection.setMany(dayIds, on)}
-          className="self-center"
-        />
+        {selection.selectionMode && (
+          <Checkbox
+            label={`Select all on ${group.label}`}
+            checked={areAllSelected(selection.selected, dayIds)}
+            indeterminate={areSomeSelected(selection.selected, dayIds)}
+            onCheckedChange={(on) => selection.setMany(dayIds, on)}
+            className="self-center"
+          />
+        )}
         <span className="text-foreground">{group.label}</span>
         <span
           className={cn(
@@ -908,8 +932,10 @@ function StreakRow({
           onKeyDown={(e) => {
             if (e.key === " ") {
               // Cancel the <button>'s native Space activation (which would
-              // toggle the disclosure) and toggle the selection instead.
+              // toggle the disclosure) and toggle the selection instead —
+              // entering selection mode first so the checkboxes are visible.
               e.preventDefault();
+              selection.enterSelectionMode();
               selection.setMany(ids, !allSel);
             }
             // Enter falls through to the native click → toggles the disclosure.
@@ -1013,7 +1039,10 @@ function Row({
       onFocus={() => onActivate(rowKey)}
       onKeyDown={(e) => {
         if (e.key === " ") {
+          // Space selects the focused row, entering selection mode first so
+          // the checkboxes are visible (parallels the mobile long-press).
           e.preventDefault();
+          selection.enterSelectionMode();
           selection.toggle(t.id);
         } else if (e.key === "Enter") {
           e.preventDefault();
@@ -1077,11 +1106,12 @@ function Row({
 }
 
 /**
- * Selection checkbox column. Always present on desktop (`md+`); on mobile it's
- * collapsed (`hidden`) until the user enters selection mode via long-press, so
- * the resting list stays uncluttered (story 23). `tabIndex={-1}` keeps it out
- * of the roving-tabindex order — the row is the single tab stop and Space
- * toggles selection.
+ * Selection checkbox column. Hidden on every breakpoint until the user enters
+ * selection mode (via the "Select" button, a row long-press, or Space on a
+ * focused row), so the resting list stays a clean reading surface and bulk
+ * selection is an explicit, opt-in task. `tabIndex={-1}` keeps it out of the
+ * roving-tabindex order — the row is the single tab stop and Space toggles
+ * selection.
  */
 function CheckboxCell({
   show,
@@ -1099,7 +1129,7 @@ function CheckboxCell({
   className?: string;
 }) {
   return (
-    <label className={cn(show ? "flex" : "hidden md:flex", "shrink-0 items-center", className)}>
+    <label className={cn(show ? "flex" : "hidden", "shrink-0 items-center", className)}>
       <Checkbox
         label={label}
         checked={checked}
