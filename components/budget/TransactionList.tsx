@@ -346,11 +346,7 @@ export function TransactionList({
           )}
         </div>
       ) : (
-        // `overflow-clip` (not `overflow-hidden`) rounds the corners without
-        // making this a scroll container — otherwise every sticky day header
-        // would share one sticky context and pile up instead of each pinning
-        // within its own day as the page scrolls.
-        <div className="mt-3 overflow-clip rounded-2xl bg-card ring-1 ring-border">
+        <div className="mt-3">
           {dayGroups.map((group) => (
             <DaySection
               key={group.date}
@@ -445,10 +441,17 @@ function expandRows(
 }
 
 /**
- * One day's transactions under a sticky header showing the day label and its
- * signed subtotal (stories 1, 2, 3, 27). The section is an ARIA region named
- * by its day + subtotal so screen-reader users can navigate day-to-day
- * (story 22). The header sticks below the global app header (`h-14`).
+ * One day rendered agenda-style: a strong, sticky day header (bold label +
+ * bold signed subtotal, on a hairline rule) with its transactions indented
+ * beneath it (stories 1, 2, 3, 27). No surrounding card — most days hold only
+ * a row or two, so a box per day reads as heavy clutter. The weight contrast
+ * (header bold / rows regular) and the indent make the header lead and the
+ * day boundaries easy to scan.
+ *
+ * The section is an ARIA region named by day + subtotal for screen-reader
+ * day-to-day navigation (story 22). The header sits on the page background and
+ * sticks below the global app header (`h-14`); its solid background masks rows
+ * passing underneath when pinned.
  */
 function DaySection({
   group,
@@ -468,18 +471,18 @@ function DaySection({
   const subtotalPositive = isInflow && group.subtotal > 0;
   return (
     <section aria-label={`${group.label}, ${fmtExact(group.subtotal)}`}>
-      <h3 className="sticky top-14 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-card px-4 py-2 text-sm font-medium">
-        <span>{group.label}</span>
+      <h3 className="sticky top-14 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1 pb-1.5 pt-4 text-sm font-semibold">
+        <span className="text-foreground">{group.label}</span>
         <span
           className={cn(
-            "tabular-nums text-muted-foreground",
+            "tabular-nums text-foreground",
             subtotalPositive && "text-emerald-700 dark:text-emerald-400",
           )}
         >
           <SignedAmount kind={kind} amount={group.subtotal} />
         </span>
       </h3>
-      <ul className="divide-y divide-border">
+      <ul>
         {transactions.map((t) => (
           <Row
             key={t.id}
@@ -509,16 +512,16 @@ function Row({
   onDelete: () => void;
 }) {
   return (
-    <li className="flex items-start gap-3 px-4 py-3">
+    <li className="group flex items-start gap-3 py-2 pl-5 pr-1 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="truncate font-medium">
+          <p className="truncate text-foreground">
             <span className="sr-only">Vendor: </span>
             {t.vendor ?? "—"}
           </p>
           <span
             className={cn(
-              "shrink-0 tabular-nums",
+              "shrink-0 tabular-nums text-muted-foreground",
               isInflow && t.amount > 0 && "text-emerald-700 dark:text-emerald-400",
             )}
           >
@@ -537,7 +540,10 @@ function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => voi
     <Menu.Root>
       <Menu.Trigger
         aria-label="Row actions"
-        className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        // Always visible on mobile/touch; on desktop the ⋯ stays hidden until
+        // the row is hovered or something inside it gains focus (keyboard),
+        // and while its own menu is open — keeps the trailing column quiet.
+        className="shrink-0 rounded-md p-1 text-muted-foreground opacity-100 transition-opacity hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:data-[popup-open]:opacity-100"
       >
         <MoreHorizontal className="size-4" aria-hidden />
       </Menu.Trigger>
