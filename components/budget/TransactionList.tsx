@@ -471,7 +471,7 @@ function DaySection({
   const subtotalPositive = isInflow && group.subtotal > 0;
   return (
     <section aria-label={`${group.label}, ${fmtExact(group.subtotal)}`}>
-      <h3 className="sticky top-14 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1 pb-1.5 pt-4 text-sm font-semibold">
+      <h3 className="sticky top-14 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1 pb-2.5 pt-4 text-sm font-semibold">
         <span className="text-foreground">{group.label}</span>
         <span
           className={cn(
