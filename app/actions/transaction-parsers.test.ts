@@ -86,6 +86,11 @@ describe("parseTransactionIds", () => {
     expect(() => parseTransactionIds(["a", ""])).toThrow(/invalid/i);
     expect(() => parseTransactionIds(["a", 7])).toThrow(/invalid/i);
   });
+
+  it("rejects an absurdly large id list", () => {
+    const huge = Array.from({ length: 5001 }, (_, i) => `id-${i}`);
+    expect(() => parseTransactionIds(huge)).toThrow(/too many/i);
+  });
 });
 
 describe("parseVendorName", () => {

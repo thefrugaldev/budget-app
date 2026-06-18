@@ -10,7 +10,18 @@ import { SignedAmount } from "@/components/budget/SignedAmount";
 import { fmtExact } from "@/lib/budget";
 import type { Category, CategoryKind } from "@/types/budget";
 
-type OpenDialog = "none" | "delete" | "recategorise" | "rename";
+type OpenDialog =
+  | "none"
+  | "delete"
+  | "recategorise"
+  | "recategorise-confirm"
+  | "rename";
+
+const KIND_LABEL: Record<CategoryKind, string> = {
+  expense: "expense",
+  savings: "savings",
+  income: "income",
+};
 
 /**
  * Contextual bulk-action bar for the transaction list (issue #17 chunk 4,
@@ -19,11 +30,12 @@ type OpenDialog = "none" | "delete" | "recategorise" | "rename";
  * bottom-tab (`z-30`, ~56px + safe-area) and padded for the iOS home
  * indicator. Always shows the count + the signed total of the selection.
  *
- * The bar owns its three confirm/picker surfaces but none of the persistence:
+ * The bar owns its confirm/picker surfaces but none of the persistence:
  * Delete (after a count + total confirm) calls `onDelete`, which drives the
  * optimistic-hide + undo machine up in `TransactionList`; Recategorise and
  * Rename call their handlers and surface success/error via the existing toast.
- * `pending` disables the controls while a recategorise/rename round-trips.
+ * A recategorise that crosses category kinds (e.g. expense → income) is gated
+ * behind an extra confirm, since it re-weights the savings-rate maths.
  */
 export function BulkActionBar({
   count,
@@ -31,7 +43,6 @@ export function BulkActionBar({
   kind,
   defaultVendor,
   categories,
-  pending,
   onDelete,
   onRecategorise,
   onRename,
@@ -43,14 +54,28 @@ export function BulkActionBar({
   /** Most-common vendor in the selection — prefills the rename input (story 14). */
   defaultVendor: string | undefined;
   categories: Category[];
-  pending: boolean;
   onDelete: () => void;
   onRecategorise: (categoryId: string) => void;
   onRename: (vendor: string) => void;
   onCancel: () => void;
 }) {
   const [dialog, setDialog] = useState<OpenDialog>("none");
+  // Target of a pending cross-kind recategorise, held while its confirm is up.
+  const [crossKindTarget, setCrossKindTarget] = useState<Category | null>(null);
   const noun = count === 1 ? "transaction" : "transactions";
+
+  // Same-kind moves apply immediately; a kind change (expense ↔ savings ↔
+  // income) flips how the rows are counted, so it routes through a confirm.
+  function pickCategory(categoryId: string) {
+    const target = categories.find((c) => c.id === categoryId);
+    if (target && target.kind !== kind) {
+      setCrossKindTarget(target);
+      setDialog("recategorise-confirm");
+      return;
+    }
+    setDialog("none");
+    onRecategorise(categoryId);
+  }
 
   return (
     <>
@@ -73,19 +98,16 @@ export function BulkActionBar({
 
           <BarButton
             onClick={() => setDialog("recategorise")}
-            disabled={pending}
             icon={<FolderInput className="size-4" aria-hidden />}
             label="Recategorise"
           />
           <BarButton
             onClick={() => setDialog("rename")}
-            disabled={pending}
             icon={<Pencil className="size-4" aria-hidden />}
             label="Rename vendor"
           />
           <BarButton
             onClick={() => setDialog("delete")}
-            disabled={pending}
             icon={<Trash2 className="size-4" aria-hidden />}
             label="Delete"
             destructive
@@ -119,9 +141,19 @@ export function BulkActionBar({
         count={count}
         noun={noun}
         categories={categories}
-        onPick={(categoryId) => {
+        onPick={pickCategory}
+      />
+
+      <CrossKindConfirm
+        open={dialog === "recategorise-confirm"}
+        onOpenChange={(open) => !open && setDialog("none")}
+        count={count}
+        noun={noun}
+        sourceKind={kind}
+        target={crossKindTarget}
+        onConfirm={() => {
           setDialog("none");
-          onRecategorise(categoryId);
+          if (crossKindTarget) onRecategorise(crossKindTarget.id);
         }}
       />
 
@@ -142,13 +174,11 @@ export function BulkActionBar({
 
 function BarButton({
   onClick,
-  disabled,
   icon,
   label,
   destructive = false,
 }: {
   onClick: () => void;
-  disabled: boolean;
   icon: React.ReactNode;
   label: string;
   destructive?: boolean;
@@ -157,12 +187,11 @@ function BarButton({
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
       // The label collapses to an icon-only button below `sm` so all four
       // actions fit the bar on a narrow phone; the accessible name is kept.
       title={label}
       className={
-        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 " +
+        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
         (destructive
           ? "text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950"
           : "text-foreground hover:bg-muted")
@@ -235,8 +264,9 @@ function DeleteConfirm({
 
 /**
  * Bulk recategorise (stories 13/20). Reuses the same `CategoryPicker` the
- * Add/Edit form uses; picking a category fires immediately and closes — the
- * common cleanup gesture is "move this batch", so no separate confirm step.
+ * Add/Edit form uses; picking a same-kind category applies immediately (the
+ * common "move this batch" cleanup needs no extra step). A cross-kind pick is
+ * routed by `onPick` through `CrossKindConfirm` first.
  */
 function RecategoriseDialog({
   open,
@@ -275,6 +305,64 @@ function RecategoriseDialog({
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/**
+ * Guards a recategorise that crosses category kinds (e.g. moving expenses into
+ * a savings or income category). That flips how the rows are counted and
+ * re-weights the savings-rate maths on Pulse, so — unlike a same-kind move —
+ * it earns a confirm that names the consequence. The common case never sees
+ * this dialog; it only fires on a kind change.
+ */
+function CrossKindConfirm({
+  open,
+  onOpenChange,
+  count,
+  noun,
+  sourceKind,
+  target,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  count: number;
+  noun: string;
+  sourceKind: CategoryKind;
+  target: Category | null;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
+      <AlertDialog.Portal>
+        <AlertDialog.Backdrop className={BACKDROP} />
+        <AlertDialog.Popup className={POPUP}>
+          <AlertDialog.Title className="font-heading text-lg font-semibold">
+            Move into {target ? `${target.emoji} ${target.name}` : "another category"}?
+          </AlertDialog.Title>
+          <AlertDialog.Description className="mt-1 text-sm text-muted-foreground">
+            {target
+              ? `${target.name} is ${target.kind === "income" ? "an" : "a"} ` +
+                `${KIND_LABEL[target.kind]} category. Moving ${count} ${noun} out of ` +
+                `${KIND_LABEL[sourceKind]} changes how they’re counted and shifts ` +
+                `your savings rate.`
+              : null}
+          </AlertDialog.Description>
+          <div className="mt-5 flex justify-end gap-2">
+            <AlertDialog.Close className="rounded-md px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              Cancel
+            </AlertDialog.Close>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Move anyway
+            </button>
+          </div>
+        </AlertDialog.Popup>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   );
 }
 

@@ -173,7 +173,6 @@ export function TransactionList({
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
   const [bulkPending, setBulkPending] = useState<PendingBulkDelete | null>(null);
-  const [bulkActionPending, setBulkActionPending] = useState(false);
   const notify = useNotify();
   const selection = useTransactionSelection();
 
@@ -203,40 +202,40 @@ export function TransactionList({
   useEffect(() => {
     return () => {
       const p = pendingRef.current;
-      if (p && !p.inFlight) {
+      if (p) {
         clearTimeout(p.timer);
-        notify.update(p.toastId, {
-          data: {
-            vendorLabel: p.transaction.vendor ?? "transaction",
-            inFlight: true,
-            onUndo: () => {},
-          },
-        });
-        void deleteTransactionAction({
-          id: p.transaction.id,
-          categoryId: p.transaction.categoryId,
-        }).then((result) => {
-          reportDeleteError(notify)(result);
-          notify.dismiss(p.toastId);
-        });
-      } else if (p) {
-        clearTimeout(p.timer);
+        if (!p.inFlight) {
+          notify.update(p.toastId, {
+            data: {
+              vendorLabel: p.transaction.vendor ?? "transaction",
+              inFlight: true,
+              onUndo: () => {},
+            },
+          });
+          void deleteTransactionAction({
+            id: p.transaction.id,
+            categoryId: p.transaction.categoryId,
+          }).then((result) => {
+            reportDeleteError(notify)(result);
+            notify.dismiss(p.toastId);
+          });
+        }
       }
 
       const b = bulkPendingRef.current;
-      if (b && !b.inFlight) {
+      if (b) {
         clearTimeout(b.timer);
-        notify.update(b.toastId, {
-          data: { vendorLabel: pluralTxns(b.count), inFlight: true, onUndo: () => {} },
-        });
-        void bulkDeleteTransactionsAction({ ids: b.ids, categoryIds: b.categoryIds }).then(
-          (result) => {
-            if (result.error) notify.error("Delete failed", result.error);
-            notify.dismiss(b.toastId);
-          },
-        );
-      } else if (b) {
-        clearTimeout(b.timer);
+        if (!b.inFlight) {
+          notify.update(b.toastId, {
+            data: { vendorLabel: pluralTxns(b.count), inFlight: true, onUndo: () => {} },
+          });
+          void bulkDeleteTransactionsAction({ ids: b.ids, categoryIds: b.categoryIds }).then(
+            (result) => {
+              if (result.error) notify.error("Delete failed", result.error);
+              notify.dismiss(b.toastId);
+            },
+          );
+        }
       }
     };
     // notify is referentially stable across renders (memoized by useNotify).
@@ -379,13 +378,11 @@ export function TransactionList({
     const categoryIds = categoryIdsFor(ids);
     const target = categories.find((c) => c.id === categoryId);
     selection.cancel();
-    setBulkActionPending(true);
     const result = await bulkUpdateTransactionsAction({
       ids,
       categoryIds,
       patch: { categoryId },
     });
-    setBulkActionPending(false);
     if (result.error) notify.error("Recategorise failed", result.error);
     else
       notify.success(
@@ -399,13 +396,11 @@ export function TransactionList({
     if (ids.length === 0) return;
     const categoryIds = categoryIdsFor(ids);
     selection.cancel();
-    setBulkActionPending(true);
     const result = await bulkUpdateTransactionsAction({
       ids,
       categoryIds,
       patch: { vendor },
     });
-    setBulkActionPending(false);
     if (result.error) notify.error("Rename failed", result.error);
     else notify.success(`Renamed ${pluralTxns(result.updated)}`, `Vendor set to "${vendor}"`);
   }
@@ -455,6 +450,23 @@ export function TransactionList({
       }),
     [transactions, filter, hiddenIds],
   );
+
+  // Keep the selection within the visible set: when the filter (or the
+  // underlying data) narrows, drop any selected ids that scrolled out of view,
+  // so the bar count, the bar total, and every bulk action operate on exactly
+  // what's on screen — never on rows the user can't currently see. Without
+  // this, narrowing a date range after a select-all would still delete /
+  // recategorise the now-hidden rows. Render-time prop-change adjustment, the
+  // same pattern as the revalidation-clear below (setState in an effect is
+  // disallowed here).
+  const filteredIdsKey = useMemo(() => filtered.map((t) => t.id).join(","), [filtered]);
+  const [prevFilteredIdsKey, setPrevFilteredIdsKey] = useState(filteredIdsKey);
+  if (filteredIdsKey !== prevFilteredIdsKey) {
+    setPrevFilteredIdsKey(filteredIdsKey);
+    const visible = new Set(filtered.map((t) => t.id));
+    const stale = [...selection.selected].filter((id) => !visible.has(id));
+    if (stale.length > 0) selection.deselectMany(stale);
+  }
 
   const vendorOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -665,7 +677,6 @@ export function TransactionList({
           kind={category.kind}
           defaultVendor={defaultVendor}
           categories={categories}
-          pending={bulkActionPending}
           onDelete={startBulkDelete}
           onRecategorise={handleBulkRecategorise}
           onRename={handleBulkRename}
@@ -979,14 +990,19 @@ function Row({
   onDelete: () => void;
 }) {
   // Mobile long-press → selection mode (story 23). pointerdown starts a 500ms
-  // timer; a pointerup or any movement before it fires cancels. Touch only —
+  // timer; a pointerup, or movement past a small threshold, cancels it. The
+  // threshold (~10px) keeps ordinary finger jitter from killing the gesture —
+  // a zero-tolerance cancel reads as flaky on real touch devices. Touch only;
   // desktop reveals checkboxes always and uses click/keyboard.
+  const LONG_PRESS_MOVE_TOLERANCE = 10;
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressStart = useRef<{ x: number; y: number } | null>(null);
   const cancelLongPress = () => {
     if (longPress.current) {
       clearTimeout(longPress.current);
       longPress.current = null;
     }
+    longPressStart.current = null;
   };
 
   return (
@@ -1008,13 +1024,23 @@ function Row({
       onPointerDown={(e) => {
         if (e.pointerType !== "touch") return;
         cancelLongPress();
+        longPressStart.current = { x: e.clientX, y: e.clientY };
         longPress.current = setTimeout(() => {
           selection.enterSelectionMode();
           selection.toggle(t.id);
         }, 500);
       }}
       onPointerUp={cancelLongPress}
-      onPointerMove={cancelLongPress}
+      onPointerMove={(e) => {
+        const start = longPressStart.current;
+        if (!start) return;
+        if (
+          Math.abs(e.clientX - start.x) > LONG_PRESS_MOVE_TOLERANCE ||
+          Math.abs(e.clientY - start.y) > LONG_PRESS_MOVE_TOLERANCE
+        ) {
+          cancelLongPress();
+        }
+      }}
       onPointerCancel={cancelLongPress}
       className={cn(
         "group flex items-start gap-3 py-2 pr-1 text-sm outline-none focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",

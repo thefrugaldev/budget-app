@@ -90,9 +90,10 @@ export function allTransactionIds(groups: readonly DayGroup[]): string[] {
 
 /**
  * The most-common non-blank vendor among the selected transactions, used to
- * prefill the bulk vendor-rename input (story 14). Ties resolve to the vendor
- * seen first in iteration order, which for the day-grouped list is the
- * newest-first row order. Returns undefined when no selected row has a vendor.
+ * prefill the bulk vendor-rename input (story 14). Ties resolve to whichever
+ * tied vendor appears first in `transactions` (the array as passed in — the
+ * caller decides that order). Returns undefined when no selected row has a
+ * vendor.
  */
 export function mostCommonVendor(
   transactions: readonly Transaction[],

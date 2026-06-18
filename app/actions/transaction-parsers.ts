@@ -41,6 +41,9 @@ export function parseIsoDate(raw: FormDataEntryValue | null): string {
   return raw;
 }
 
+/** Upper bound on a single bulk operation's id list (see parseTransactionIds). */
+const MAX_BULK_IDS = 5000;
+
 /**
  * Validates the transaction-id list a bulk action (delete / recategorise /
  * vendor rename) operates on. The list arrives as a typed array from the
@@ -52,6 +55,11 @@ export function parseIsoDate(raw: FormDataEntryValue | null): string {
 export function parseTransactionIds(raw: unknown): string[] {
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new Error("Select at least one transaction");
+  }
+  // Hard cap well above any realistic UI selection — bounds the `$in` query and
+  // the de-dupe loop so a buggy or hostile client can't send a 10^6-id array.
+  if (raw.length > MAX_BULK_IDS) {
+    throw new Error("Too many transactions selected");
   }
   const seen = new Set<string>();
   for (const entry of raw) {
