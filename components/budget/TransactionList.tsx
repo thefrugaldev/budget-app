@@ -2,7 +2,7 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
-import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronRight, ListChecks, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -626,8 +626,22 @@ export function TransactionList({
                   : selection.enterSelectionMode()
               }
               aria-pressed={selection.selectionMode}
-              className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              // Given more weight than "Expand all" (an outlined chip with an
+              // icon, not a ghost link) so it reads as the gateway to bulk
+              // actions rather than a passive label; filled while active so the
+              // selection mode is unmistakable.
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                selection.selectionMode
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "text-foreground ring-1 ring-border hover:bg-muted",
+              )}
             >
+              {selection.selectionMode ? (
+                <Check className="size-3.5" aria-hidden />
+              ) : (
+                <ListChecks className="size-3.5" aria-hidden />
+              )}
               {selection.selectionMode ? "Done" : "Select"}
             </button>
           )}
