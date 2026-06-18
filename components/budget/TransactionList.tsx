@@ -11,10 +11,15 @@ import { TransactionForm } from "@/components/budget/TransactionForm";
 import { useNotify } from "@/components/notify";
 import { DateRangeField } from "@/components/ui/DateRangeField";
 import {
-  dayLabel,
+  fmtExact,
   matchesTransactionFilter,
   type TransactionFilter,
 } from "@/lib/budget";
+import {
+  groupTransactionsByDay,
+  type DayGroup,
+  type TransactionRow,
+} from "@/lib/transaction";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
 
@@ -287,6 +292,21 @@ export function TransactionList({
     return [...seen].sort();
   }, [transactions]);
 
+  // Day grouping (chunk 2 of #17): the chunk-1 `groupTransactionsByDay` helper
+  // gives us newest-first day buckets with signed subtotals and "Today"/
+  // "Yesterday"/"Mon, Jun 8" labels. Streak collapse is *not* wired here — we
+  // expand each group's rows back to individual transactions so every
+  // transaction still renders as its own row. Chunk 3 swaps `expandRows` for
+  // direct streak rendering.
+  const dayGroups = useMemo(
+    () => groupTransactionsByDay(filtered, { today: now }),
+    [filtered, now],
+  );
+  const txById = useMemo(
+    () => new Map(filtered.map((t) => [t.id, t])),
+    [filtered],
+  );
+
   return (
     <>
       <div className="mb-3 flex items-baseline justify-between">
@@ -297,48 +317,53 @@ export function TransactionList({
 
       <FilterRow filter={filter} onChange={setFilter} vendorOptions={vendorOptions} />
 
-      <ul className="mt-3 divide-y divide-border rounded-2xl bg-card ring-1 ring-border">
-        {filtered.map((t) => (
-          <Row
-            key={t.id}
-            transaction={t}
-            kind={category.kind}
-            isInflow={isInflow}
-            now={now}
-            onEdit={() => setEditing(t)}
-            onDelete={() => startDelete(t)}
-          />
-        ))}
-        {filtered.length === 0 && (
-          <li className="flex flex-col items-center gap-3 px-4 py-8 text-center text-sm text-muted-foreground">
-            {transactions.length === 0 ? (
-              <>
-                <p>No transactions in this range.</p>
-                {!category.activeUntil && (
-                  <button
-                    type="button"
-                    onClick={focusAddTransactionForm}
-                    className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    Add a transaction →
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <p>No transactions match the filter.</p>
+      {filtered.length === 0 ? (
+        <div className="mt-3 flex flex-col items-center gap-3 rounded-2xl bg-card px-4 py-8 text-center text-sm text-muted-foreground ring-1 ring-border">
+          {transactions.length === 0 ? (
+            <>
+              <p>No transactions in this range.</p>
+              {!category.activeUntil && (
                 <button
                   type="button"
-                  onClick={() => setFilter(EMPTY_FILTER)}
-                  className="cursor-pointer rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-border hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={focusAddTransactionForm}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  Clear filters
+                  Add a transaction →
                 </button>
-              </>
-            )}
-          </li>
-        )}
-      </ul>
+              )}
+            </>
+          ) : (
+            <>
+              <p>No transactions match the filter.</p>
+              <button
+                type="button"
+                onClick={() => setFilter(EMPTY_FILTER)}
+                className="cursor-pointer rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-border hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Clear filters
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        // `overflow-clip` (not `overflow-hidden`) rounds the corners without
+        // making this a scroll container — otherwise every sticky day header
+        // would share one sticky context and pile up instead of each pinning
+        // within its own day as the page scrolls.
+        <div className="mt-3 overflow-clip rounded-2xl bg-card ring-1 ring-border">
+          {dayGroups.map((group) => (
+            <DaySection
+              key={group.date}
+              group={group}
+              kind={category.kind}
+              isInflow={isInflow}
+              transactions={expandRows(group.rows, txById)}
+              onEdit={setEditing}
+              onDelete={startDelete}
+            />
+          ))}
+        </div>
+      )}
 
       <EditDialog
         editing={editing}
@@ -395,18 +420,91 @@ function FilterRow({
   );
 }
 
+/**
+ * Flattens a day's grouped rows back into individual transactions. Chunk 2
+ * renders every transaction as its own row, so a `CollapsedStreak` is expanded
+ * to its underlying transactions (looked up by id, preserving the streak's
+ * member order). Chunk 3 will drop this and render streaks as collapsed rows.
+ */
+function expandRows(
+  rows: TransactionRow[],
+  byId: Map<string, Transaction>,
+): Transaction[] {
+  const out: Transaction[] = [];
+  for (const row of rows) {
+    if (row.kind === "single") {
+      out.push(row.transaction);
+    } else {
+      for (const id of row.transactionIds) {
+        const t = byId.get(id);
+        if (t) out.push(t);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * One day's transactions under a sticky header showing the day label and its
+ * signed subtotal (stories 1, 2, 3, 27). The section is an ARIA region named
+ * by its day + subtotal so screen-reader users can navigate day-to-day
+ * (story 22). The header sticks below the global app header (`h-14`).
+ */
+function DaySection({
+  group,
+  kind,
+  isInflow,
+  transactions,
+  onEdit,
+  onDelete,
+}: {
+  group: DayGroup;
+  kind: Category["kind"];
+  isInflow: boolean;
+  transactions: Transaction[];
+  onEdit: (t: Transaction) => void;
+  onDelete: (t: Transaction) => void;
+}) {
+  const subtotalPositive = isInflow && group.subtotal > 0;
+  return (
+    <section aria-label={`${group.label}, ${fmtExact(group.subtotal)}`}>
+      <h3 className="sticky top-14 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-card px-4 py-2 text-sm font-medium">
+        <span>{group.label}</span>
+        <span
+          className={cn(
+            "tabular-nums text-muted-foreground",
+            subtotalPositive && "text-emerald-700 dark:text-emerald-400",
+          )}
+        >
+          <SignedAmount kind={kind} amount={group.subtotal} />
+        </span>
+      </h3>
+      <ul className="divide-y divide-border">
+        {transactions.map((t) => (
+          <Row
+            key={t.id}
+            transaction={t}
+            kind={kind}
+            isInflow={isInflow}
+            onEdit={() => onEdit(t)}
+            onDelete={() => onDelete(t)}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Row({
   transaction: t,
   kind,
   isInflow,
-  now,
   onEdit,
   onDelete,
 }: {
   transaction: Transaction;
   kind: Category["kind"];
   isInflow: boolean;
-  now: Date;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -414,18 +512,9 @@ function Row({
     <li className="flex items-start gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="truncate">
-            <span className="font-medium">
-              <span className="sr-only">Vendor: </span>
-              {t.vendor ?? "—"}
-            </span>
-            <span className="mx-1.5 text-muted-foreground" aria-hidden="true">
-              ·
-            </span>
-            <span className="text-xs text-muted-foreground">
-              <span className="sr-only">Date: </span>
-              {dayLabel(t.date, now)}
-            </span>
+          <p className="truncate font-medium">
+            <span className="sr-only">Vendor: </span>
+            {t.vendor ?? "—"}
           </p>
           <span
             className={cn(
