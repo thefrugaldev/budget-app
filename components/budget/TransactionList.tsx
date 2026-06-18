@@ -2,8 +2,8 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { deleteTransactionAction } from "@/app/actions/transactions";
 import { SignedAmount } from "@/components/budget/SignedAmount";
@@ -17,8 +17,8 @@ import {
 } from "@/lib/budget";
 import {
   groupTransactionsByDay,
+  type CollapsedStreak,
   type DayGroup,
-  type TransactionRow,
 } from "@/lib/transaction";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
@@ -293,11 +293,12 @@ export function TransactionList({
   }, [transactions]);
 
   // Day grouping (chunk 2 of #17): the chunk-1 `groupTransactionsByDay` helper
-  // gives us newest-first day buckets with signed subtotals and "Today"/
-  // "Yesterday"/"Mon, Jun 8" labels. Streak collapse is *not* wired here — we
-  // expand each group's rows back to individual transactions so every
-  // transaction still renders as its own row. Chunk 3 swaps `expandRows` for
-  // direct streak rendering.
+  // gives us newest-first day buckets with signed subtotals, "Today"/
+  // "Yesterday"/"Mon, Jun 8" labels, and — wired in chunk 3 — runs of the same
+  // `(vendor, amount)` collapsed into a `CollapsedStreak`. Because grouping
+  // runs on the *filtered* set, a date filter that cuts a streak only collapses
+  // the in-range portion (story 24), and an optimistic delete shrinks (or
+  // dissolves) a streak the moment its row is hidden (story 6).
   const dayGroups = useMemo(
     () => groupTransactionsByDay(filtered, { today: now }),
     [filtered, now],
@@ -307,12 +308,31 @@ export function TransactionList({
     [filtered],
   );
 
+  // Streaks collapse by default; "Expand all" opens every streak in view at
+  // once, on top of each streak's own row-level disclosure (story 25). Only
+  // surfaced when there's at least one streak to act on.
+  const [expandAll, setExpandAll] = useState(false);
+  const hasStreaks = useMemo(
+    () => dayGroups.some((g) => g.rows.some((r) => r.kind === "streak")),
+    [dayGroups],
+  );
+
   return (
     <>
-      <div className="mb-3 flex items-baseline justify-between">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="font-heading text-lg font-medium">
           {filtered.length} transactions · {rangeText.toLowerCase()}
         </h2>
+        {hasStreaks && (
+          <button
+            type="button"
+            onClick={() => setExpandAll((v) => !v)}
+            aria-pressed={expandAll}
+            className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {expandAll ? "Collapse all" : "Expand all"}
+          </button>
+        )}
       </div>
 
       <FilterRow filter={filter} onChange={setFilter} vendorOptions={vendorOptions} />
@@ -353,7 +373,8 @@ export function TransactionList({
               group={group}
               kind={category.kind}
               isInflow={isInflow}
-              transactions={expandRows(group.rows, txById)}
+              byId={txById}
+              expandAll={expandAll}
               onEdit={setEditing}
               onDelete={startDelete}
             />
@@ -417,36 +438,16 @@ function FilterRow({
 }
 
 /**
- * Flattens a day's grouped rows back into individual transactions. Chunk 2
- * renders every transaction as its own row, so a `CollapsedStreak` is expanded
- * to its underlying transactions (looked up by id, preserving the streak's
- * member order). Chunk 3 will drop this and render streaks as collapsed rows.
- */
-function expandRows(
-  rows: TransactionRow[],
-  byId: Map<string, Transaction>,
-): Transaction[] {
-  const out: Transaction[] = [];
-  for (const row of rows) {
-    if (row.kind === "single") {
-      out.push(row.transaction);
-    } else {
-      for (const id of row.transactionIds) {
-        const t = byId.get(id);
-        if (t) out.push(t);
-      }
-    }
-  }
-  return out;
-}
-
-/**
  * One day rendered agenda-style: a strong, sticky day header (bold label +
  * bold signed subtotal, on a hairline rule) with its transactions indented
  * beneath it (stories 1, 2, 3, 27). No surrounding card — most days hold only
  * a row or two, so a box per day reads as heavy clutter. The weight contrast
  * (header bold / rows regular) and the indent make the header lead and the
  * day boundaries easy to scan.
+ *
+ * A run of identical `(vendor, amount)` transactions arrives as a
+ * `CollapsedStreak` and renders as a single `StreakRow`; lone transactions
+ * render as a plain `Row` (chunk 3).
  *
  * The section is an ARIA region named by day + subtotal for screen-reader
  * day-to-day navigation (story 22). The header sits on the page background and
@@ -457,14 +458,16 @@ function DaySection({
   group,
   kind,
   isInflow,
-  transactions,
+  byId,
+  expandAll,
   onEdit,
   onDelete,
 }: {
   group: DayGroup;
   kind: Category["kind"];
   isInflow: boolean;
-  transactions: Transaction[];
+  byId: Map<string, Transaction>;
+  expandAll: boolean;
   onEdit: (t: Transaction) => void;
   onDelete: (t: Transaction) => void;
 }) {
@@ -483,18 +486,120 @@ function DaySection({
         </span>
       </h3>
       <ul>
-        {transactions.map((t) => (
-          <Row
-            key={t.id}
-            transaction={t}
-            kind={kind}
-            isInflow={isInflow}
-            onEdit={() => onEdit(t)}
-            onDelete={() => onDelete(t)}
-          />
-        ))}
+        {group.rows.map((row) =>
+          row.kind === "single" ? (
+            <Row
+              key={row.transaction.id}
+              transaction={row.transaction}
+              kind={kind}
+              isInflow={isInflow}
+              onEdit={() => onEdit(row.transaction)}
+              onDelete={() => onDelete(row.transaction)}
+            />
+          ) : (
+            <StreakRow
+              key={`${group.date}:${row.vendor}:${row.amount}`}
+              streak={row}
+              kind={kind}
+              isInflow={isInflow}
+              byId={byId}
+              expandAll={expandAll}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ),
+        )}
       </ul>
     </section>
+  );
+}
+
+/**
+ * A collapsed run of identical `(vendor, amount)` transactions, shown as one
+ * row: `Whole Foods · 4× $87.42` on the left, the run's signed total on the
+ * right (stories 4). The whole row is a disclosure button — clicking it (or
+ * the global "Expand all") reveals the underlying transactions, each a normal
+ * `Row` with its overflow menu intact, so any single one stays editable /
+ * deletable (story 5).
+ *
+ * The count and total are read straight off the freshly-regrouped streak, so
+ * editing or deleting an underlying row updates them with no extra bookkeeping
+ * (story 6); a delete that drops the run to one transaction dissolves the
+ * streak back into a plain `Row` on the next render.
+ */
+function StreakRow({
+  streak,
+  kind,
+  isInflow,
+  byId,
+  expandAll,
+  onEdit,
+  onDelete,
+}: {
+  streak: CollapsedStreak;
+  kind: Category["kind"];
+  isInflow: boolean;
+  byId: Map<string, Transaction>;
+  expandAll: boolean;
+  onEdit: (t: Transaction) => void;
+  onDelete: (t: Transaction) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const expanded = expandAll || open;
+  const panelId = useId();
+  const total = streak.amount * streak.count;
+  const underlying = streak.transactionIds
+    .map((id) => byId.get(id))
+    .filter((t): t is Transaction => Boolean(t));
+
+  return (
+    <li className="text-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        className="flex w-full cursor-pointer items-baseline gap-2 py-2 pl-1.5 pr-1 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ChevronRight
+          className={cn(
+            "size-4 shrink-0 self-center text-muted-foreground transition-transform",
+            expanded && "rotate-90",
+          )}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1 truncate">
+          <span className="text-foreground">{streak.vendor}</span>
+          <span className="text-muted-foreground">
+            {" · "}
+            {streak.count}× {fmtExact(streak.amount)}
+          </span>
+        </span>
+        <span
+          className={cn(
+            "shrink-0 tabular-nums text-foreground",
+            isInflow && total > 0 && "text-emerald-700 dark:text-emerald-400",
+          )}
+        >
+          <SignedAmount kind={kind} amount={total} marker={false} />
+        </span>
+      </button>
+      {expanded && (
+        <ul id={panelId}>
+          {underlying.map((t) => (
+            <Row
+              key={t.id}
+              transaction={t}
+              kind={kind}
+              isInflow={isInflow}
+              nested
+              onEdit={() => onEdit(t)}
+              onDelete={() => onDelete(t)}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 
@@ -502,17 +607,25 @@ function Row({
   transaction: t,
   kind,
   isInflow,
+  nested = false,
   onEdit,
   onDelete,
 }: {
   transaction: Transaction;
   kind: Category["kind"];
   isInflow: boolean;
+  /** Rendered inside an expanded streak — indent a level deeper to show nesting. */
+  nested?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <li className="group flex items-start gap-3 py-2 pl-5 pr-1 text-sm">
+    <li
+      className={cn(
+        "group flex items-start gap-3 py-2 pr-1 text-sm",
+        nested ? "pl-10" : "pl-5",
+      )}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <p className="truncate text-foreground">
