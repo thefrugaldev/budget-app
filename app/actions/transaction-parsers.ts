@@ -40,3 +40,38 @@ export function parseIsoDate(raw: FormDataEntryValue | null): string {
   }
   return raw;
 }
+
+/**
+ * Validates the transaction-id list a bulk action (delete / recategorise /
+ * vendor rename) operates on. The list arrives as a typed array from the
+ * client rather than FormData, but a stale or hostile caller could send
+ * garbage, so we defend at the action boundary: the value must be a non-empty
+ * array, every entry a non-empty string. Trims and de-duplicates so a repeated
+ * id can't inflate a "12 transactions" confirmation.
+ */
+export function parseTransactionIds(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error("Select at least one transaction");
+  }
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    if (typeof entry !== "string" || entry.trim() === "") {
+      throw new Error("Invalid transaction id");
+    }
+    seen.add(entry.trim());
+  }
+  return [...seen];
+}
+
+/**
+ * Validates the new vendor name for a bulk rename. Non-empty after trimming;
+ * the trimmed value is what gets written so a stray space can't create a
+ * near-duplicate vendor. (Vendor canonicalisation across spellings stays out
+ * of scope per the PRD.)
+ */
+export function parseVendorName(raw: unknown): string {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    throw new Error("Vendor name is required");
+  }
+  return raw.trim();
+}
