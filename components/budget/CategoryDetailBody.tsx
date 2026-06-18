@@ -212,7 +212,6 @@ export function CategoryDetailBody({
           allTransactions={visibleTxns}
           rangeText={rangeText}
           now={now}
-          isInflow={isInflow}
           onHiddenIdsChange={setHiddenIds}
         />
       </section>
