@@ -62,6 +62,20 @@ export function useNotify() {
           title: `Deleted ${args.vendorLabel}`,
           data: { vendorLabel: args.vendorLabel, inFlight: false, onUndo: args.onUndo },
         }),
+      // Bulk-delete variant (issue #17 chunk 4): same sticky undo toast as the
+      // single-row one, but the title names the count instead of a vendor. The
+      // bulk-delete timer in TransactionList drives its lifecycle identically.
+      undoBulkDelete: (args: { id: string; count: number; onUndo: () => void }) => {
+        const label = `${args.count} ${args.count === 1 ? "transaction" : "transactions"}`;
+        return manager.add({
+          id: args.id,
+          type: "undo-delete" satisfies NotifyType,
+          priority: "low",
+          timeout: 0,
+          title: `Deleted ${label}`,
+          data: { vendorLabel: label, inFlight: false, onUndo: args.onUndo },
+        });
+      },
       update: manager.update,
       dismiss: manager.close,
     }),

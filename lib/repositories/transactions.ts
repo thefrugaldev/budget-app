@@ -72,6 +72,40 @@ export async function deleteTransaction(id: string): Promise<boolean> {
   return result.deletedCount > 0;
 }
 
+// Bulk delete (issue #17 chunk 4). One `deleteMany` keeps the operation
+// atomic on the server; returns the count actually removed so the caller can
+// confirm how many of the requested ids existed. An empty id list is a no-op.
+export async function deleteManyTransactions(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const db = await getDb();
+  const result = await db
+    .collection<TransactionDocument>(COLLECTIONS.transactions)
+    .deleteMany({ _id: { $in: ids } });
+  return result.deletedCount;
+}
+
+// Bulk patch (issue #17 chunk 4) — bulk recategorise (`categoryId`) and bulk
+// vendor rename (`vendor`) both flow through here. Mirrors `updateTransaction`'s
+// undefined-stripping so an absent key is left untouched rather than written as
+// `null`; returns the matched count. Empty id list or empty patch is a no-op.
+export async function updateManyTransactions(
+  ids: string[],
+  patch: TransactionPatch,
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const set: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) set[key] = value;
+  }
+  if (Object.keys(set).length === 0) return 0;
+
+  const db = await getDb();
+  const result = await db
+    .collection<TransactionDocument>(COLLECTIONS.transactions)
+    .updateMany({ _id: { $in: ids } }, { $set: set });
+  return result.matchedCount;
+}
+
 export async function listTransactionsForMonth(
   year: number,
   month: number,

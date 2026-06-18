@@ -1,7 +1,6 @@
 "use client";
 
 import { Autocomplete } from "@base-ui/react/autocomplete";
-import { Check, ChevronDown, Search } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -10,6 +9,7 @@ import {
   updateTransactionAction,
 } from "@/app/actions/transactions";
 import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
+import { CategoryPicker } from "@/components/budget/CategoryPicker";
 import { useNotify } from "@/components/notify";
 import { DatePickerField } from "@/components/ui/DatePickerField";
 import {
@@ -19,16 +19,6 @@ import {
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind, Transaction } from "@/types/budget";
-
-const KIND_LABELS = {
-  expense: "Expenses",
-  savings: "Savings",
-  income: "Income",
-} as const satisfies Record<CategoryKind, string>;
-// Derived from KIND_LABELS so adding a CategoryKind without updating the
-// labels object is a compile error, and the picker can never silently drop
-// a kind. Object.keys is typed as `string[]`, so cast back to the union.
-const KIND_ORDER = Object.keys(KIND_LABELS) as readonly CategoryKind[];
 
 export type TransactionFormProps = {
   categories: Category[];
@@ -475,109 +465,6 @@ function VendorInput({
         </Autocomplete.Positioner>
       </Autocomplete.Portal>
     </Autocomplete.Root>
-  );
-}
-
-function CategoryPicker({
-  categories,
-  selectedId,
-  onChange,
-}: {
-  categories: Category[];
-  selectedId: string | undefined;
-  onChange: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const selected = selectedId ? categories.find((c) => c.id === selectedId) : undefined;
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return KIND_ORDER.map((kind) => ({
-      kind,
-      label: KIND_LABELS[kind],
-      items: categories.filter(
-        (c) =>
-          c.kind === kind &&
-          (q === "" || c.name.toLowerCase().includes(q) || c.emoji.includes(q)),
-      ),
-    })).filter((g) => g.items.length > 0);
-  }, [categories, query]);
-
-  return (
-    <div className="space-y-1">
-      <span className="block text-xs font-medium text-muted-foreground">Category</span>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between rounded-md bg-background px-2 py-1.5 text-left text-sm ring-1 ring-border outline-none focus:ring-ring"
-      >
-        {selected ? (
-          <span className="flex items-center gap-2">
-            <span className="text-base leading-none">{selected.emoji}</span>
-            <span>{selected.name}</span>
-            <span className="text-xs text-muted-foreground">· {KIND_LABELS[selected.kind]}</span>
-          </span>
-        ) : (
-          <span className="text-muted-foreground">Pick a category…</span>
-        )}
-        <ChevronDown className="size-4 text-muted-foreground" aria-hidden />
-      </button>
-
-      {open && (
-        <div className="rounded-md bg-card p-2 ring-1 ring-border">
-          <div className="mb-2 flex items-center gap-2 rounded-md bg-background px-2 py-1 ring-1 ring-border">
-            <Search className="size-3.5 text-muted-foreground" aria-hidden />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search categories"
-              autoFocus
-              className="w-full bg-transparent text-sm outline-none"
-            />
-          </div>
-          <div className="max-h-60 space-y-2 overflow-auto">
-            {filtered.length === 0 && (
-              <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                No categories match.
-              </p>
-            )}
-            {filtered.map((group) => (
-              <div key={group.kind}>
-                <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {group.label}
-                </p>
-                <ul>
-                  {group.items.map((c) => (
-                    <li key={c.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onChange(c.id);
-                          setOpen(false);
-                          setQuery("");
-                        }}
-                        className={cn(
-                          "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                          selectedId === c.id && "bg-muted",
-                        )}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="text-base leading-none">{c.emoji}</span>
-                          <span>{c.name}</span>
-                        </span>
-                        {selectedId === c.id && <Check className="size-4" aria-hidden />}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 

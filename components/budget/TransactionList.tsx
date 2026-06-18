@@ -2,14 +2,28 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
-import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Check, ChevronRight, ListChecks, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { deleteTransactionAction } from "@/app/actions/transactions";
+import {
+  bulkDeleteTransactionsAction,
+  bulkUpdateTransactionsAction,
+  deleteTransactionAction,
+} from "@/app/actions/transactions";
+import { BulkActionBar } from "@/components/budget/BulkActionBar";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import { useNotify } from "@/components/notify";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { DateRangeField } from "@/components/ui/DateRangeField";
+import { useTransactionSelection } from "@/hooks/useTransactionSelection";
 import {
   fmtExact,
   matchesTransactionFilter,
@@ -20,6 +34,14 @@ import {
   type CollapsedStreak,
   type DayGroup,
 } from "@/lib/transaction";
+import {
+  allTransactionIds,
+  areAllSelected,
+  areSomeSelected,
+  dayGroupIds,
+  mostCommonVendor,
+  selectedTotal,
+} from "@/lib/transaction-selection";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
 
@@ -30,6 +52,15 @@ const EMPTY_FILTER: TransactionFilter = {
   dateFrom: "",
   dateTo: "",
 };
+
+/** Stable navigable key for a collapsed streak header (vendor unique per day). */
+function streakKey(date: string, vendor: string): string {
+  return `streak:${date}:${vendor}`;
+}
+
+function pluralTxns(n: number): string {
+  return `${n} ${n === 1 ? "transaction" : "transactions"}`;
+}
 
 // On desktop the Add transaction card is in the left rail and already in view,
 // so a plain anchor link is silent. Move focus to the first input + flash a
@@ -76,6 +107,17 @@ type PendingDelete = {
   awaitingRevalidation: boolean;
 };
 
+/** Bulk-delete counterpart of `PendingDelete` — same machine over many ids. */
+type PendingBulkDelete = {
+  ids: string[];
+  categoryIds: string[];
+  count: number;
+  timer: ReturnType<typeof setTimeout>;
+  toastId: string;
+  inFlight: boolean;
+  awaitingRevalidation: boolean;
+};
+
 function reportDeleteError(notify: Notify) {
   return (result: { error: string | null }) => {
     if (!result.error) return;
@@ -86,17 +128,20 @@ function reportDeleteError(notify: Notify) {
 
 /**
  * Client-side transaction list for the category detail page (chunk 8 +
- * issue #10):
+ * issue #10, extended for grouping/collapse/selection in #17):
  *
  * - Filter row narrows by vendor / date range / free-text (stories 24, 64).
- * - Each row has a `…` overflow menu with Edit / Delete (story 43).
- * - Edit opens the shared TransactionForm in edit mode (story 44) — the
- *   category is editable inside that form for re-categorization (story 45).
- * - Delete is optimistic: the row disappears immediately and a custom toast
- *   in the shared `useNotify` queue offers ~5s to undo; on expiry the
- *   server delete fires (story 46, 47). No soft-delete. Navigating away
- *   during the window finalizes the delete (the action keeps running past
- *   the React unmount).
+ * - Day-grouped, newest-first, with sticky headers + signed subtotals; runs of
+ *   the same vendor within a day collapse to an expandable streak (#17 1–6).
+ * - Each row has a `…` overflow menu with Edit / Delete (story 43) and a
+ *   selection checkbox; day headers and a top-level control offer select-all
+ *   (#17 7–9). With ≥1 row selected a bulk action bar appears for delete /
+ *   recategorise / rename (#17 10–16).
+ * - Keyboard: the list is one tab stop; arrow keys rove between rows, Space
+ *   toggles selection, Enter opens a row's menu (or expands a streak) (#17 21).
+ * - Mobile: long-press a row to enter selection mode, then tap to toggle (#17 23).
+ * - Delete (single and bulk) is optimistic with a ~5s undo toast; recategorise
+ *   and rename await the server and revalidate (#17 16).
  */
 export function TransactionList({
   category,
@@ -106,7 +151,7 @@ export function TransactionList({
   rangeText,
   now,
   isInflow,
-  onHiddenIdChange,
+  onHiddenIdsChange,
 }: {
   category: Category;
   categories: Category[];
@@ -118,62 +163,89 @@ export function TransactionList({
   now: Date;
   isInflow: boolean;
   /**
-   * Reports the currently-hidden (optimistically-deleted) row id up to a
-   * parent so sidebar aggregates can subtract the row and update headline
-   * totals immediately. Undefined when no row is hidden.
+   * Reports the currently-hidden (optimistically-deleted) row ids up to a
+   * parent so sidebar aggregates can subtract them and update headline totals
+   * immediately. Covers both the single-row and bulk delete paths.
    */
-  onHiddenIdChange?: (id: string | undefined) => void;
+  onHiddenIdsChange?: (ids: string[]) => void;
 }) {
   const [filter, setFilter] = useState<TransactionFilter>(EMPTY_FILTER);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
+  const [bulkPending, setBulkPending] = useState<PendingBulkDelete | null>(null);
   const notify = useNotify();
+  const selection = useTransactionSelection();
+
+  // Category lookup over the in-range set so bulk actions can collect the
+  // distinct categories of a selection (one on this page, potentially many
+  // once the global `/transactions` list reuses this component in chunk 5).
+  const categoryIdsFor = useCallback(
+    (ids: string[]) => {
+      const byId = new Map(transactions.map((t) => [t.id, t.categoryId]));
+      return [...new Set(ids.map((id) => byId.get(id)).filter((c): c is string => Boolean(c)))];
+    },
+    [transactions],
+  );
 
   // Flush any pending delete when the component unmounts. The user's last
-  // intent was "delete this row"; navigating away before the timer fires
-  // shouldn't silently resurrect it. We fire-and-forget the action — the
-  // POST continues past the React unmount and the action's revalidatePath
-  // calls flush the route cache. When the timer has already fired
-  // (`inFlight`), the action is in progress; the timer callback will dismiss
-  // the toast when it completes, so we just leave it alone.
+  // intent was "delete"; navigating away before the timer fires shouldn't
+  // silently resurrect the rows. We fire-and-forget — the POST continues past
+  // the React unmount and the action's revalidatePath flushes the route cache.
   const pendingRef = useRef<PendingDelete | null>(null);
+  const bulkPendingRef = useRef<PendingBulkDelete | null>(null);
   useEffect(() => {
     pendingRef.current = pending;
   }, [pending]);
   useEffect(() => {
+    bulkPendingRef.current = bulkPending;
+  }, [bulkPending]);
+  useEffect(() => {
     return () => {
       const p = pendingRef.current;
-      if (!p) return;
-      clearTimeout(p.timer);
-      if (p.inFlight) return;
-      // Take the toast out of "you can undo" mode immediately — the user
-      // navigated away, so the action's going to commit and Undo can't
-      // rescue it. The toast self-dismisses once the action resolves.
-      notify.update(p.toastId, {
-        data: {
-          vendorLabel: p.transaction.vendor ?? "transaction",
-          inFlight: true,
-          onUndo: () => {},
-        },
-      });
-      void deleteTransactionAction({
-        id: p.transaction.id,
-        categoryId: p.transaction.categoryId,
-      }).then((result) => {
-        reportDeleteError(notify)(result);
-        notify.dismiss(p.toastId);
-      });
+      if (p) {
+        clearTimeout(p.timer);
+        if (!p.inFlight) {
+          notify.update(p.toastId, {
+            data: {
+              vendorLabel: p.transaction.vendor ?? "transaction",
+              inFlight: true,
+              onUndo: () => {},
+            },
+          });
+          void deleteTransactionAction({
+            id: p.transaction.id,
+            categoryId: p.transaction.categoryId,
+          }).then((result) => {
+            reportDeleteError(notify)(result);
+            notify.dismiss(p.toastId);
+          });
+        }
+      }
+
+      const b = bulkPendingRef.current;
+      if (b) {
+        clearTimeout(b.timer);
+        if (!b.inFlight) {
+          notify.update(b.toastId, {
+            data: { vendorLabel: pluralTxns(b.count), inFlight: true, onUndo: () => {} },
+          });
+          void bulkDeleteTransactionsAction({ ids: b.ids, categoryIds: b.categoryIds }).then(
+            (result) => {
+              if (result.error) notify.error("Delete failed", result.error);
+              notify.dismiss(b.toastId);
+            },
+          );
+        }
+      }
     };
-    // notify is referentially stable across renders (memoized by useNotify);
-    // closing over it for the unmount cleanup is intentional.
+    // notify is referentially stable across renders (memoized by useNotify).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startDelete(transaction: Transaction) {
     // Stacking deletes: clicking Delete while a prior toast is showing
     // finalizes the prior delete and starts a new toast. If the prior is
-    // already in flight, leave it alone — its own timer callback will
-    // dismiss its toast when the action resolves.
+    // already in flight, leave it alone — its own timer callback dismisses it.
     if (pending) {
       clearTimeout(pending.timer);
       if (!pending.inFlight) {
@@ -186,19 +258,10 @@ export function TransactionList({
       }
     }
 
-    // The same transaction can only be in one pending-delete slot at a time
-    // (deleting hides the row), so a stable id per transaction is collision-
-    // free here. Reusing it after a prior toast dismissed is fine — Base UI
-    // treats `add({id})` as upsert.
     const toastId = `undo-delete:${transaction.id}`;
     const vendorLabel = transaction.vendor ?? "transaction";
 
     const timer = setTimeout(async () => {
-      // Flip to in-flight *before* awaiting so the unmount cleanup doesn't
-      // double-fire, the row stays hidden through the action's RTT, and the
-      // toast's Undo button is disabled. Without this, `setPending(null)`
-      // ran synchronously and the row flashed back for one render before
-      // revalidation rebuilt the parent.
       setPending((cur) =>
         cur?.transaction.id === transaction.id ? { ...cur, inFlight: true } : cur,
       );
@@ -215,11 +278,6 @@ export function TransactionList({
         setPending((cur) => (cur?.transaction.id === transaction.id ? null : cur));
         return;
       }
-      // Action succeeded. Don't clear pending yet — the row must stay hidden
-      // until the revalidated `transactions` prop arrives, or the user sees
-      // the row + total snap back for one frame before disappearing again.
-      // A useEffect on `transactions` clears pending once the prop catches
-      // up (or — defensively — after a short fallback timeout).
       setPending((cur) =>
         cur?.transaction.id === transaction.id
           ? { ...cur, awaitingRevalidation: true }
@@ -248,15 +306,111 @@ export function TransactionList({
     });
   }
 
+  // Bulk delete: same optimistic-hide + undo machine as single delete, over a
+  // snapshot of the selected ids. Selection is cleared immediately so the bar
+  // dismisses; the rows stay hidden via `hiddenIds` until the timer fires and
+  // the server delete + revalidation land (or the user undoes).
+  function startBulkDelete() {
+    const ids = [...selection.selected];
+    if (ids.length === 0) return;
+    const categoryIds = categoryIdsFor(ids);
+    const count = ids.length;
+    const toastId = "undo-bulk-delete";
+
+    // Only one bulk-delete in flight at a time; finalize any prior immediately.
+    if (bulkPending) {
+      clearTimeout(bulkPending.timer);
+      if (!bulkPending.inFlight) {
+        const prior = bulkPending;
+        notify.dismiss(prior.toastId);
+        void bulkDeleteTransactionsAction({
+          ids: prior.ids,
+          categoryIds: prior.categoryIds,
+        }).then((r) => r.error && notify.error("Delete failed", r.error));
+      }
+    }
+
+    selection.cancel();
+
+    const timer = setTimeout(async () => {
+      setBulkPending((cur) => (cur?.toastId === toastId ? { ...cur, inFlight: true } : cur));
+      notify.update(toastId, {
+        data: { vendorLabel: pluralTxns(count), inFlight: true, onUndo: () => {} },
+      });
+      const result = await bulkDeleteTransactionsAction({ ids, categoryIds });
+      notify.dismiss(toastId);
+      if (result.error) {
+        notify.error("Delete failed", result.error);
+        setBulkPending((cur) => (cur?.toastId === toastId ? null : cur));
+        return;
+      }
+      setBulkPending((cur) =>
+        cur?.toastId === toastId ? { ...cur, awaitingRevalidation: true } : cur,
+      );
+    }, UNDO_WINDOW_MS);
+
+    notify.undoBulkDelete({
+      id: toastId,
+      count,
+      onUndo: () =>
+        setBulkPending((cur) => {
+          if (!cur || cur.toastId !== toastId || cur.inFlight) return cur;
+          clearTimeout(cur.timer);
+          notify.dismiss(cur.toastId);
+          return null;
+        }),
+    });
+
+    setBulkPending({
+      ids,
+      categoryIds,
+      count,
+      timer,
+      toastId,
+      inFlight: false,
+      awaitingRevalidation: false,
+    });
+  }
+
+  async function handleBulkRecategorise(categoryId: string) {
+    const ids = [...selection.selected];
+    if (ids.length === 0) return;
+    const categoryIds = categoryIdsFor(ids);
+    const target = categories.find((c) => c.id === categoryId);
+    selection.cancel();
+    const result = await bulkUpdateTransactionsAction({
+      ids,
+      categoryIds,
+      patch: { categoryId },
+    });
+    if (result.error) notify.error("Recategorise failed", result.error);
+    else
+      notify.success(
+        `${pluralTxns(result.updated)} moved`,
+        target ? `Now in ${target.name}` : undefined,
+      );
+  }
+
+  async function handleBulkRename(vendor: string) {
+    const ids = [...selection.selected];
+    if (ids.length === 0) return;
+    const categoryIds = categoryIdsFor(ids);
+    selection.cancel();
+    const result = await bulkUpdateTransactionsAction({
+      ids,
+      categoryIds,
+      patch: { vendor },
+    });
+    if (result.error) notify.error("Rename failed", result.error);
+    else notify.success(`Renamed ${pluralTxns(result.updated)}`, `Vendor set to "${vendor}"`);
+  }
+
   // Clear pending once the revalidated `transactions` prop no longer contains
-  // the deleted row. The row stays hidden through the action RTT *and* the
-  // revalidation propagation, eliminating the one-frame flash that happened
-  // when pending cleared eagerly on action resolve.
-  //
-  // Implemented as a render-time check against the previous `transactions`
-  // reference rather than a useEffect — React 19's `set-state-in-effect`
-  // rule forbids setState inside an effect, and this is the canonical
-  // "adjust state when a prop changes" pattern from the React docs.
+  // the deleted rows — keeping them hidden through the action RTT *and* the
+  // revalidation propagation eliminates the one-frame flash. Implemented as a
+  // render-time check against the previous prop reference (React 19 forbids
+  // setState inside an effect; this is the documented "adjust state on prop
+  // change" pattern).
   const [prevTransactions, setPrevTransactions] = useState(transactions);
   if (transactions !== prevTransactions) {
     setPrevTransactions(transactions);
@@ -266,22 +420,53 @@ export function TransactionList({
     ) {
       setPending(null);
     }
+    if (
+      bulkPending?.awaitingRevalidation &&
+      !transactions.some((t) => bulkPending.ids.includes(t.id))
+    ) {
+      setBulkPending(null);
+    }
   }
 
-  const hiddenId = pending?.transaction.id;
-  // Mirror the hidden id up to the parent so sidebar aggregates can subtract
-  // it (story 46-adjacent — totals should match the visible list).
+  const hiddenIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (pending) ids.add(pending.transaction.id);
+    if (bulkPending) for (const id of bulkPending.ids) ids.add(id);
+    return ids;
+  }, [pending, bulkPending]);
+
+  const hiddenKey = [...hiddenIds].sort().join(",");
   useEffect(() => {
-    onHiddenIdChange?.(hiddenId);
-  }, [hiddenId, onHiddenIdChange]);
+    onHiddenIdsChange?.([...hiddenIds]);
+    // hiddenKey captures the set's contents; hiddenIds identity changes with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hiddenKey, onHiddenIdsChange]);
+
   const filtered = useMemo(
     () =>
       transactions.filter((t) => {
-        if (t.id === hiddenId) return false;
+        if (hiddenIds.has(t.id)) return false;
         return matchesTransactionFilter(t, filter);
       }),
-    [transactions, filter, hiddenId],
+    [transactions, filter, hiddenIds],
   );
+
+  // Keep the selection within the visible set: when the filter (or the
+  // underlying data) narrows, drop any selected ids that scrolled out of view,
+  // so the bar count, the bar total, and every bulk action operate on exactly
+  // what's on screen — never on rows the user can't currently see. Without
+  // this, narrowing a date range after a select-all would still delete /
+  // recategorise the now-hidden rows. Render-time prop-change adjustment, the
+  // same pattern as the revalidation-clear below (setState in an effect is
+  // disallowed here).
+  const filteredIdsKey = useMemo(() => filtered.map((t) => t.id).join(","), [filtered]);
+  const [prevFilteredIdsKey, setPrevFilteredIdsKey] = useState(filteredIdsKey);
+  if (filteredIdsKey !== prevFilteredIdsKey) {
+    setPrevFilteredIdsKey(filteredIdsKey);
+    const visible = new Set(filtered.map((t) => t.id));
+    const stale = [...selection.selected].filter((id) => !visible.has(id));
+    if (stale.length > 0) selection.deselectMany(stale);
+  }
 
   const vendorOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -292,13 +477,9 @@ export function TransactionList({
     return [...seen].sort();
   }, [transactions]);
 
-  // Day grouping (chunk 2 of #17): the chunk-1 `groupTransactionsByDay` helper
-  // gives us newest-first day buckets with signed subtotals, "Today"/
-  // "Yesterday"/"Mon, Jun 8" labels, and — wired in chunk 3 — runs of the same
-  // `(vendor, amount)` collapsed into a `CollapsedStreak`. Because grouping
-  // runs on the *filtered* set, a date filter that cuts a streak only collapses
-  // the in-range portion (story 24), and an optimistic delete shrinks (or
-  // dissolves) a streak the moment its row is hidden (story 6).
+  // Day grouping runs on the *filtered* set, so a date filter that cuts a
+  // streak only collapses the in-range portion (story 24), and an optimistic
+  // delete shrinks (or dissolves) a streak the moment its rows hide (story 6).
   const dayGroups = useMemo(
     () => groupTransactionsByDay(filtered, { today: now }),
     [filtered, now],
@@ -308,31 +489,163 @@ export function TransactionList({
     [filtered],
   );
 
-  // Streaks collapse by default; "Expand all" opens every streak in view at
-  // once, on top of each streak's own row-level disclosure (story 25). Only
-  // surfaced when there's at least one streak to act on.
+  // Streak expansion is lifted here (not local to each StreakRow) so the
+  // keyboard nav can compute the full navigable row order including the
+  // children of expanded streaks. "Expand all" forces every streak open.
   const [expandAll, setExpandAll] = useState(false);
+  const [expandedStreaks, setExpandedStreaks] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const toggleStreak = useCallback((key: string) => {
+    setExpandedStreaks((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+  const isStreakOpen = useCallback(
+    (key: string) => expandAll || expandedStreaks.has(key),
+    [expandAll, expandedStreaks],
+  );
   const hasStreaks = useMemo(
     () => dayGroups.some((g) => g.rows.some((r) => r.kind === "streak")),
     [dayGroups],
   );
 
+  // Flattened, DOM-order list of navigable row keys for roving-tabindex arrow
+  // navigation. A streak header contributes its own key, then (when open) each
+  // underlying row id, matching what's rendered.
+  const orderedRowKeys = useMemo(() => {
+    const keys: string[] = [];
+    for (const group of dayGroups) {
+      for (const row of group.rows) {
+        if (row.kind === "single") {
+          keys.push(row.transaction.id);
+        } else {
+          const key = streakKey(group.date, row.vendor);
+          keys.push(key);
+          if (isStreakOpen(key)) {
+            for (const id of row.transactionIds) {
+              if (txById.has(id)) keys.push(id);
+            }
+          }
+        }
+      }
+    }
+    return keys;
+  }, [dayGroups, isStreakOpen, txById]);
+
+  const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
+  const effectiveActiveKey =
+    activeRowKey && orderedRowKeys.includes(activeRowKey)
+      ? activeRowKey
+      : (orderedRowKeys[0] ?? null);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  const focusRow = useCallback((key: string) => {
+    const el = listRef.current?.querySelector<HTMLElement>(
+      `[data-row-key="${CSS.escape(key)}"]`,
+    );
+    if (el) {
+      el.focus();
+      setActiveRowKey(key);
+    }
+  }, []);
+
+  // Container-level arrow / Home / End navigation. Space and Enter are handled
+  // on each row element (the streak header is a <button> whose native Space
+  // would otherwise toggle the disclosure instead of the selection).
+  const onListKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      const activeEl = (e.target as HTMLElement).closest<HTMLElement>("[data-row-key]");
+      const keys = orderedRowKeys;
+      if (keys.length === 0) return;
+      const idx = activeEl ? keys.indexOf(activeEl.dataset.rowKey ?? "") : -1;
+      e.preventDefault();
+      if (e.key === "ArrowDown") focusRow(keys[Math.min(idx + 1, keys.length - 1)] ?? keys[0]);
+      else if (e.key === "ArrowUp") focusRow(keys[Math.max(idx - 1, 0)] ?? keys[0]);
+      else if (e.key === "Home") focusRow(keys[0]);
+      else focusRow(keys[keys.length - 1]);
+    },
+    [orderedRowKeys, focusRow],
+  );
+
+  // Top-level select-all spans every row in the current filter/range (story 9).
+  const allIds = useMemo(() => allTransactionIds(dayGroups), [dayGroups]);
+  const selectedTotalValue = useMemo(
+    () => selectedTotal(filtered, selection.selected),
+    [filtered, selection.selected],
+  );
+  const defaultVendor = useMemo(
+    () => mostCommonVendor(filtered, selection.selected),
+    [filtered, selection.selected],
+  );
+
   return (
     <>
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="font-heading text-lg font-medium">
-          {filtered.length} transactions · {rangeText.toLowerCase()}
-        </h2>
-        {hasStreaks && (
-          <button
-            type="button"
-            onClick={() => setExpandAll((v) => !v)}
-            aria-pressed={expandAll}
-            className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {expandAll ? "Collapse all" : "Expand all"}
-          </button>
-        )}
+        <div className="flex min-w-0 items-center gap-2">
+          {/* Top-level select-all only exists while selecting — the resting
+              list is for reading, not managing (issue #17 chunk 4 follow-up). */}
+          {selection.selectionMode && filtered.length > 0 && (
+            <Checkbox
+              label="Select all transactions"
+              checked={areAllSelected(selection.selected, allIds)}
+              indeterminate={areSomeSelected(selection.selected, allIds)}
+              onCheckedChange={(on) => selection.setMany(allIds, on)}
+              className="self-center"
+            />
+          )}
+          <h2 className="truncate font-heading text-lg font-medium">
+            {filtered.length} transactions · {rangeText.toLowerCase()}
+          </h2>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {hasStreaks && (
+            <button
+              type="button"
+              onClick={() => setExpandAll((v) => !v)}
+              aria-pressed={expandAll}
+              className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {expandAll ? "Collapse all" : "Expand all"}
+            </button>
+          )}
+          {/* Selection is an explicit mode entered here (or via long-press on
+              mobile / Space on a focused row) — checkboxes stay out of the
+              default reading view until asked for. Kept available while in mode
+              even if a filter empties the list, so there's always an exit. */}
+          {(filtered.length > 0 || selection.selectionMode) && (
+            <button
+              type="button"
+              onClick={() =>
+                selection.selectionMode
+                  ? selection.cancel()
+                  : selection.enterSelectionMode()
+              }
+              aria-pressed={selection.selectionMode}
+              // Given more weight than "Expand all" (an outlined chip with an
+              // icon, not a ghost link) so it reads as the gateway to bulk
+              // actions rather than a passive label; filled while active so the
+              // selection mode is unmistakable.
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                selection.selectionMode
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "text-foreground ring-1 ring-border hover:bg-muted",
+              )}
+            >
+              {selection.selectionMode ? (
+                <Check className="size-3.5" aria-hidden />
+              ) : (
+                <ListChecks className="size-3.5" aria-hidden />
+              )}
+              {selection.selectionMode ? "Done" : "Select"}
+            </button>
+          )}
+        </div>
       </div>
 
       <FilterRow filter={filter} onChange={setFilter} vendorOptions={vendorOptions} />
@@ -366,7 +679,14 @@ export function TransactionList({
           )}
         </div>
       ) : (
-        <div className="mt-3">
+        <div
+          className="mt-3"
+          ref={listRef}
+          onKeyDown={onListKeyDown}
+          // Pad the bottom while the bulk bar is up so its float doesn't cover
+          // the last rows (the bar is ~56px tall plus the mobile tab clearance).
+          style={selection.count > 0 ? { paddingBottom: "5rem" } : undefined}
+        >
           {dayGroups.map((group) => (
             <DaySection
               key={group.date}
@@ -374,12 +694,30 @@ export function TransactionList({
               kind={category.kind}
               isInflow={isInflow}
               byId={txById}
-              expandAll={expandAll}
+              selection={selection}
+              activeRowKey={effectiveActiveKey}
+              onActivate={setActiveRowKey}
+              isStreakOpen={isStreakOpen}
+              onToggleStreak={toggleStreak}
               onEdit={setEditing}
               onDelete={startDelete}
             />
           ))}
         </div>
+      )}
+
+      {selection.count > 0 && (
+        <BulkActionBar
+          count={selection.count}
+          total={selectedTotalValue}
+          kind={category.kind}
+          defaultVendor={defaultVendor}
+          categories={categories}
+          onDelete={startBulkDelete}
+          onRecategorise={handleBulkRecategorise}
+          onRename={handleBulkRename}
+          onCancel={selection.cancel}
+        />
       )}
 
       <EditDialog
@@ -437,29 +775,26 @@ function FilterRow({
   );
 }
 
+type Selection = ReturnType<typeof useTransactionSelection>;
+
 /**
- * One day rendered agenda-style: a strong, sticky day header (bold label +
- * bold signed subtotal, on a hairline rule) with its transactions indented
- * beneath it (stories 1, 2, 3, 27). No surrounding card — most days hold only
- * a row or two, so a box per day reads as heavy clutter. The weight contrast
- * (header bold / rows regular) and the indent make the header lead and the
- * day boundaries easy to scan.
- *
- * A run of identical `(vendor, amount)` transactions arrives as a
- * `CollapsedStreak` and renders as a single `StreakRow`; lone transactions
- * render as a plain `Row` (chunk 3).
- *
- * The section is an ARIA region named by day + subtotal for screen-reader
- * day-to-day navigation (story 22). The header sits on the page background and
- * sticks below the global app header (`h-14`); its solid background masks rows
- * passing underneath when pinned.
+ * One day rendered agenda-style: a sticky day header (bold label + signed
+ * subtotal on a hairline rule, plus a select-all-this-day checkbox) with its
+ * transactions indented beneath (stories 1, 2, 3, 8, 27). A run of same-vendor
+ * transactions arrives as a `CollapsedStreak` and renders as a `StreakRow`;
+ * lone transactions render as a plain `Row`. The section is an ARIA region
+ * named by day + subtotal for screen-reader navigation (story 22).
  */
 function DaySection({
   group,
   kind,
   isInflow,
   byId,
-  expandAll,
+  selection,
+  activeRowKey,
+  onActivate,
+  isStreakOpen,
+  onToggleStreak,
   onEdit,
   onDelete,
 }: {
@@ -467,18 +802,32 @@ function DaySection({
   kind: Category["kind"];
   isInflow: boolean;
   byId: Map<string, Transaction>;
-  expandAll: boolean;
+  selection: Selection;
+  activeRowKey: string | null;
+  onActivate: (key: string) => void;
+  isStreakOpen: (key: string) => boolean;
+  onToggleStreak: (key: string) => void;
   onEdit: (t: Transaction) => void;
   onDelete: (t: Transaction) => void;
 }) {
   const subtotalPositive = isInflow && group.subtotal > 0;
+  const dayIds = useMemo(() => dayGroupIds(group), [group]);
   return (
     <section aria-label={`${group.label}, ${fmtExact(group.subtotal)}`}>
-      <h3 className="sticky top-14 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1 pb-2.5 pt-4 text-sm font-semibold">
+      <h3 className="sticky top-14 z-10 flex items-baseline gap-2 border-b border-border bg-background px-1 pb-2.5 pt-4 text-sm font-semibold">
+        {selection.selectionMode && (
+          <Checkbox
+            label={`Select all on ${group.label}`}
+            checked={areAllSelected(selection.selected, dayIds)}
+            indeterminate={areSomeSelected(selection.selected, dayIds)}
+            onCheckedChange={(on) => selection.setMany(dayIds, on)}
+            className="self-center"
+          />
+        )}
         <span className="text-foreground">{group.label}</span>
         <span
           className={cn(
-            "tabular-nums text-foreground",
+            "ml-auto tabular-nums text-foreground",
             subtotalPositive && "text-emerald-700 dark:text-emerald-400",
           )}
         >
@@ -490,20 +839,29 @@ function DaySection({
           row.kind === "single" ? (
             <Row
               key={row.transaction.id}
+              rowKey={row.transaction.id}
               transaction={row.transaction}
               kind={kind}
               isInflow={isInflow}
+              selection={selection}
+              active={activeRowKey === row.transaction.id}
+              onActivate={onActivate}
               onEdit={() => onEdit(row.transaction)}
               onDelete={() => onDelete(row.transaction)}
             />
           ) : (
             <StreakRow
-              key={`${group.date}:${row.vendor}`}
+              key={streakKey(group.date, row.vendor)}
+              streakRowKey={streakKey(group.date, row.vendor)}
               streak={row}
               kind={kind}
               isInflow={isInflow}
               byId={byId}
-              expandAll={expandAll}
+              selection={selection}
+              activeRowKey={activeRowKey}
+              onActivate={onActivate}
+              open={isStreakOpen(streakKey(group.date, row.vendor))}
+              onToggleOpen={onToggleStreak}
               onEdit={onEdit}
               onDelete={onDelete}
             />
@@ -515,42 +873,43 @@ function DaySection({
 }
 
 /**
- * A day's run of ≥ 2 transactions at one vendor, shown as a single row:
- * `Whole Foods · 4× $87.42` when every amount matches, or `Whole Foods · 3
- * transactions` when they differ, with the run's netted signed total on the
- * right (story 4). The whole row is a disclosure button — clicking it (or the
- * global "Expand all") reveals the underlying transactions, each a normal
- * `Row` with its overflow menu intact, so any single one stays editable /
- * deletable (story 5).
- *
- * Count and total are read straight off the freshly-regrouped streak, so
- * editing or deleting an underlying row updates them with no extra bookkeeping
- * (story 6); a delete that drops the run to one transaction dissolves the
- * streak back into a plain `Row` on the next render.
+ * A day's run of ≥ 2 transactions at one vendor as a single disclosure row:
+ * `Whole Foods · 4× $87.42` (uniform) or `Whole Foods · 3 transactions`
+ * (mixed), with the run's netted signed total on the right. Its checkbox
+ * selects/deselects every underlying id at once (story, "selecting a collapsed
+ * streak selects all underlying ids"); Space on the focused header does the
+ * same, Enter expands. Expanding reveals each underlying `Row` with its own
+ * checkbox and overflow menu (story 5).
  */
 function StreakRow({
+  streakRowKey,
   streak,
   kind,
   isInflow,
   byId,
-  expandAll,
+  selection,
+  activeRowKey,
+  onActivate,
+  open,
+  onToggleOpen,
   onEdit,
   onDelete,
 }: {
+  streakRowKey: string;
   streak: CollapsedStreak;
   kind: Category["kind"];
   isInflow: boolean;
   byId: Map<string, Transaction>;
-  expandAll: boolean;
+  selection: Selection;
+  activeRowKey: string | null;
+  onActivate: (key: string) => void;
+  open: boolean;
+  onToggleOpen: (key: string) => void;
   onEdit: (t: Transaction) => void;
   onDelete: (t: Transaction) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const expanded = expandAll || open;
   const panelId = useId();
   const total = streak.subtotal;
-  // Uniform run → show the shared unit price ("4× $87.42"); mixed amounts →
-  // just the count, with the netted total carried on the right.
   const breakdown =
     streak.amount !== undefined
       ? `${streak.count}× ${fmtExact(streak.amount)}`
@@ -558,48 +917,84 @@ function StreakRow({
   const underlying = streak.transactionIds
     .map((id) => byId.get(id))
     .filter((t): t is Transaction => Boolean(t));
+  const ids = streak.transactionIds;
+  const allSel = areAllSelected(selection.selected, ids);
+  const someSel = areSomeSelected(selection.selected, ids);
 
   return (
     <li className="text-sm">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        className="flex w-full cursor-pointer items-baseline gap-2 py-2 pl-1.5 pr-1 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      <div
+        className={cn(
+          "flex items-center gap-2 pl-1.5 pr-1",
+          selection.selectionMode ? "" : "max-md:[&>label]:hidden",
+        )}
       >
-        <ChevronRight
-          className={cn(
-            "size-4 shrink-0 self-center text-muted-foreground transition-transform",
-            expanded && "rotate-90",
-          )}
-          aria-hidden
+        <CheckboxCell
+          show={selection.selectionMode}
+          label={`Select ${streak.vendor} streak`}
+          checked={allSel}
+          indeterminate={someSel}
+          onCheckedChange={(on) => selection.setMany(ids, on)}
         />
-        <span className="min-w-0 flex-1 truncate">
-          <span className="text-foreground">{streak.vendor}</span>
-          <span className="text-muted-foreground">
-            {" · "}
-            {breakdown}
-          </span>
-        </span>
-        <span
-          className={cn(
-            "shrink-0 tabular-nums text-foreground",
-            isInflow && total > 0 && "text-emerald-700 dark:text-emerald-400",
-          )}
+        <button
+          type="button"
+          data-row-key={streakRowKey}
+          data-row-kind="streak"
+          tabIndex={activeRowKey === streakRowKey ? 0 : -1}
+          onFocus={() => onActivate(streakRowKey)}
+          onClick={() => onToggleOpen(streakRowKey)}
+          onKeyDown={(e) => {
+            if (e.key === " ") {
+              // Cancel the <button>'s native Space activation (which would
+              // toggle the disclosure) and toggle the selection instead —
+              // entering selection mode first so the checkboxes are visible.
+              e.preventDefault();
+              selection.enterSelectionMode();
+              selection.setMany(ids, !allSel);
+            }
+            // Enter falls through to the native click → toggles the disclosure.
+          }}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-2 py-2 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <SignedAmount kind={kind} amount={total} marker={false} />
-        </span>
-      </button>
-      {expanded && (
+          <ChevronRight
+            className={cn(
+              "size-4 shrink-0 self-center text-muted-foreground transition-transform",
+              open && "rotate-90",
+            )}
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="text-foreground">{streak.vendor}</span>
+            <span className="text-muted-foreground">
+              {" · "}
+              {breakdown}
+            </span>
+          </span>
+          <span
+            className={cn(
+              "shrink-0 tabular-nums text-foreground",
+              isInflow && total > 0 && "text-emerald-700 dark:text-emerald-400",
+            )}
+          >
+            <SignedAmount kind={kind} amount={total} marker={false} />
+          </span>
+        </button>
+      </div>
+      {open && (
         <ul id={panelId}>
           {underlying.map((t) => (
             <Row
               key={t.id}
+              rowKey={t.id}
               transaction={t}
               kind={kind}
               isInflow={isInflow}
               nested
+              selection={selection}
+              active={activeRowKey === t.id}
+              onActivate={onActivate}
               onEdit={() => onEdit(t)}
               onDelete={() => onDelete(t)}
             />
@@ -611,28 +1006,97 @@ function StreakRow({
 }
 
 function Row({
+  rowKey,
   transaction: t,
   kind,
   isInflow,
   nested = false,
+  selection,
+  active,
+  onActivate,
   onEdit,
   onDelete,
 }: {
+  rowKey: string;
   transaction: Transaction;
   kind: Category["kind"];
   isInflow: boolean;
   /** Rendered inside an expanded streak — indent a level deeper to show nesting. */
   nested?: boolean;
+  selection: Selection;
+  active: boolean;
+  onActivate: (key: string) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  // Mobile long-press → selection mode (story 23). pointerdown starts a 500ms
+  // timer; a pointerup, or movement past a small threshold, cancels it. The
+  // threshold (~10px) keeps ordinary finger jitter from killing the gesture —
+  // a zero-tolerance cancel reads as flaky on real touch devices. Touch only;
+  // desktop reveals checkboxes always and uses click/keyboard.
+  const LONG_PRESS_MOVE_TOLERANCE = 10;
+  const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressStart = useRef<{ x: number; y: number } | null>(null);
+  const cancelLongPress = () => {
+    if (longPress.current) {
+      clearTimeout(longPress.current);
+      longPress.current = null;
+    }
+    longPressStart.current = null;
+  };
+
   return (
     <li
+      data-row-key={rowKey}
+      data-row-kind="single"
+      tabIndex={active ? 0 : -1}
+      onFocus={() => onActivate(rowKey)}
+      onKeyDown={(e) => {
+        if (e.key === " ") {
+          // Space selects the focused row, entering selection mode first so
+          // the checkboxes are visible (parallels the mobile long-press).
+          e.preventDefault();
+          selection.enterSelectionMode();
+          selection.toggle(t.id);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          // Open this row's overflow menu (story 21, "Enter opens row actions").
+          e.currentTarget.querySelector<HTMLElement>("[data-row-menu]")?.click();
+        }
+      }}
+      onPointerDown={(e) => {
+        if (e.pointerType !== "touch") return;
+        cancelLongPress();
+        longPressStart.current = { x: e.clientX, y: e.clientY };
+        longPress.current = setTimeout(() => {
+          selection.enterSelectionMode();
+          selection.toggle(t.id);
+        }, 500);
+      }}
+      onPointerUp={cancelLongPress}
+      onPointerMove={(e) => {
+        const start = longPressStart.current;
+        if (!start) return;
+        if (
+          Math.abs(e.clientX - start.x) > LONG_PRESS_MOVE_TOLERANCE ||
+          Math.abs(e.clientY - start.y) > LONG_PRESS_MOVE_TOLERANCE
+        ) {
+          cancelLongPress();
+        }
+      }}
+      onPointerCancel={cancelLongPress}
       className={cn(
-        "group flex items-start gap-3 py-2 pr-1 text-sm",
+        "group flex items-start gap-3 py-2 pr-1 text-sm outline-none focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         nested ? "pl-10" : "pl-5",
       )}
     >
+      <CheckboxCell
+        show={selection.selectionMode}
+        label={`Select ${t.vendor ?? "transaction"}`}
+        checked={selection.isSelected(t.id)}
+        onCheckedChange={() => selection.toggle(t.id)}
+        className="mt-0.5"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <p className="truncate text-foreground">
@@ -655,11 +1119,49 @@ function Row({
   );
 }
 
+/**
+ * Selection checkbox column. Hidden on every breakpoint until the user enters
+ * selection mode (via the "Select" button, a row long-press, or Space on a
+ * focused row), so the resting list stays a clean reading surface and bulk
+ * selection is an explicit, opt-in task. `tabIndex={-1}` keeps it out of the
+ * roving-tabindex order — the row is the single tab stop and Space toggles
+ * selection.
+ */
+function CheckboxCell({
+  show,
+  label,
+  checked,
+  indeterminate,
+  onCheckedChange,
+  className,
+}: {
+  show: boolean;
+  label: string;
+  checked: boolean;
+  indeterminate?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <label className={cn(show ? "flex" : "hidden", "shrink-0 items-center", className)}>
+      <Checkbox
+        label={label}
+        checked={checked}
+        indeterminate={indeterminate}
+        onCheckedChange={onCheckedChange}
+        tabIndex={-1}
+      />
+    </label>
+  );
+}
+
 function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
     <Menu.Root>
       <Menu.Trigger
         aria-label="Row actions"
+        data-row-menu
+        tabIndex={-1}
         // Always visible on mobile/touch; on desktop the ⋯ stays hidden until
         // the row is hovered or something inside it gains focus (keyboard),
         // and while its own menu is open — keeps the trailing column quiet.

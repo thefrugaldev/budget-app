@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { getCategoryById } from "@/lib/repositories/categories";
 import {
   createTransaction,
+  deleteManyTransactions,
   deleteTransaction,
+  updateManyTransactions,
   updateTransaction,
 } from "@/lib/repositories/transactions";
 
@@ -13,6 +15,8 @@ import {
   applySign,
   parseIsoDate,
   parsePositiveAmount,
+  parseTransactionIds,
+  parseVendorName,
 } from "./transaction-parsers";
 import type { TransactionActionState } from "./transactions-state";
 
@@ -126,5 +130,82 @@ export async function deleteTransactionAction(input: {
     return { error: null };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Delete failed" };
+  }
+}
+
+/**
+ * Revalidates Pulse plus each distinct category detail page touched by a bulk
+ * operation. Local (not exported) — `"use server"` files may only export
+ * async functions (see `transactions-state.ts`), but plain helpers are fine.
+ */
+function revalidateCategories(categoryIds: Iterable<string>) {
+  revalidatePath("/");
+  // `/transactions` (chunk 5) reads across every category — keep it fresh too.
+  revalidatePath("/transactions");
+  for (const id of new Set(categoryIds)) {
+    revalidatePath(`/categories/${id}`);
+  }
+}
+
+/**
+ * Bulk delete (issue #17 chunk 4, stories 11/12/16). Invoked fire-and-forget
+ * from the bulk action bar after the undo window expires — same shape as the
+ * single-row `deleteTransactionAction`. `categoryIds` carries every category
+ * the selected rows belong to so each affected detail page revalidates; on the
+ * category page that's usually one id, on `/transactions` it can be many.
+ */
+export async function bulkDeleteTransactionsAction(input: {
+  ids: string[];
+  categoryIds: string[];
+}): Promise<{ error: string | null; deleted: number }> {
+  try {
+    const ids = parseTransactionIds(input.ids);
+    const deleted = await deleteManyTransactions(ids);
+    revalidateCategories(input.categoryIds);
+    return { error: null, deleted };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Bulk delete failed",
+      deleted: 0,
+    };
+  }
+}
+
+/**
+ * Bulk recategorise (story 13/20) and bulk vendor rename (story 14) — both are
+ * a single `$set` over the selected ids. Exactly one of `categoryId` / `vendor`
+ * is expected; recategorise validates the target category exists and adds it to
+ * the revalidation set (the source pages come from `categoryIds`). The action
+ * is awaited by the bar so the success/error toast can report the outcome.
+ */
+export async function bulkUpdateTransactionsAction(input: {
+  ids: string[];
+  categoryIds: string[];
+  patch: { categoryId?: string; vendor?: string };
+}): Promise<{ error: string | null; updated: number }> {
+  try {
+    const ids = parseTransactionIds(input.ids);
+
+    const patch: { categoryId?: string; vendor?: string } = {};
+    if (input.patch.categoryId !== undefined) {
+      const target = await getCategoryById(input.patch.categoryId);
+      if (!target) throw new Error("Category not found");
+      patch.categoryId = input.patch.categoryId;
+    }
+    if (input.patch.vendor !== undefined) {
+      patch.vendor = parseVendorName(input.patch.vendor);
+    }
+    if (Object.keys(patch).length === 0) {
+      throw new Error("Nothing to update");
+    }
+
+    const updated = await updateManyTransactions(ids, patch);
+    revalidateCategories([...input.categoryIds, ...(patch.categoryId ? [patch.categoryId] : [])]);
+    return { error: null, updated };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Bulk update failed",
+      updated: 0,
+    };
   }
 }

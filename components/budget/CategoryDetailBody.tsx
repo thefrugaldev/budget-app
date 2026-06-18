@@ -33,9 +33,10 @@ import type { Category, CategoryTarget, Transaction } from "@/types/budget";
  * aggregate snaps back.
  *
  * `TransactionList` keeps its full timer / inFlight / toast state machine;
- * it only reports the currently-hidden transaction id up here via
- * `onHiddenIdChange`. This avoids duplicating the optimistic-delete
- * mechanism — it's still owned by `TransactionList`, just observed.
+ * it only reports the currently-hidden transaction ids up here via
+ * `onHiddenIdsChange` (a set, since a bulk delete hides many at once). This
+ * avoids duplicating the optimistic-delete mechanism — it's still owned by
+ * `TransactionList`, just observed.
  */
 export function CategoryDetailBody({
   category,
@@ -54,14 +55,14 @@ export function CategoryDetailBody({
   rangeText: string;
   now: Date;
 }) {
-  const [hiddenId, setHiddenId] = useState<string | undefined>(undefined);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [editOpen, setEditOpen] = useState(false);
 
-  const visibleTxns = useMemo(
-    () =>
-      hiddenId ? transactions.filter((t) => t.id !== hiddenId) : transactions,
-    [transactions, hiddenId],
-  );
+  const visibleTxns = useMemo(() => {
+    if (hiddenIds.length === 0) return transactions;
+    const hidden = new Set(hiddenIds);
+    return transactions.filter((t) => !hidden.has(t.id));
+  }, [transactions, hiddenIds]);
 
   const [agg] = aggregateRange(
     visibleTxns,
@@ -212,7 +213,7 @@ export function CategoryDetailBody({
           rangeText={rangeText}
           now={now}
           isInflow={isInflow}
-          onHiddenIdChange={setHiddenId}
+          onHiddenIdsChange={setHiddenIds}
         />
       </section>
 

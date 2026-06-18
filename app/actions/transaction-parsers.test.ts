@@ -4,6 +4,8 @@ import {
   applySign,
   parseIsoDate,
   parsePositiveAmount,
+  parseTransactionIds,
+  parseVendorName,
 } from "./transaction-parsers";
 
 describe("parsePositiveAmount", () => {
@@ -60,5 +62,45 @@ describe("parseIsoDate", () => {
   it("rejects malformed dates", () => {
     expect(() => parseIsoDate("06/08/2026")).toThrow(/date is required/i);
     expect(() => parseIsoDate("2026-6-8")).toThrow(/date is required/i);
+  });
+});
+
+describe("parseTransactionIds", () => {
+  it("returns the trimmed id list", () => {
+    expect(parseTransactionIds([" a ", "b"])).toEqual(["a", "b"]);
+  });
+
+  it("de-duplicates repeated ids", () => {
+    // A streak select followed by an individual toggle of one of its rows
+    // could otherwise send the same id twice and inflate the count.
+    expect(parseTransactionIds(["a", "a", "b"])).toEqual(["a", "b"]);
+  });
+
+  it("rejects an empty selection", () => {
+    expect(() => parseTransactionIds([])).toThrow(/at least one/i);
+    expect(() => parseTransactionIds(null)).toThrow(/at least one/i);
+    expect(() => parseTransactionIds("a")).toThrow(/at least one/i);
+  });
+
+  it("rejects non-string or blank entries", () => {
+    expect(() => parseTransactionIds(["a", ""])).toThrow(/invalid/i);
+    expect(() => parseTransactionIds(["a", 7])).toThrow(/invalid/i);
+  });
+
+  it("rejects an absurdly large id list", () => {
+    const huge = Array.from({ length: 5001 }, (_, i) => `id-${i}`);
+    expect(() => parseTransactionIds(huge)).toThrow(/too many/i);
+  });
+});
+
+describe("parseVendorName", () => {
+  it("returns the trimmed vendor name", () => {
+    expect(parseVendorName("  Whole Foods Market  ")).toBe("Whole Foods Market");
+  });
+
+  it("rejects empty / non-string input", () => {
+    expect(() => parseVendorName("")).toThrow(/required/i);
+    expect(() => parseVendorName("   ")).toThrow(/required/i);
+    expect(() => parseVendorName(null)).toThrow(/required/i);
   });
 });
