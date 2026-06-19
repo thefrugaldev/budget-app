@@ -22,7 +22,7 @@ import { CategoryMultiSelect } from "@/components/budget/CategoryMultiSelect";
 import { CategoryPill } from "@/components/budget/CategoryPill";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { TransactionForm } from "@/components/budget/TransactionForm";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { DateRangeField } from "@/components/ui/DateRangeField";
 import { useTransactionSelection } from "@/hooks/useTransactionSelection";

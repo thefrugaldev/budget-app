@@ -16,7 +16,7 @@ import {
   DeleteCategoryDialog,
   EndCategoryDialog,
 } from "@/components/budget/CategoryLifecycleDialogs";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { monthLabel } from "@/lib/budget";
 import type { Category } from "@/types/budget";

@@ -3,21 +3,7 @@
 import { Toast } from "@base-ui/react/toast";
 import { useMemo } from "react";
 
-/**
- * Variant tags carried on each toast's `type` field — the viewport switches
- * its render path on these. Kept narrow on purpose; new variants should be
- * added here so the renderer covers them exhaustively.
- */
-export type NotifyType = "success" | "error" | "undo-delete";
-
-/** Payload shape for the bespoke undo-delete toast. */
-export type UndoDeleteData = {
-  vendorLabel: string;
-  inFlight: boolean;
-  onUndo: () => void;
-};
-
-export type NotifyData = UndoDeleteData;
+import type { NotifyData, NotifyType } from "@/types/notify";
 
 /**
  * Shared toast emitter. Lives on top of Base UI's `useToastManager` and

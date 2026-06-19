@@ -5,7 +5,7 @@ import { AlertCircle, CheckCircle2, Undo2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-import type { NotifyData, NotifyType, UndoDeleteData } from "./useNotify";
+import type { NotifyData, NotifyType, UndoDeleteData } from "@/types/notify";
 
 /**
  * Bottom-left viewport for all toasts. Mounted by `<NotifyRoot>` once at the

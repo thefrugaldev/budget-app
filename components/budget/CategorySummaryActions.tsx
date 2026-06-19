@@ -13,7 +13,7 @@ import {
   DeleteCategoryDialog,
   EndCategoryDialog,
 } from "@/components/budget/CategoryLifecycleDialogs";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import type { Category } from "@/types/budget";
 
 /**

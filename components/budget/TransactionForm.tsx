@@ -10,7 +10,7 @@ import {
 } from "@/app/actions/transactions";
 import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
 import { CategoryPicker } from "@/components/budget/CategoryPicker";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import { DatePickerField } from "@/components/ui/DatePickerField";
 import {
   mostRecentTransactionInCategory,

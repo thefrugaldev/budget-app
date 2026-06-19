@@ -23,7 +23,7 @@ import { CategoryLifecycleActions } from "@/components/budget/CategoryLifecycleA
 import { CategoryTargetHistory } from "@/components/budget/CategoryTargetHistory";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import {
   currentMonthKey,
   fmt,
