@@ -41,6 +41,7 @@ import {
   areAllSelected,
   areSomeSelected,
   dayGroupIds,
+  distinctVendors,
   mostCommonVendor,
   selectedTotal,
 } from "@/lib/transaction-selection";
@@ -605,6 +606,13 @@ export function TransactionList({
     () => mostCommonVendor(filtered, selection.selected),
     [filtered, selection.selected],
   );
+  // Distinct vendors in the selection — a bulk rename across more than one is
+  // a deliberate "merge these spellings" action, so the rename dialog warns
+  // before collapsing them (issue #17 chunk 5 follow-up).
+  const selectedVendors = useMemo(
+    () => distinctVendors(filtered, selection.selected),
+    [filtered, selection.selected],
+  );
 
   // Kind shown on the bulk bar (drives the selection total's sign convention
   // and the cross-kind recategorise confirm). In detail mode it's the page
@@ -762,6 +770,7 @@ export function TransactionList({
           total={selectedTotalValue}
           kind={bulkKind}
           defaultVendor={defaultVendor}
+          selectedVendors={selectedVendors}
           categories={categories}
           onDelete={startBulkDelete}
           onRecategorise={handleBulkRecategorise}

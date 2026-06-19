@@ -6,6 +6,7 @@ import {
   areAllSelected,
   areSomeSelected,
   dayGroupIds,
+  distinctVendors,
   mostCommonVendor,
   rowIds,
   selectedTotal,
@@ -122,6 +123,25 @@ describe("mostCommonVendor", () => {
   it("ignores blank vendors and unselected rows", () => {
     expect(mostCommonVendor(txns, new Set(["c", "d"]))).toBe("Target");
     expect(mostCommonVendor(txns, new Set(["d"]))).toBeUndefined();
+  });
+});
+
+describe("distinctVendors", () => {
+  const txns = [
+    tx({ id: "a", vendor: "Shell" }),
+    tx({ id: "b", vendor: "Kroger" }),
+    tx({ id: "c", vendor: "Shell" }),
+    tx({ id: "d", vendor: "  " }),
+  ];
+
+  it("returns sorted distinct non-blank vendors in the selection", () => {
+    expect(distinctVendors(txns, new Set(["a", "b", "c"]))).toEqual(["Kroger", "Shell"]);
+  });
+
+  it("collapses duplicates and ignores blank / unselected rows", () => {
+    expect(distinctVendors(txns, new Set(["a", "c", "d"]))).toEqual(["Shell"]);
+    expect(distinctVendors(txns, new Set(["d"]))).toEqual([]);
+    expect(distinctVendors(txns, new Set())).toEqual([]);
   });
 });
 
