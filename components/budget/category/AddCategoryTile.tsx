@@ -3,7 +3,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { AddCategoryDialog } from "@/components/budget/AddCategoryDialog";
+import { AddCategoryDialog } from "@/components/budget/category/AddCategoryDialog";
 import { cn } from "@/lib/utils";
 import type { CategoryKind } from "@/types/budget";
 

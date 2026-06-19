@@ -9,7 +9,7 @@ import {
   updateTransactionAction,
 } from "@/app/actions/transactions";
 import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
-import { CategoryPicker } from "@/components/budget/CategoryPicker";
+import { CategoryPicker } from "@/components/budget/category/CategoryPicker";
 import { useNotify } from "@/hooks/useNotify";
 import { DatePickerField } from "@/components/ui/DatePickerField";
 import {

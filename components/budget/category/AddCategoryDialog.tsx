@@ -2,7 +2,7 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 
-import { CategoryForm } from "@/components/budget/CategoryForm";
+import { CategoryForm } from "@/components/budget/category/CategoryForm";
 import type { CategoryKind } from "@/types/budget";
 
 const TITLES: Record<CategoryKind, string> = {

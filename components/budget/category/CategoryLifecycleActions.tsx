@@ -2,38 +2,19 @@
 
 import { Menu } from "@base-ui/react/menu";
 import { MoreHorizontal } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   deleteCategoryAction,
   reopenCategoryAction,
 } from "@/app/actions/categories";
-import {
-  CATEGORY_ACTION_INITIAL,
-  type CategoryActionState,
-} from "@/app/actions/category-state";
-import {
-  DeleteCategoryDialog,
-  EndCategoryDialog,
-} from "@/components/budget/CategoryLifecycleDialogs";
-import { useNotify } from "@/hooks/useNotify";
+import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { DeleteCategoryDialog } from "@/components/budget/category/DeleteCategoryDialog";
+import { EndCategoryDialog } from "@/components/budget/category/EndCategoryDialog";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
+import { useToastOnSuccess } from "@/hooks/useToastOnSuccess";
 import { monthLabel } from "@/lib/budget";
 import type { Category } from "@/types/budget";
-
-function useToastOnSuccess(
-  state: CategoryActionState,
-  computeMessage: () => string,
-) {
-  const notify = useNotify();
-  const lastSeen = useRef(state.ok);
-  useEffect(() => {
-    if (state.ok > lastSeen.current && !state.error) {
-      lastSeen.current = state.ok;
-      notify.success(computeMessage());
-    }
-  }, [state, notify, computeMessage]);
-}
 
 /**
  * Status section of the category Edit sheet. Reads the active-range state,
@@ -42,8 +23,8 @@ function useToastOnSuccess(
  * behind a ⋯ overflow with a confirm step that names the consequence.
  *
  * Mirrors the pattern on the summary card's `CategorySummaryActions` — the
- * two surfaces share the same confirm dialogs via
- * `CategoryLifecycleDialogs`.
+ * two surfaces share the same confirm dialogs (`EndCategoryDialog` /
+ * `DeleteCategoryDialog`).
  */
 export function CategoryLifecycleActions({
   category,

@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 
-import { CategoryEditSheet } from "@/components/budget/CategoryEditSheet";
-import { CategorySummaryActions } from "@/components/budget/CategorySummaryActions";
-import { EndedBadge } from "@/components/budget/EndedBadge";
+import { CategoryEditSheet } from "@/components/budget/category/CategoryEditSheet";
+import { CategorySummaryActions } from "@/components/budget/category/CategorySummaryActions";
+import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
