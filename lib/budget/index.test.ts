@@ -24,7 +24,7 @@ import {
   vendorSuggestionsForCategory,
   ytdTotalsByCategory,
   type RangePreset,
-} from "./budget";
+} from ".";
 
 const expenseCat = (overrides: Partial<Category> = {}): Category => ({
   id: "groc",
