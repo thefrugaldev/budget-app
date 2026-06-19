@@ -118,6 +118,26 @@ export function mostCommonVendor(
 }
 
 /**
+ * The distinct non-blank vendors among the selected transactions, sorted
+ * alphabetically. Backs the bulk-rename guard (issue #17 chunk 5 follow-up):
+ * when a selection spans more than one vendor, renaming silently collapses
+ * them all to a single value, so the dialog warns before overwriting. Rows
+ * with no vendor are ignored — they have nothing to overwrite-and-lose.
+ */
+export function distinctVendors(
+  transactions: readonly Transaction[],
+  selected: ReadonlySet<string>,
+): string[] {
+  const vendors = new Set<string>();
+  for (const t of transactions) {
+    if (!selected.has(t.id)) continue;
+    const vendor = t.vendor?.trim();
+    if (vendor) vendors.add(vendor);
+  }
+  return [...vendors].sort();
+}
+
+/**
  * Signed sum of the selected transactions' amounts — the running total shown
  * on the bulk action bar and in the delete confirmation. Refunds (negative)
  * net against purchases, matching the day-subtotal convention (ADR 0001).

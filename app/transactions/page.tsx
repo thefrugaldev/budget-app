@@ -1,17 +1,76 @@
 import type { Metadata } from "next";
 
-import { ComingSoon } from "@/components/shell/ComingSoon";
+import { RangeSelector } from "@/components/budget/RangeSelector";
+import { TransactionList } from "@/components/budget/TransactionList";
+import {
+  isRangePreset,
+  rangeLabel,
+  resolveRange,
+  type RangePreset,
+} from "@/lib/budget";
+import { ensureSeeded } from "@/lib/db/seed";
+import { listCategories } from "@/lib/repositories/categories";
+import { listAllTransactions } from "@/lib/repositories/transactions";
 
 export const metadata: Metadata = {
   title: "Transactions",
 };
 
-export default function TransactionsPage() {
+/**
+ * Global `/transactions` route (issue #17 chunk 5) — replaces the PRD #14
+ * placeholder. Every transaction across every category for the selected range,
+ * driven by the same `?range=` convention as Pulse and the category detail
+ * page. Reuses `TransactionList` in its category-less (global) mode: day
+ * grouping, streak collapse, selection, and bulk actions all come from chunks
+ * 2–4, with each row carrying a category pill (story 19) and the filter row
+ * gaining a category multi-select (story 18).
+ */
+export default async function TransactionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string | string[] }>;
+}) {
+  const { range: rangeParam } = await searchParams;
+  await ensureSeeded();
+  const [categories, transactions] = await Promise.all([
+    listCategories(),
+    listAllTransactions(),
+  ]);
+
+  const raw = Array.isArray(rangeParam) ? rangeParam[0] : rangeParam;
+  const preset: RangePreset = isRangePreset(raw) ? raw : "this-month";
+  const now = new Date();
+  const range = resolveRange(preset, now);
+  const rangeText = rangeLabel(preset);
+
+  // Scope to the selected range up front; the client list handles the
+  // category / vendor / text / date filtering on top of this set.
+  const inRange = transactions.filter((t) => {
+    const ym = t.date.slice(0, 7);
+    return ym >= range.ymStart && ym <= range.ymEnd;
+  });
+
   return (
-    <ComingSoon
-      icon="📜"
-      title="Transactions"
-      description="Every transaction across every category, with grouping, search, and filters — without having to open each category page."
-    />
+    <div className="mx-auto w-full max-w-4xl px-6 py-8 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
+      <header className="mb-6">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">
+          Transactions
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Every transaction across every category.
+        </p>
+        <div className="mt-4">
+          <RangeSelector active={preset} basePath="/transactions" />
+        </div>
+      </header>
+
+      <TransactionList
+        categories={categories}
+        transactions={inRange}
+        allTransactions={transactions}
+        rangeText={rangeText}
+        now={now}
+      />
+    </div>
   );
 }

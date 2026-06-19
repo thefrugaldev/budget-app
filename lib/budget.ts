@@ -523,14 +523,25 @@ export type TransactionFilter = {
   vendor?: string;
   dateFrom?: string;
   dateTo?: string;
+  /**
+   * Cross-category constraint for the global `/transactions` list (issue #17
+   * chunk 5, story 18). When present and non-empty, only rows whose
+   * `categoryId` is in the set pass; an empty array or `undefined` means
+   * "all categories" (the category-detail list never sets it — its rows are
+   * already scoped to one category).
+   */
+  categoryIds?: string[];
 };
 
 /**
- * Predicate behind the category detail page's filter row (stories 24, 64).
+ * Predicate behind the transaction filter row — the category-detail list
+ * (stories 24, 64) and the global `/transactions` list (chunk 5).
  * Free-text matches `vendor` and `note` case-insensitively. `vendor` is an
  * exact-match constraint used by the vendor dropdown; an empty/undefined
- * value means "all vendors". Date bounds are inclusive ISO `YYYY-MM-DD`
- * strings — lexicographic comparison is safe given the fixed shape.
+ * value means "all vendors". `categoryIds` is the global list's category
+ * multi-select — empty/undefined means "all categories". Date bounds are
+ * inclusive ISO `YYYY-MM-DD` strings — lexicographic comparison is safe
+ * given the fixed shape.
  */
 export function matchesTransactionFilter(
   t: Transaction,
@@ -539,6 +550,9 @@ export function matchesTransactionFilter(
   if (f.dateFrom && t.date < f.dateFrom) return false;
   if (f.dateTo && t.date > f.dateTo) return false;
   if (f.vendor && t.vendor !== f.vendor) return false;
+  if (f.categoryIds && f.categoryIds.length > 0 && !f.categoryIds.includes(t.categoryId)) {
+    return false;
+  }
   const text = f.text?.trim().toLowerCase();
   if (text) {
     const inVendor = t.vendor?.toLowerCase().includes(text) ?? false;

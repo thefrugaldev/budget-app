@@ -870,6 +870,16 @@ describe("matchesTransactionFilter", () => {
     expect(matchesTransactionFilter(t, { dateTo: "2026-06-04" })).toBe(false);
   });
 
+  it("filters by category membership (global multi-select)", () => {
+    expect(matchesTransactionFilter(t, { categoryIds: ["groc"] })).toBe(true);
+    expect(matchesTransactionFilter(t, { categoryIds: ["rent", "groc"] })).toBe(true);
+    expect(matchesTransactionFilter(t, { categoryIds: ["rent"] })).toBe(false);
+  });
+
+  it("treats an empty categoryIds list as 'all categories'", () => {
+    expect(matchesTransactionFilter(t, { categoryIds: [] })).toBe(true);
+  });
+
   it("combines all filters as AND", () => {
     expect(
       matchesTransactionFilter(t, {

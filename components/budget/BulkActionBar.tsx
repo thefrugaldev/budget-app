@@ -2,7 +2,7 @@
 
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { Dialog } from "@base-ui/react/dialog";
-import { FolderInput, Pencil, Trash2, X } from "lucide-react";
+import { AlertTriangle, FolderInput, Pencil, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import { CategoryPicker } from "@/components/budget/CategoryPicker";
@@ -42,6 +42,7 @@ export function BulkActionBar({
   total,
   kind,
   defaultVendor,
+  selectedVendors,
   categories,
   onDelete,
   onRecategorise,
@@ -53,6 +54,11 @@ export function BulkActionBar({
   kind: CategoryKind;
   /** Most-common vendor in the selection — prefills the rename input (story 14). */
   defaultVendor: string | undefined;
+  /**
+   * Distinct vendors in the selection. More than one means a rename merges
+   * them into a single value, so the rename dialog warns before overwriting.
+   */
+  selectedVendors: string[];
   categories: Category[];
   onDelete: () => void;
   onRecategorise: (categoryId: string) => void;
@@ -163,6 +169,7 @@ export function BulkActionBar({
         count={count}
         noun={noun}
         defaultVendor={defaultVendor}
+        selectedVendors={selectedVendors}
         onSubmit={(vendor) => {
           setDialog("none");
           onRename(vendor);
@@ -371,6 +378,11 @@ function CrossKindConfirm({
  * vendor in the selection so the common "fix a typo across many rows" case is
  * one keystroke from done. Submitting writes the new vendor to every selected
  * row.
+ *
+ * When the selection spans more than one vendor — common on the global
+ * `/transactions` list — the rename merges them all into one value, which is
+ * easy to trigger by accident. A warning names the distinct vendors about to
+ * be overwritten so the merge is deliberate, not a surprise.
  */
 function RenameDialog({
   open,
@@ -378,6 +390,7 @@ function RenameDialog({
   count,
   noun,
   defaultVendor,
+  selectedVendors,
   onSubmit,
 }: {
   open: boolean;
@@ -385,9 +398,11 @@ function RenameDialog({
   count: number;
   noun: string;
   defaultVendor: string | undefined;
+  selectedVendors: string[];
   onSubmit: (vendor: string) => void;
 }) {
   const [value, setValue] = useState("");
+  const merging = selectedVendors.length > 1;
 
   // Prefill (or refresh) the field each time the dialog opens. `open` is driven
   // by parent state rather than a Dialog.Trigger, so Base UI never fires
@@ -408,6 +423,19 @@ function RenameDialog({
           <Dialog.Title className="font-heading text-lg font-semibold">
             Rename vendor on {count} {noun}
           </Dialog.Title>
+          {merging && (
+            <div
+              role="alert"
+              className="mt-3 flex gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900"
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <p>
+                Your selection spans {selectedVendors.length} vendors (
+                <span className="font-medium">{selectedVendors.join(", ")}</span>). Renaming
+                merges them all into the single name below.
+              </p>
+            </div>
+          )}
           <form
             onSubmit={(e) => {
               e.preventDefault();

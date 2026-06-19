@@ -18,6 +18,8 @@ import {
   deleteTransactionAction,
 } from "@/app/actions/transactions";
 import { BulkActionBar } from "@/components/budget/BulkActionBar";
+import { CategoryMultiSelect } from "@/components/budget/CategoryMultiSelect";
+import { CategoryPill } from "@/components/budget/CategoryPill";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import { useNotify } from "@/components/notify";
@@ -39,11 +41,12 @@ import {
   areAllSelected,
   areSomeSelected,
   dayGroupIds,
+  distinctVendors,
   mostCommonVendor,
   selectedTotal,
 } from "@/lib/transaction-selection";
 import { cn } from "@/lib/utils";
-import type { Category, Transaction } from "@/types/budget";
+import type { Category, CategoryKind, Transaction } from "@/types/budget";
 
 const UNDO_WINDOW_MS = 5000;
 const EMPTY_FILTER: TransactionFilter = {
@@ -127,10 +130,12 @@ function reportDeleteError(notify: Notify) {
 }
 
 /**
- * Client-side transaction list for the category detail page (chunk 8 +
- * issue #10, extended for grouping/collapse/selection in #17):
+ * Client-side transaction list shared by the category detail page (chunk 8 +
+ * issue #10) and the global `/transactions` route (#17 chunk 5), extended for
+ * grouping/collapse/selection in #17:
  *
- * - Filter row narrows by vendor / date range / free-text (stories 24, 64).
+ * - Filter row narrows by vendor / date range / free-text (stories 24, 64);
+ *   the global list adds a category multi-select (#17 chunk 5, story 18).
  * - Day-grouped, newest-first, with sticky headers + signed subtotals; runs of
  *   the same vendor within a day collapse to an expandable streak (#17 1–6).
  * - Each row has a `…` overflow menu with Edit / Delete (story 43) and a
@@ -142,6 +147,11 @@ function reportDeleteError(notify: Notify) {
  * - Mobile: long-press a row to enter selection mode, then tap to toggle (#17 23).
  * - Delete (single and bulk) is optimistic with a ~5s undo toast; recategorise
  *   and rename await the server and revalidate (#17 16).
+ *
+ * Pass `category` for the single-category detail list — every row shares its
+ * kind and the empty state offers "Add a transaction". Omit it for the global
+ * list: each row resolves its own kind from `categories`, renders a category
+ * pill (story 19), and day subtotals net across kinds as plain signed sums.
  */
 export function TransactionList({
   category,
@@ -150,18 +160,21 @@ export function TransactionList({
   allTransactions,
   rangeText,
   now,
-  isInflow,
   onHiddenIdsChange,
 }: {
-  category: Category;
+  /**
+   * The page category in single-category (detail) mode. Omitted on the global
+   * `/transactions` list, where rows span categories and each resolves its own
+   * kind + pill from `categories`.
+   */
+  category?: Category;
   categories: Category[];
-  /** Already filtered to this category and the active range. */
+  /** Already filtered to the active range (and, in detail mode, one category). */
   transactions: Transaction[];
   /** Full transaction set — the edit form's vendor/history helpers want it. */
   allTransactions: Transaction[];
   rangeText: string;
   now: Date;
-  isInflow: boolean;
   /**
    * Reports the currently-hidden (optimistically-deleted) row ids up to a
    * parent so sidebar aggregates can subtract them and update headline totals
@@ -175,6 +188,17 @@ export function TransactionList({
   const [bulkPending, setBulkPending] = useState<PendingBulkDelete | null>(null);
   const notify = useNotify();
   const selection = useTransactionSelection();
+
+  // Global mode: no single page category, so every row looks up its own kind
+  // and pill here. `pageIsInflow` only colours subtotals/totals green in
+  // detail mode — a global day nets across kinds, so its sign carries the
+  // meaning, not a colour.
+  const isGlobal = category === undefined;
+  const categoryById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
+  );
+  const pageIsInflow = category ? category.kind !== "expense" : false;
 
   // Category lookup over the in-range set so bulk actions can collect the
   // distinct categories of a selection (one on this page, potentially many
@@ -582,6 +606,31 @@ export function TransactionList({
     () => mostCommonVendor(filtered, selection.selected),
     [filtered, selection.selected],
   );
+  // Distinct vendors in the selection — a bulk rename across more than one is
+  // a deliberate "merge these spellings" action, so the rename dialog warns
+  // before collapsing them (issue #17 chunk 5 follow-up).
+  const selectedVendors = useMemo(
+    () => distinctVendors(filtered, selection.selected),
+    [filtered, selection.selected],
+  );
+
+  // Kind shown on the bulk bar (drives the selection total's sign convention
+  // and the cross-kind recategorise confirm). In detail mode it's the page
+  // category's kind; in global mode the selection can straddle kinds, so use
+  // the shared kind when every selected row agrees, falling back to "expense"
+  // (a net, plus-less rendering — and a cross-kind confirm fires whenever the
+  // target isn't an expense category).
+  const bulkKind: CategoryKind = useMemo(() => {
+    if (category) return category.kind;
+    let kind: CategoryKind | undefined;
+    for (const id of selection.selected) {
+      const k = categoryById.get(filtered.find((t) => t.id === id)?.categoryId ?? "")?.kind;
+      if (!k) continue;
+      if (kind === undefined) kind = k;
+      else if (kind !== k) return "expense";
+    }
+    return kind ?? "expense";
+  }, [category, selection.selected, categoryById, filtered]);
 
   return (
     <>
@@ -648,14 +697,22 @@ export function TransactionList({
         </div>
       </div>
 
-      <FilterRow filter={filter} onChange={setFilter} vendorOptions={vendorOptions} />
+      <FilterRow
+        filter={filter}
+        onChange={setFilter}
+        vendorOptions={vendorOptions}
+        categories={isGlobal ? categories : undefined}
+      />
 
       {filtered.length === 0 ? (
         <div className="mt-3 flex flex-col items-center gap-3 rounded-2xl bg-card px-4 py-8 text-center text-sm text-muted-foreground ring-1 ring-border">
           {transactions.length === 0 ? (
             <>
               <p>No transactions in this range.</p>
-              {!category.activeUntil && (
+              {/* Detail mode offers a jump to the left-rail Add form; the
+                  global list has no add affordance, so it just states the
+                  empty range. */}
+              {category && !category.activeUntil && (
                 <button
                   type="button"
                   onClick={focusAddTransactionForm}
@@ -691,8 +748,9 @@ export function TransactionList({
             <DaySection
               key={group.date}
               group={group}
-              kind={category.kind}
-              isInflow={isInflow}
+              pageCategory={category}
+              pageIsInflow={pageIsInflow}
+              categoryById={categoryById}
               byId={txById}
               selection={selection}
               activeRowKey={effectiveActiveKey}
@@ -710,8 +768,9 @@ export function TransactionList({
         <BulkActionBar
           count={selection.count}
           total={selectedTotalValue}
-          kind={category.kind}
+          kind={bulkKind}
           defaultVendor={defaultVendor}
+          selectedVendors={selectedVendors}
           categories={categories}
           onDelete={startBulkDelete}
           onRecategorise={handleBulkRecategorise}
@@ -734,13 +793,30 @@ function FilterRow({
   filter,
   onChange,
   vendorOptions,
+  categories,
 }: {
   filter: TransactionFilter;
   onChange: (next: TransactionFilter) => void;
   vendorOptions: string[];
+  /** Present only on the global list — enables the category multi-select. */
+  categories?: Category[];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-2xl bg-card p-3 ring-1 ring-border sm:grid-cols-[1fr_160px_minmax(220px,1fr)]">
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-2 rounded-2xl bg-card p-3 ring-1 ring-border",
+        categories
+          ? "sm:grid-cols-[minmax(160px,1fr)_1fr_160px_minmax(220px,1fr)]"
+          : "sm:grid-cols-[1fr_160px_minmax(220px,1fr)]",
+      )}
+    >
+      {categories && (
+        <CategoryMultiSelect
+          categories={categories}
+          selected={filter.categoryIds ?? []}
+          onChange={(ids) => onChange({ ...filter, categoryIds: ids })}
+        />
+      )}
       <input
         type="search"
         placeholder="Search vendor or note…"
@@ -787,8 +863,9 @@ type Selection = ReturnType<typeof useTransactionSelection>;
  */
 function DaySection({
   group,
-  kind,
-  isInflow,
+  pageCategory,
+  pageIsInflow,
+  categoryById,
   byId,
   selection,
   activeRowKey,
@@ -799,8 +876,10 @@ function DaySection({
   onDelete,
 }: {
   group: DayGroup;
-  kind: Category["kind"];
-  isInflow: boolean;
+  /** Single page category in detail mode; undefined on the global list. */
+  pageCategory: Category | undefined;
+  pageIsInflow: boolean;
+  categoryById: Map<string, Category>;
   byId: Map<string, Transaction>;
   selection: Selection;
   activeRowKey: string | null;
@@ -810,7 +889,11 @@ function DaySection({
   onEdit: (t: Transaction) => void;
   onDelete: (t: Transaction) => void;
 }) {
-  const subtotalPositive = isInflow && group.subtotal > 0;
+  // A global day's subtotal nets across kinds, so it renders as a plain signed
+  // sum (expense convention: no leading "+", no green); a detail day inherits
+  // the page kind and may show green when the inflow total is positive.
+  const subtotalKind = pageCategory?.kind ?? "expense";
+  const subtotalPositive = pageIsInflow && group.subtotal > 0;
   const dayIds = useMemo(() => dayGroupIds(group), [group]);
   return (
     <section aria-label={`${group.label}, ${fmtExact(group.subtotal)}`}>
@@ -831,7 +914,7 @@ function DaySection({
             subtotalPositive && "text-emerald-700 dark:text-emerald-400",
           )}
         >
-          <SignedAmount kind={kind} amount={group.subtotal} />
+          <SignedAmount kind={subtotalKind} amount={group.subtotal} />
         </span>
       </h3>
       <ul>
@@ -841,8 +924,8 @@ function DaySection({
               key={row.transaction.id}
               rowKey={row.transaction.id}
               transaction={row.transaction}
-              kind={kind}
-              isInflow={isInflow}
+              pageCategory={pageCategory}
+              categoryById={categoryById}
               selection={selection}
               active={activeRowKey === row.transaction.id}
               onActivate={onActivate}
@@ -854,8 +937,9 @@ function DaySection({
               key={streakKey(group.date, row.vendor)}
               streakRowKey={streakKey(group.date, row.vendor)}
               streak={row}
-              kind={kind}
-              isInflow={isInflow}
+              pageCategory={pageCategory}
+              pageIsInflow={pageIsInflow}
+              categoryById={categoryById}
               byId={byId}
               selection={selection}
               activeRowKey={activeRowKey}
@@ -884,8 +968,9 @@ function DaySection({
 function StreakRow({
   streakRowKey,
   streak,
-  kind,
-  isInflow,
+  pageCategory,
+  pageIsInflow,
+  categoryById,
   byId,
   selection,
   activeRowKey,
@@ -897,8 +982,9 @@ function StreakRow({
 }: {
   streakRowKey: string;
   streak: CollapsedStreak;
-  kind: Category["kind"];
-  isInflow: boolean;
+  pageCategory: Category | undefined;
+  pageIsInflow: boolean;
+  categoryById: Map<string, Category>;
   byId: Map<string, Transaction>;
   selection: Selection;
   activeRowKey: string | null;
@@ -909,6 +995,11 @@ function StreakRow({
   onDelete: (t: Transaction) => void;
 }) {
   const panelId = useId();
+  // A streak collapses by vendor alone, so on the global list it can span
+  // categories — the header is a vendor aggregate with no single pill, and its
+  // total nets across kinds (expense convention). Each underlying row still
+  // carries its own category pill once expanded.
+  const streakKind = pageCategory?.kind ?? "expense";
   const total = streak.subtotal;
   const breakdown =
     streak.amount !== undefined
@@ -975,10 +1066,10 @@ function StreakRow({
           <span
             className={cn(
               "shrink-0 tabular-nums text-foreground",
-              isInflow && total > 0 && "text-emerald-700 dark:text-emerald-400",
+              pageIsInflow && total > 0 && "text-emerald-700 dark:text-emerald-400",
             )}
           >
-            <SignedAmount kind={kind} amount={total} marker={false} />
+            <SignedAmount kind={streakKind} amount={total} marker={false} />
           </span>
         </button>
       </div>
@@ -989,8 +1080,8 @@ function StreakRow({
               key={t.id}
               rowKey={t.id}
               transaction={t}
-              kind={kind}
-              isInflow={isInflow}
+              pageCategory={pageCategory}
+              categoryById={categoryById}
               nested
               selection={selection}
               active={activeRowKey === t.id}
@@ -1008,8 +1099,8 @@ function StreakRow({
 function Row({
   rowKey,
   transaction: t,
-  kind,
-  isInflow,
+  pageCategory,
+  categoryById,
   nested = false,
   selection,
   active,
@@ -1019,8 +1110,9 @@ function Row({
 }: {
   rowKey: string;
   transaction: Transaction;
-  kind: Category["kind"];
-  isInflow: boolean;
+  /** Single page category in detail mode; undefined on the global list. */
+  pageCategory: Category | undefined;
+  categoryById: Map<string, Category>;
   /** Rendered inside an expanded streak — indent a level deeper to show nesting. */
   nested?: boolean;
   selection: Selection;
@@ -1029,6 +1121,12 @@ function Row({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  // Detail rows share the page kind; global rows resolve their own from the
+  // category map, and show a pill since the per-category context is gone.
+  const cat = pageCategory ?? categoryById.get(t.categoryId);
+  const kind = cat?.kind ?? "expense";
+  const isInflow = kind !== "expense";
+  const showPill = pageCategory === undefined && cat !== undefined;
   // Mobile long-press → selection mode (story 23). pointerdown starts a 500ms
   // timer; a pointerup, or movement past a small threshold, cancels it. The
   // threshold (~10px) keeps ordinary finger jitter from killing the gesture —
@@ -1098,11 +1196,28 @@ function Row({
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="truncate text-foreground">
-            <span className="sr-only">Vendor: </span>
-            {t.vendor ?? "—"}
-          </p>
+        {/* Wider gap to the amount than the in-row gaps so a truncated note
+            clamps a touch early and never runs flush against the figure. */}
+        <div className="flex items-baseline justify-between gap-4">
+          <div className="flex min-w-0 items-baseline gap-2">
+            {showPill && cat && <CategoryPill category={cat} asLink={false} />}
+            {/* Vendor and note share one truncating line so every row stays a
+                uniform, scannable height. The vendor leads, so a long note
+                ellipsizes before the vendor does (the vendor is the
+                identifier); the full note is on hover and in the Edit sheet,
+                and stays in the DOM for screen readers. */}
+            <p className="truncate">
+              <span className="sr-only">Vendor: </span>
+              <span className="text-foreground">{t.vendor ?? "—"}</span>
+              {t.note && (
+                <span className="text-muted-foreground" title={t.note}>
+                  <span aria-hidden> · </span>
+                  <span className="sr-only">note: </span>
+                  {t.note}
+                </span>
+              )}
+            </p>
+          </div>
           <span
             className={cn(
               "shrink-0 tabular-nums text-muted-foreground",
@@ -1112,7 +1227,6 @@ function Row({
             <SignedAmount kind={kind} amount={t.amount} marker={false} />
           </span>
         </div>
-        {t.note && <p className="mt-0.5 text-xs text-muted-foreground">{t.note}</p>}
       </div>
       <RowMenu onEdit={onEdit} onDelete={onDelete} />
     </li>
