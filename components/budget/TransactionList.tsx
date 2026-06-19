@@ -1213,7 +1213,19 @@ function Row({
             <SignedAmount kind={kind} amount={t.amount} marker={false} />
           </span>
         </div>
-        {t.note && <p className="mt-0.5 text-xs text-muted-foreground">{t.note}</p>}
+        {t.note && (
+          // Notes are a glanceable reminder, not the full record — clamp to one
+          // line so a long note can't balloon a row and break the day-scan
+          // rhythm (the whole point of #17). Full text on hover; always full in
+          // the Edit sheet. The text stays in the DOM, so screen readers still
+          // get the whole note.
+          <p
+            title={t.note}
+            className="mt-0.5 line-clamp-1 text-xs text-muted-foreground"
+          >
+            {t.note}
+          </p>
+        )}
       </div>
       <RowMenu onEdit={onEdit} onDelete={onDelete} />
     </li>
