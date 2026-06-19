@@ -5,8 +5,8 @@ import { useState } from "react";
 import { targetLabel } from "@/lib/budget";
 import type { CategoryKind, CategoryTarget } from "@/types/budget";
 
-import { NewTargetRowForm } from "./NewTargetRowForm";
-import { TargetRowForm } from "./TargetRowForm";
+import { NewTargetRowForm } from "@/components/budget/category/NewTargetRowForm";
+import { TargetRowForm } from "@/components/budget/category/TargetRowForm";
 
 /**
  * Collapsed "View {target}-history" disclosure inside the category edit panel.

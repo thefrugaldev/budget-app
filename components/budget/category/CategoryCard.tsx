@@ -2,10 +2,10 @@ import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
 import { fmt, targetLabel, thresholdColor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
-import { EndedBadge } from "./EndedBadge";
-import { SignedAmount } from "../SignedAmount";
-import { ThresholdMeter } from "../ThresholdMeter";
-import { Sparkline } from "./Sparkline";
+import { SignedAmount } from "@/components/budget/SignedAmount";
+import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
+import { EndedBadge } from "@/components/budget/category/EndedBadge";
+import { Sparkline } from "@/components/budget/category/Sparkline";
 
 export function CategoryCard({
   category,
