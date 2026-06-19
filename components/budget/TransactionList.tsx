@@ -1199,9 +1199,21 @@ function Row({
         <div className="flex items-baseline justify-between gap-2">
           <div className="flex min-w-0 items-baseline gap-2">
             {showPill && cat && <CategoryPill category={cat} asLink={false} />}
-            <p className="truncate text-foreground">
+            {/* Vendor and note share one truncating line so every row stays a
+                uniform, scannable height. The vendor leads, so a long note
+                ellipsizes before the vendor does (the vendor is the
+                identifier); the full note is on hover and in the Edit sheet,
+                and stays in the DOM for screen readers. */}
+            <p className="truncate">
               <span className="sr-only">Vendor: </span>
-              {t.vendor ?? "—"}
+              <span className="text-foreground">{t.vendor ?? "—"}</span>
+              {t.note && (
+                <span className="text-muted-foreground" title={t.note}>
+                  <span aria-hidden> · </span>
+                  <span className="sr-only">note: </span>
+                  {t.note}
+                </span>
+              )}
             </p>
           </div>
           <span
@@ -1213,19 +1225,6 @@ function Row({
             <SignedAmount kind={kind} amount={t.amount} marker={false} />
           </span>
         </div>
-        {t.note && (
-          // Notes are a glanceable reminder, not the full record — clamp to one
-          // line so a long note can't balloon a row and break the day-scan
-          // rhythm (the whole point of #17). Full text on hover; always full in
-          // the Edit sheet. The text stays in the DOM, so screen readers still
-          // get the whole note.
-          <p
-            title={t.note}
-            className="mt-0.5 line-clamp-1 text-xs text-muted-foreground"
-          >
-            {t.note}
-          </p>
-        )}
       </div>
       <RowMenu onEdit={onEdit} onDelete={onDelete} />
     </li>
