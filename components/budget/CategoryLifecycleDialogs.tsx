@@ -5,7 +5,7 @@ import { useActionState, useEffect, useRef } from "react";
 
 import { endCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import {
   type ActionState,

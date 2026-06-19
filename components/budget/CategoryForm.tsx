@@ -5,7 +5,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { createCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { currentMonthKey } from "@/lib/budget";

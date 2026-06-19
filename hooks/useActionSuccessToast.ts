@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 
 /**
  * Minimal structural shape every server-action state in the repo already

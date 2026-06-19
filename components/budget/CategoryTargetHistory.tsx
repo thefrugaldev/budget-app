@@ -10,7 +10,7 @@ import {
   CATEGORY_ACTION_INITIAL,
   type CategoryActionState,
 } from "@/app/actions/category-state";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { monthLabel, targetLabel } from "@/lib/budget";

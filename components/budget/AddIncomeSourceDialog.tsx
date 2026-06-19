@@ -7,7 +7,7 @@ import { useFormStatus } from "react-dom";
 import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
-import { useNotify } from "@/components/notify";
+import { useNotify } from "@/hooks/useNotify";
 import { cn } from "@/lib/utils";
 
 /**
