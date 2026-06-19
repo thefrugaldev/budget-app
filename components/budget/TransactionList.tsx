@@ -624,13 +624,15 @@ export function TransactionList({
     if (category) return category.kind;
     let kind: CategoryKind | undefined;
     for (const id of selection.selected) {
-      const k = categoryById.get(filtered.find((t) => t.id === id)?.categoryId ?? "")?.kind;
+      // `txById` keyed lookup, not `filtered.find` — a select-all over a few
+      // thousand rows would otherwise be O(n²) and stall the main thread.
+      const k = categoryById.get(txById.get(id)?.categoryId ?? "")?.kind;
       if (!k) continue;
       if (kind === undefined) kind = k;
       else if (kind !== k) return "expense";
     }
     return kind ?? "expense";
-  }, [category, selection.selected, categoryById, filtered]);
+  }, [category, selection.selected, categoryById, txById]);
 
   return (
     <>
