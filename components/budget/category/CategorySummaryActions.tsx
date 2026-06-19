@@ -9,10 +9,8 @@ import {
   reopenCategoryAction,
 } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
-import {
-  DeleteCategoryDialog,
-  EndCategoryDialog,
-} from "@/components/budget/CategoryLifecycleDialogs";
+import { DeleteCategoryDialog } from "@/components/budget/category/DeleteCategoryDialog";
+import { EndCategoryDialog } from "@/components/budget/category/EndCategoryDialog";
 import { useNotify } from "@/hooks/useNotify";
 import type { Category } from "@/types/budget";
 

@@ -1,15 +1,11 @@
 import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
-import {
-  fmt,
-  monthlyTotalsLastN,
-  targetLabel,
-  thresholdColor,
-} from "@/lib/budget";
+import { fmt, targetLabel, thresholdColor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
-import { EndedBadge } from "./EndedBadge";
-import { SignedAmount } from "./SignedAmount";
-import { ThresholdMeter } from "./ThresholdMeter";
+import { SignedAmount } from "@/components/budget/SignedAmount";
+import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
+import { EndedBadge } from "@/components/budget/category/EndedBadge";
+import { Sparkline } from "@/components/budget/category/Sparkline";
 
 export function CategoryCard({
   category,
@@ -91,31 +87,5 @@ export function CategoryCard({
         <Sparkline categoryId={category.id} transactions={transactions} />
       </div>
     </Link>
-  );
-}
-
-function Sparkline({
-  categoryId,
-  transactions,
-}: {
-  categoryId: string;
-  transactions: Transaction[];
-}) {
-  const data = monthlyTotalsLastN(transactions, categoryId, 6);
-  const max = Math.max(...data.map((d) => d.total), 1);
-  const W = 70;
-  const H = 22;
-  const step = W / (data.length - 1);
-  const points = data.map((d, i) => `${i * step},${H - (d.total / max) * H}`).join(" ");
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden>
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        className="text-muted-foreground/60"
-      />
-    </svg>
   );
 }

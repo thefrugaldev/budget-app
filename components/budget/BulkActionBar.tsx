@@ -5,7 +5,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { AlertTriangle, FolderInput, Pencil, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
-import { CategoryPicker } from "@/components/budget/CategoryPicker";
+import { CategoryPicker } from "@/components/budget/category/CategoryPicker";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { fmtExact } from "@/lib/budget";
 import type { Category, CategoryKind } from "@/types/budget";

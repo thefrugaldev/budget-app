@@ -18,8 +18,8 @@ import {
   deleteTransactionAction,
 } from "@/app/actions/transactions";
 import { BulkActionBar } from "@/components/budget/BulkActionBar";
-import { CategoryMultiSelect } from "@/components/budget/CategoryMultiSelect";
-import { CategoryPill } from "@/components/budget/CategoryPill";
+import { CategoryMultiSelect } from "@/components/budget/category/CategoryMultiSelect";
+import { CategoryPill } from "@/components/budget/category/CategoryPill";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import { useNotify } from "@/hooks/useNotify";

@@ -2,28 +2,19 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
-import {
-  useActionState,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 
 import {
   updateCategoryAction,
   upsertCategoryTargetAction,
 } from "@/app/actions/categories";
-import {
-  CATEGORY_ACTION_INITIAL,
-  type CategoryActionState,
-} from "@/app/actions/category-state";
-import { CategoryLifecycleActions } from "@/components/budget/CategoryLifecycleActions";
-import { CategoryTargetHistory } from "@/components/budget/CategoryTargetHistory";
+import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { CategoryLifecycleActions } from "@/components/budget/category/CategoryLifecycleActions";
+import { CategoryTargetHistory } from "@/components/budget/category/CategoryTargetHistory";
+import { SectionHeader } from "@/components/budget/category/SectionHeader";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
-import { useNotify } from "@/hooks/useNotify";
+import { useToastOnSuccess } from "@/hooks/useToastOnSuccess";
 import {
   currentMonthKey,
   fmt,
@@ -43,20 +34,6 @@ const KIND_LABELS = {
 const KIND_OPTIONS = (Object.keys(KIND_LABELS) as readonly CategoryKind[]).map(
   (value) => ({ value, label: KIND_LABELS[value] }),
 );
-
-function useToastOnSuccess(
-  state: CategoryActionState,
-  computeMessage: () => string,
-) {
-  const notify = useNotify();
-  const lastSeen = useRef(state.ok);
-  useEffect(() => {
-    if (state.ok > lastSeen.current && !state.error) {
-      lastSeen.current = state.ok;
-      notify.success(computeMessage());
-    }
-  }, [state, notify, computeMessage]);
-}
 
 /**
  * Off-canvas Edit category sheet. Right-side flyout on desktop, full-screen
@@ -403,22 +380,5 @@ export function CategoryEditSheet({
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
-  );
-}
-
-function SectionHeader({ title, dirty }: { title: string; dirty: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </p>
-      {dirty && (
-        <span
-          aria-label="Unsaved changes"
-          title="Unsaved changes"
-          className="inline-block size-1.5 rounded-full bg-amber-500"
-        />
-      )}
-    </div>
   );
 }

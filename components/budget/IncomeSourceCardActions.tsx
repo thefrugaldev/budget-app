@@ -11,10 +11,8 @@ import {
   deleteIncomeSourceAction,
 } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
-import {
-  DeleteCategoryDialog,
-  EndCategoryDialog,
-} from "@/components/budget/CategoryLifecycleDialogs";
+import { DeleteCategoryDialog } from "@/components/budget/category/DeleteCategoryDialog";
+import { EndCategoryDialog } from "@/components/budget/category/EndCategoryDialog";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import type { Category, CategoryTarget } from "@/types/budget";
