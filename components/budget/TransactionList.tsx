@@ -1196,7 +1196,9 @@ function Row({
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
+        {/* Wider gap to the amount than the in-row gaps so a truncated note
+            clamps a touch early and never runs flush against the figure. */}
+        <div className="flex items-baseline justify-between gap-4">
           <div className="flex min-w-0 items-baseline gap-2">
             {showPill && cat && <CategoryPill category={cat} asLink={false} />}
             {/* Vendor and note share one truncating line so every row stays a
