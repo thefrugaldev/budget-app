@@ -3,7 +3,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { AddIncomeSourceDialog } from "@/components/budget/AddIncomeSourceDialog";
+import { AddIncomeSourceDialog } from "@/components/budget/income/AddIncomeSourceDialog";
 import { cn } from "@/lib/utils";
 
 /**

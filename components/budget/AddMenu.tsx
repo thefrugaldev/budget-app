@@ -6,7 +6,7 @@ import { Plus, Receipt, Wallet } from "lucide-react";
 import { useState } from "react";
 
 import { AddCategoryDialog } from "@/components/budget/category/AddCategoryDialog";
-import { AddIncomeSourceDialog } from "@/components/budget/AddIncomeSourceDialog";
+import { AddIncomeSourceDialog } from "@/components/budget/income/AddIncomeSourceDialog";
 import { TransactionForm } from "@/components/budget/TransactionForm";
 import type { Category, Transaction } from "@/types/budget";
 

@@ -3,9 +3,9 @@
 import { Pencil } from "lucide-react";
 import { useRef, useState } from "react";
 
-import { IncomeSourceCardActions } from "@/components/budget/IncomeSourceCardActions";
-import { IncomeSourceEditor } from "@/components/budget/IncomeSourceEditor";
-import { IncomeSourceStatusPill } from "@/components/budget/IncomeSourceStatusPill";
+import { IncomeSourceCardActions } from "@/components/budget/income/IncomeSourceCardActions";
+import { IncomeSourceEditor } from "@/components/budget/income/IncomeSourceEditor";
+import { IncomeSourceStatusPill } from "@/components/budget/income/IncomeSourceStatusPill";
 import { fmt, monthLabel, resolveTargetForMonth } from "@/lib/budget";
 import {
   buildIncomeSourceDisplayLabel,

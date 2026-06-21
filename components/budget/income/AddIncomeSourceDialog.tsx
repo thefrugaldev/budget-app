@@ -2,13 +2,12 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 
 import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
+import { AddIncomeSourceSubmitButton } from "@/components/budget/income/AddIncomeSourceSubmitButton";
 import { useNotify } from "@/hooks/useNotify";
-import { cn } from "@/lib/utils";
 
 /**
  * Small create-source dialog reused by the floating ⊕ menu and by the on-page
@@ -98,26 +97,11 @@ export function AddIncomeSourceDialog({
               <Dialog.Close className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
                 Cancel
               </Dialog.Close>
-              <SubmitButton />
+              <AddIncomeSourceSubmitButton />
             </div>
           </form>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
-  );
-}
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className={cn(
-        "rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-60",
-      )}
-    >
-      {pending ? "Adding…" : "Add source"}
-    </button>
   );
 }
