@@ -142,3 +142,12 @@ function collapseStreaks(transactions: Transaction[]): TransactionRow[] {
       };
     });
 }
+
+/**
+ * Stable navigable key for a collapsed streak header. A streak is unique per
+ * `(date, vendor)` within a day group, so this key identifies it across the
+ * roving-tabindex order and the expanded-streak set in the list UI.
+ */
+export function streakKey(date: string, vendor: string): string {
+  return `streak:${date}:${vendor}`;
+}

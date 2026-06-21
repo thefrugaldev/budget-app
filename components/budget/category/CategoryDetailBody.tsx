@@ -8,8 +8,8 @@ import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
 import { SignedAmount } from "@/components/budget/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
-import { TransactionForm } from "@/components/budget/TransactionForm";
-import { TransactionList } from "@/components/budget/TransactionList";
+import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
+import { TransactionList } from "@/components/budget/transaction/TransactionList";
 import {
   aggregateRange,
   currentMonthKey,

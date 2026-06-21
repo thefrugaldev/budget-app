@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupTransactionsByDay } from "./transaction";
+import { groupTransactionsByDay, streakKey } from "./transaction";
 import type { Transaction } from "@/types/budget";
 
 const tx = (overrides: Partial<Transaction> & Pick<Transaction, "id">): Transaction => ({
@@ -282,5 +282,19 @@ describe("groupTransactionsByDay", () => {
     expect(groups[0].label).toBe("Today");
     expect(groups[1].label).toBe("Yesterday");
     expect(groups[2].label).toBe("Sat, May 30");
+  });
+});
+
+describe("streakKey", () => {
+  it("builds a stable key from date + vendor", () => {
+    expect(streakKey("2026-06-08", "Whole Foods")).toBe(
+      "streak:2026-06-08:Whole Foods",
+    );
+  });
+
+  it("distinguishes different vendors on the same day", () => {
+    expect(streakKey("2026-06-08", "Whole Foods")).not.toBe(
+      streakKey("2026-06-08", "Costco"),
+    );
   });
 });

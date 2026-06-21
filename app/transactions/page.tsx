@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { RangeSelector } from "@/components/budget/RangeSelector";
-import { TransactionList } from "@/components/budget/TransactionList";
+import { TransactionList } from "@/components/budget/transaction/TransactionList";
 import {
   isRangePreset,
   rangeLabel,
