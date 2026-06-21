@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { AddCategoryTile } from "@/components/budget/category/AddCategoryTile";
 import { AddMenu } from "@/components/budget/AddMenu";
 import { CategoryCard } from "@/components/budget/category/CategoryCard";
-import { HeaderIncome } from "@/components/budget/HeaderIncome";
+import { HeaderIncome } from "@/components/budget/income/HeaderIncome";
 import { RangeSelector } from "@/components/budget/RangeSelector";
 import {
   aggregateRange,

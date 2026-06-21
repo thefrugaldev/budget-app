@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
-import { AddIncomeSourceLauncher } from "@/components/budget/AddIncomeSourceLauncher";
-import { IncomeSourceCard } from "@/components/budget/IncomeSourceCard";
+import { AddIncomeSourceLauncher } from "@/components/budget/income/AddIncomeSourceLauncher";
+import { IncomeSourceCard } from "@/components/budget/income/IncomeSourceCard";
 import {
   currentMonthKey,
   currentMonthlyBaseline,
