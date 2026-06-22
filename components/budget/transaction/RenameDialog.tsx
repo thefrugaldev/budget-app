@@ -4,10 +4,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 
-const BACKDROP =
-  "fixed inset-0 z-40 bg-black/40 backdrop-blur-sm data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 transition-opacity";
-const POPUP =
-  "fixed left-1/2 top-1/2 z-50 w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-card p-6 shadow-xl ring-1 ring-border outline-none data-[ending-style]:opacity-0 data-[ending-style]:scale-95 data-[starting-style]:opacity-0 data-[starting-style]:scale-95 transition-[opacity,transform]";
+import { MODAL_BACKDROP, MODAL_POPUP } from "@/components/ui/dialogClasses";
 
 /**
  * Bulk vendor rename (story 14). The input is prefilled with the most-common
@@ -54,8 +51,8 @@ export function RenameDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop className={BACKDROP} />
-        <Dialog.Popup className={POPUP}>
+        <Dialog.Backdrop className={MODAL_BACKDROP} />
+        <Dialog.Popup className={MODAL_POPUP}>
           <Dialog.Title className="font-heading text-lg font-semibold">
             Rename vendor on {count} {noun}
           </Dialog.Title>
