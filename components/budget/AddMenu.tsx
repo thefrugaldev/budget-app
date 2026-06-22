@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { AddCategoryDialog } from "@/components/budget/category/AddCategoryDialog";
 import { AddIncomeSourceDialog } from "@/components/budget/income/AddIncomeSourceDialog";
-import { TransactionForm } from "@/components/budget/TransactionForm";
+import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
 import type { Category, Transaction } from "@/types/budget";
 
 type Sheet = "transaction" | "category" | "income" | null;
