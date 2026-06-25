@@ -5,12 +5,19 @@ import type { NextConfig } from "next";
 // keeps 'unsafe-inline' to stay compatible with Next's inline bootstrap and
 // Tailwind styles without nonce middleware. Tighten to nonce-based script-src
 // when auth/middleware lands.
+//
+// 'unsafe-eval' is added to script-src ONLY in development: Next's dev runtime
+// uses eval() for source-map / callstack reconstruction, which the strict CSP
+// would otherwise block (a noisy console error on every page). Production never
+// uses eval(), so the deployed CSP stays strict.
+const isDev = process.env.NODE_ENV === "development";
+
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
