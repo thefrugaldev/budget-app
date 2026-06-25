@@ -12,7 +12,7 @@ import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { CategoryLifecycleActions } from "@/components/budget/category/CategoryLifecycleActions";
 import { CategoryTargetHistory } from "@/components/budget/category/CategoryTargetHistory";
 import { SectionHeader } from "@/components/budget/category/SectionHeader";
-import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
+import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { useToastOnSuccess } from "@/hooks/useToastOnSuccess";
 import {

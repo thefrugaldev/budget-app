@@ -25,5 +25,5 @@ Four principles apply across **every** top-level source directory (`components/`
 
 **Shared infrastructure is shared from day one.** A unit that more than one consumer could reasonably use goes to its shared home on first introduction — not co-located with its first caller and lifted later. When in doubt, extract on first use rather than second.
 
-These conventions are enforced by review, not by tooling. Some pre-existing files predate the rules — audit tracked in #48 (`refactor` label). New and touched files should follow them.
+These conventions are enforced by review, not by tooling. New and touched files should follow them.
 <!-- END:code-organization -->
