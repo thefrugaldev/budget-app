@@ -2,10 +2,11 @@
 
 import { Popover } from "@base-ui/react/popover";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { cn } from "@/lib/utils";
-import { EmojiStyle, Theme, type EmojiClickData } from "emoji-picker-react";
+import { EmojiStyle, type EmojiClickData } from "emoji-picker-react";
 
 // Picker is heavy (~150KB gz) and most page loads never open it, so load it
 // only when the popover first opens. `ssr: false` keeps the dynamic import
@@ -89,23 +90,6 @@ const NAME_HINTS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["bar", ["🍺"]],
   ["wine", ["🍷"]],
 ] as const;
-
-// The app uses Tailwind's class-based dark mode (`.dark` on the html element)
-// rather than `prefers-color-scheme`. `emoji-picker-react`'s `Theme.AUTO`
-// follows the system preference, which mismatches the app's class strategy.
-// Watch the html element for class changes and pass an explicit Theme.
-function useAppTheme(): Theme {
-  const [isDark, setIsDark] = useState(false);
-  useEffect(() => {
-    const root = document.documentElement;
-    const sync = () => setIsDark(root.classList.contains("dark"));
-    sync();
-    const observer = new MutationObserver(sync);
-    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-  return isDark ? Theme.DARK : Theme.LIGHT;
-}
 
 function suggestionsFor(nameHint: string | undefined): readonly string[] {
   if (!nameHint) return [];
