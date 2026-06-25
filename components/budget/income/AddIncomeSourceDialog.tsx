@@ -5,7 +5,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 
 import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
-import { EmojiPickerButton } from "@/components/budget/EmojiPickerButton";
+import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
 import { AddIncomeSourceSubmitButton } from "@/components/budget/income/AddIncomeSourceSubmitButton";
 import { useNotify } from "@/hooks/useNotify";
 

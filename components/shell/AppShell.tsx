@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { BottomTabNav } from "./BottomTabNav";
+import { BottomTabNav } from "./bottom-tab-nav/BottomTabNav";
 import { PrimaryNav } from "./PrimaryNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {

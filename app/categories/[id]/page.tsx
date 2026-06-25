@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CategoryDetailBody } from "@/components/budget/category/CategoryDetailBody";
-import { RangeSelector } from "@/components/budget/RangeSelector";
+import { RangeSelector } from "@/components/budget/shared/RangeSelector";
 import {
   isRangePreset,
   rangeLabel,
