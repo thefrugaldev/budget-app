@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { SignedAmount } from "@/components/budget/SignedAmount";
+import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { Row } from "@/components/budget/transaction/Row";
 import { StreakRow } from "@/components/budget/transaction/StreakRow";
 import { Checkbox } from "@/components/ui/Checkbox";

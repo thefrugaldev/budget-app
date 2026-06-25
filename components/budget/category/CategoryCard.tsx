@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
 import { fmt, targetLabel, thresholdColor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
-import { SignedAmount } from "@/components/budget/SignedAmount";
-import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
+import { SignedAmount } from "@/components/budget/charts/SignedAmount";
+import { ThresholdMeter } from "@/components/budget/charts/ThresholdMeter";
 import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { Sparkline } from "@/components/budget/category/Sparkline";
 

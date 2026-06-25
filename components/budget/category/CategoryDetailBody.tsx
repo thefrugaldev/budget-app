@@ -5,9 +5,9 @@ import { useMemo, useState } from "react";
 import { CategoryEditSheet } from "@/components/budget/category/CategoryEditSheet";
 import { CategorySummaryActions } from "@/components/budget/category/CategorySummaryActions";
 import { EndedBadge } from "@/components/budget/category/EndedBadge";
-import { MonthBarChart, type MonthBarDatum } from "@/components/budget/MonthBarChart";
-import { SignedAmount } from "@/components/budget/SignedAmount";
-import { ThresholdMeter } from "@/components/budget/ThresholdMeter";
+import { MonthBarChart, type MonthBarDatum } from "@/components/budget/charts/MonthBarChart";
+import { SignedAmount } from "@/components/budget/charts/SignedAmount";
+import { ThresholdMeter } from "@/components/budget/charts/ThresholdMeter";
 import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
 import { TransactionList } from "@/components/budget/transaction/TransactionList";
 import {
