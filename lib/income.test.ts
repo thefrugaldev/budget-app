@@ -3,7 +3,9 @@ import type { Category, CategoryTarget } from "@/types/budget";
 import {
   buildIncomeSourceDisplayLabel,
   classifyIncomeSourceStatus,
+  monthlyToYearly,
   nextScheduledTarget,
+  yearlyToMonthly,
 } from "./income";
 
 const incomeCat = (overrides: Partial<Category> = {}): Category => ({
@@ -200,5 +202,25 @@ describe("nextScheduledTarget", () => {
       { categoryId: "bonus", monthly: 1000, effectiveFrom: "2026-07" },
     ];
     expect(nextScheduledTarget("salary", "2026-06", targets)).toBeUndefined();
+  });
+});
+
+describe("monthlyToYearly / yearlyToMonthly", () => {
+  it("annualizes a monthly amount", () => {
+    expect(monthlyToYearly(10000)).toBe(120000);
+  });
+
+  it("rounds float-drift to cents so a stored $100k reads back clean", () => {
+    // $100,000/yr stored as 8333.333…/mo must round-trip to 100000, not
+    // 99999.99999999999.
+    expect(monthlyToYearly(100000 / 12)).toBe(100000);
+  });
+
+  it("converts a yearly amount to its monthly average", () => {
+    expect(yearlyToMonthly(120000)).toBe(10000);
+  });
+
+  it("is the inverse of monthlyToYearly within cent precision", () => {
+    expect(monthlyToYearly(yearlyToMonthly(90000))).toBe(90000);
   });
 });

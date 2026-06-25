@@ -40,6 +40,7 @@ export function CategoryTargetHistory({
           <TargetRowForm
             key={`${row.categoryId}:${row.effectiveFrom}`}
             row={row}
+            kind={kind}
             // `targets` is newest-first; last item is earliest. Removing the
             // earliest would leave months below it with a 0 target.
             canDelete={targets.length > 1 && idx !== targets.length - 1}
@@ -48,6 +49,7 @@ export function CategoryTargetHistory({
         {showAddRow ? (
           <NewTargetRowForm
             categoryId={categoryId}
+            kind={kind}
             onDone={() => setShowAddRow(false)}
             onCancel={() => setShowAddRow(false)}
           />

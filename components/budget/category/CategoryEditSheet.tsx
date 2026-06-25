@@ -23,6 +23,7 @@ import {
   resolveTargetForMonth,
   targetLabel,
 } from "@/lib/budget";
+import { monthlyToYearly, yearlyToMonthly } from "@/lib/income";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind, CategoryTarget } from "@/types/budget";
 
@@ -68,6 +69,14 @@ export function CategoryEditSheet({
     [targets, category.id],
   );
   const currentTarget = resolveTargetForMonth(category.id, thisMonth, targets);
+  // Income targets are stored monthly but entered/displayed as gross yearly
+  // (income_model). The section-2 input below works in `currentTargetDisplay`
+  // — yearly for income, monthly for expense/savings — and converts back to
+  // monthly at the save boundary. Expense and savings caps/goals are unchanged.
+  const isIncome = category.kind === "income";
+  const currentTargetDisplay = isIncome
+    ? monthlyToYearly(currentTarget)
+    : currentTarget;
   const canHardDelete = txCount === 0 && myTargets.length <= 1;
   const isEnded = category.activeUntil !== undefined;
   const kindLocked = txCount > 0;
@@ -81,7 +90,8 @@ export function CategoryEditSheet({
   const [activeFrom, setActiveFrom] = useState(category.activeFrom);
   const [activeUntil, setActiveUntil] = useState(category.activeUntil ?? "");
   const [showEndDate, setShowEndDate] = useState(isEnded);
-  const [monthly, setMonthly] = useState(currentTarget.toString());
+  // Held in the displayed unit (yearly for income, monthly otherwise).
+  const [targetInput, setTargetInput] = useState(currentTargetDisplay.toString());
   const [applyThisMonth, setApplyThisMonth] = useState(false);
 
   // Reset local input state when the persisted shape changes (a save lands
@@ -102,7 +112,7 @@ export function CategoryEditSheet({
     setActiveFrom(category.activeFrom);
     setActiveUntil(category.activeUntil ?? "");
     setShowEndDate(category.activeUntil !== undefined);
-    setMonthly(currentTarget.toString());
+    setTargetInput(currentTargetDisplay.toString());
     setApplyThisMonth(false);
   } else if (prev.open !== open) {
     setPrev({ ...prev, open });
@@ -127,10 +137,10 @@ export function CategoryEditSheet({
       )}`,
   );
 
-  const parsedMonthly = Number(monthly);
-  const monthlyChanged =
-    Number.isFinite(parsedMonthly) && parsedMonthly !== currentTarget;
-  const capDirty = monthlyChanged || applyThisMonth;
+  const parsedInput = Number(targetInput);
+  const targetChanged =
+    Number.isFinite(parsedInput) && parsedInput !== currentTargetDisplay;
+  const capDirty = targetChanged || applyThisMonth;
 
   const detailsDirty =
     name !== category.name ||
@@ -160,7 +170,12 @@ export function CategoryEditSheet({
       if (capDirty) {
         const fd = new FormData();
         fd.set("categoryId", category.id);
-        fd.set("monthly", monthly);
+        // Storage is monthly across all kinds; income enters yearly, so
+        // convert at the boundary before the action persists it.
+        const monthlyValue = isIncome
+          ? yearlyToMonthly(parsedInput)
+          : parsedInput;
+        fd.set("monthly", String(monthlyValue));
         if (applyThisMonth) fd.set("applyThisMonth", "on");
         capAction(fd);
       }
@@ -306,20 +321,21 @@ export function CategoryEditSheet({
                   dirty={capDirty}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Current: {fmt(currentTarget)}/mo. New baselines apply from{" "}
-                  {monthLabel(nextMonth(thisMonth))} unless you override.
+                  Current: {fmt(currentTargetDisplay)}/{isIncome ? "yr" : "mo"}.
+                  New values apply from {monthLabel(nextMonth(thisMonth))} unless
+                  you override.
                 </p>
                 <label className="block space-y-1">
                   <span className="text-xs font-medium text-muted-foreground">
-                    Monthly
+                    {isIncome ? "Yearly" : "Monthly"}
                   </span>
                   <input
                     type="number"
-                    step="1"
+                    step={isIncome ? "0.01" : "1"}
                     min="0"
                     inputMode="decimal"
-                    value={monthly}
-                    onChange={(e) => setMonthly(e.target.value)}
+                    value={targetInput}
+                    onChange={(e) => setTargetInput(e.target.value)}
                     required
                     className="w-full rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
                   />

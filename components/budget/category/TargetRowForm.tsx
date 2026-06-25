@@ -9,22 +9,31 @@ import {
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
-import { monthLabel } from "@/lib/budget";
-import type { CategoryTarget } from "@/types/budget";
+import { monthLabel, targetLabel } from "@/lib/budget";
+import { monthlyToYearly, yearlyToMonthly } from "@/lib/income";
+import type { CategoryKind, CategoryTarget } from "@/types/budget";
 
 /**
  * One editable row in the target-history disclosure: a save form for the
- * monthly amount plus a separate remove form. `canDelete` is false for the
+ * target amount plus a separate remove form. `canDelete` is false for the
  * earliest row (removing it would leave months below it resolving to 0).
+ *
+ * Income rows are shown and edited as gross yearly (income_model); storage
+ * stays monthly, so the converted value rides a hidden `monthly` field while
+ * the visible field shows yearly. Expense/savings rows edit monthly directly.
  */
 export function TargetRowForm({
   row,
   canDelete,
+  kind,
 }: {
   row: CategoryTarget;
   canDelete: boolean;
+  kind: CategoryKind;
 }) {
-  const [monthly, setMonthly] = useState(row.monthly.toString());
+  const isIncome = kind === "income";
+  const displayValue = isIncome ? monthlyToYearly(row.monthly) : row.monthly;
+  const [value, setValue] = useState(displayValue.toString());
 
   const [updateState, updateAction] = useActionState(
     upsertCategoryTargetAction,
@@ -36,16 +45,16 @@ export function TargetRowForm({
   );
   useActionSuccessToast(
     updateState,
-    () => `Target updated for ${monthLabel(row.effectiveFrom)}`,
+    () => `${targetLabel(kind)} updated for ${monthLabel(row.effectiveFrom)}`,
   );
   useActionSuccessToast(
     deleteState,
-    () => `Target row removed (${monthLabel(row.effectiveFrom)})`,
+    () => `${targetLabel(kind)} row removed (${monthLabel(row.effectiveFrom)})`,
   );
 
   const error = updateState.error ?? deleteState.error;
-  const parsed = Number(monthly);
-  const unchanged = Number.isFinite(parsed) && parsed === row.monthly;
+  const parsed = Number(value);
+  const unchanged = Number.isFinite(parsed) && parsed === displayValue;
 
   return (
     <div className="rounded-md bg-background p-2 ring-1 ring-border">
@@ -55,16 +64,23 @@ export function TargetRowForm({
         <span className="min-w-[110px] text-xs font-medium">
           {monthLabel(row.effectiveFrom)}
         </span>
+        {isIncome && (
+          <input
+            type="hidden"
+            name="monthly"
+            value={Number.isFinite(parsed) ? yearlyToMonthly(parsed) : ""}
+          />
+        )}
         <input
-          name="monthly"
+          name={isIncome ? undefined : "monthly"}
           type="number"
           step="0.01"
           min="0"
           inputMode="decimal"
-          value={monthly}
-          onChange={(e) => setMonthly(e.target.value)}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
           required
-          aria-label={`Monthly target effective ${row.effectiveFrom}`}
+          aria-label={`${isIncome ? "Yearly baseline" : "Monthly target"} effective ${row.effectiveFrom}`}
           className="w-28 rounded-md bg-background px-2 py-1 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
         />
         <FormSubmitButton

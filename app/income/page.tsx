@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { AddIncomeSourceLauncher } from "@/components/budget/income/AddIncomeSourceLauncher";
 import { IncomeSourceCard } from "@/components/budget/income/IncomeSourceCard";
 import {
+  computeIncomeForRange,
   currentMonthKey,
   currentMonthlyBaseline,
   fmt,
@@ -52,6 +53,17 @@ export default async function IncomePage() {
   );
   const totalYearly = totalMonthly * 12;
 
+  // YTD income to date (story 2): elapsed baseline this year + irregular
+  // income transactions (bonuses, RSU vests, side-gig). Same helper the Pulse
+  // savings-rate KPI uses, so the two surfaces can't drift.
+  const ytdIncome = computeIncomeForRange(
+    incomeCategories,
+    targets,
+    transactions,
+    `${thisMonth.slice(0, 4)}-01`,
+    thisMonth,
+  );
+
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
       <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
@@ -59,18 +71,26 @@ export default async function IncomePage() {
           <h1 className="font-heading text-3xl font-semibold tracking-tight">
             Income
           </h1>
-          {totalMonthly > 0 && (
+          {incomeCategories.length > 0 && (
             <p className="mt-2 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground tabular-nums">
-                {fmt(totalYearly)}
-                <span className="ml-0.5 text-xs text-muted-foreground">/yr</span>
-              </span>
-              {" · "}
-              <span className="tabular-nums">
-                {fmt(totalMonthly)}
-                <span className="ml-0.5 text-xs">/mo</span>
-              </span>
-              {" current total"}
+              {totalMonthly > 0 && (
+                <>
+                  <span className="font-medium text-foreground tabular-nums">
+                    {fmt(totalYearly)}
+                    <span className="ml-0.5 text-xs text-muted-foreground">
+                      /yr
+                    </span>
+                  </span>
+                  {" · "}
+                  <span className="tabular-nums">
+                    {fmt(totalMonthly)}
+                    <span className="ml-0.5 text-xs">/mo</span>
+                  </span>
+                  {" current total · "}
+                </>
+              )}
+              <span className="tabular-nums">{fmt(ytdIncome)}</span>
+              {" YTD"}
             </p>
           )}
         </div>
