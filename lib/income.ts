@@ -4,6 +4,26 @@ import { monthLabel } from "./budget";
 export type IncomeSourceStatus = "active" | "scheduled-change" | "ended";
 
 /**
+ * Yearly⇄monthly conversion at the income UI boundary. Income targets are
+ * stored monthly so the storage shape stays uniform across kinds (ADR 0001),
+ * but they're entered and displayed as gross yearly (see CONTEXT.md and memory
+ * `income_model`). Keep both conversions here so every income surface — the
+ * `/income` card, its inline editor, and the category-detail Edit sheet —
+ * shares one definition rather than re-deriving `× 12` / `÷ 12` inline.
+ *
+ * `monthlyToYearly` rounds to cents so a value stored as 8333.333…/mo reads
+ * back as $100,000.00/yr in an editable field rather than float-drift like
+ * 99999.99999999999.
+ */
+export function monthlyToYearly(monthly: number): number {
+  return Math.round(monthly * 12 * 100) / 100;
+}
+
+export function yearlyToMonthly(yearly: number): number {
+  return yearly / 12;
+}
+
+/**
  * Soonest `CategoryTarget` row for `categoryId` with
  * `effectiveFrom > currentMonth`. Returns `undefined` when no
  * future-effective row exists.

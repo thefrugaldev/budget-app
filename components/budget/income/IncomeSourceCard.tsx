@@ -11,6 +11,7 @@ import {
   buildIncomeSourceDisplayLabel,
   classifyIncomeSourceStatus,
   type IncomeSourceStatus,
+  monthlyToYearly,
   nextScheduledTarget,
 } from "@/lib/income";
 import { cn } from "@/lib/utils";
@@ -159,19 +160,20 @@ function baselineSummary(
   status: IncomeSourceStatus,
 ): string {
   if (status === "ended") {
-    const lastBaseline =
-      resolveTargetForMonth(source.id, source.activeUntil!, targets) * 12;
+    const lastBaseline = monthlyToYearly(
+      resolveTargetForMonth(source.id, source.activeUntil!, targets),
+    );
     return `Ended after ${monthLabel(source.activeUntil!)} · last baseline ${fmt(lastBaseline)}/yr`;
   }
 
   const currentMonthly = resolveTargetForMonth(source.id, currentMonth, targets);
-  const currentYearly = currentMonthly * 12;
+  const currentYearly = monthlyToYearly(currentMonthly);
   const base = `${fmt(currentYearly)}/yr · ${fmt(currentMonthly)}/mo`;
 
   if (status === "scheduled-change") {
     const next = nextScheduledTarget(source.id, currentMonth, targets);
     if (next) {
-      return `${base} → ${fmt(next.monthly * 12)}/yr starting ${monthLabel(next.effectiveFrom)}`;
+      return `${base} → ${fmt(monthlyToYearly(next.monthly))}/yr starting ${monthLabel(next.effectiveFrom)}`;
     }
   }
   return base;

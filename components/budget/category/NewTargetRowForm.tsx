@@ -7,17 +7,24 @@ import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
+import { yearlyToMonthly } from "@/lib/income";
+import type { CategoryKind } from "@/types/budget";
 
 /**
  * Footer form in the target-history disclosure for inserting a new target row
  * at an arbitrary `effectiveFrom`. Closes itself on success via `onDone`.
+ *
+ * Income rows are entered as gross yearly (income_model); the converted
+ * monthly value rides a hidden field so storage stays monthly.
  */
 export function NewTargetRowForm({
   categoryId,
+  kind,
   onDone,
   onCancel,
 }: {
   categoryId: string;
+  kind: CategoryKind;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -27,6 +34,9 @@ export function NewTargetRowForm({
   );
   useActionSuccessToast(state, () => "Target row added", onDone);
   const [effectiveFrom, setEffectiveFrom] = useState("");
+  const isIncome = kind === "income";
+  const [amount, setAmount] = useState("");
+  const parsedAmount = Number(amount);
 
   return (
     <form
@@ -44,15 +54,24 @@ export function NewTargetRowForm({
             ariaLabel="Effective from"
           />
         </div>
+        {isIncome && (
+          <input
+            type="hidden"
+            name="monthly"
+            value={Number.isFinite(parsedAmount) ? yearlyToMonthly(parsedAmount) : ""}
+          />
+        )}
         <input
-          name="monthly"
+          name={isIncome ? undefined : "monthly"}
           type="number"
           step="0.01"
           min="0"
           inputMode="decimal"
-          placeholder="$0/mo"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder={isIncome ? "$0/yr" : "$0/mo"}
           required
-          aria-label="Monthly target"
+          aria-label={isIncome ? "Yearly baseline" : "Monthly target"}
           className="w-28 rounded-md bg-background px-2 py-1 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
         />
       </div>

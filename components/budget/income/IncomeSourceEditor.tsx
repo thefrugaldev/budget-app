@@ -7,6 +7,7 @@ import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { monthLabel, nextMonth } from "@/lib/budget";
+import { monthlyToYearly } from "@/lib/income";
 import type { Category } from "@/types/budget";
 
 /**
@@ -33,11 +34,11 @@ export function IncomeSourceEditor({
   currentMonth: string;
   onClose: () => void;
 }) {
-  // Round to cents on read so the input doesn't display float-drift like
-  // 99999.99999999999 after a $100k yearly was stored as 8333.333…/mo. The
-  // same rounded value drives the dirty comparison below, so a reopened
-  // clean form stays clean.
-  const initialYearly = Math.round(currentMonthly * 12 * 100) / 100;
+  // `monthlyToYearly` rounds to cents on read so the input doesn't display
+  // float-drift like 99999.99999999999 after a $100k yearly was stored as
+  // 8333.333…/mo. The same rounded value drives the dirty comparison below,
+  // so a reopened clean form stays clean.
+  const initialYearly = monthlyToYearly(currentMonthly);
   const [yearlyInput, setYearlyInput] = useState(initialYearly.toString());
   const [applyThisMonth, setApplyThisMonth] = useState(false);
 
