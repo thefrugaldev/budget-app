@@ -3,7 +3,7 @@
 import { useRef } from "react";
 
 import { CategoryPill } from "@/components/budget/category/CategoryPill";
-import { SignedAmount } from "@/components/budget/SignedAmount";
+import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { CheckboxCell } from "@/components/budget/transaction/CheckboxCell";
 import { RowMenu } from "@/components/budget/transaction/RowMenu";
 import type { TransactionSelection } from "@/hooks/useTransactionSelection";

@@ -3,7 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import { useId } from "react";
 
-import { SignedAmount } from "@/components/budget/SignedAmount";
+import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { CheckboxCell } from "@/components/budget/transaction/CheckboxCell";
 import { Row } from "@/components/budget/transaction/Row";
 import type { TransactionSelection } from "@/hooks/useTransactionSelection";

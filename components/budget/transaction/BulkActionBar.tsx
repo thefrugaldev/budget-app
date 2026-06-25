@@ -3,7 +3,7 @@
 import { FolderInput, Pencil, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
-import { SignedAmount } from "@/components/budget/SignedAmount";
+import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { BarButton } from "@/components/budget/transaction/BarButton";
 import { CrossKindConfirm } from "@/components/budget/transaction/CrossKindConfirm";
 import { DeleteConfirm } from "@/components/budget/transaction/DeleteConfirm";
