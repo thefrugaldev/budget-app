@@ -42,7 +42,7 @@ Prod runs on Azure Cosmos DB's MongoDB vCore free tier — 32 GB storage on a sh
 3. Create a new cluster:
    - **Cluster tier**: select **Free tier (M25)** — 32 GB storage, shared burstable compute
    - **Admin username + password** — save these; they're embedded in the connection string
-4. **Networking** → allow public access from the IP ranges you need. For Vercel, the easiest is **Allow public access from any Azure service** + adding `0.0.0.0` to `255.255.255.255`. (Tighten later if you want.)
+4. **Networking** → restrict public access to only the IPs that need it. **Do not** open the full `0.0.0.0`–`255.255.255.255` range — that exposes the database to the entire internet, and the only barrier left is the connection password. Instead, allowlist [Vercel's egress IP ranges](https://vercel.com/docs/edge-network/regions#ip-addresses) (or use a Vercel static-IP / secure-compute add-on), plus your own dev machine's IP for local Compass/mongosh access. Cosmos always enforces TLS + auth on top of this, but network scoping is the first line of defense.
 5. Wait ~5 minutes for provisioning, then under **Connection strings** copy the `mongodb+srv://<user>:<password>@<cluster>...` URI. Replace `<password>` with the real password.
 
 ### Vercel env vars
