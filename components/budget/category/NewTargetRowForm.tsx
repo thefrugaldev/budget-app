@@ -6,7 +6,7 @@ import { upsertCategoryTargetAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
-import { useToastOnSuccess } from "@/hooks/useToastOnSuccess";
+import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 
 /**
  * Footer form in the target-history disclosure for inserting a new target row
@@ -25,7 +25,7 @@ export function NewTargetRowForm({
     upsertCategoryTargetAction,
     CATEGORY_ACTION_INITIAL,
   );
-  useToastOnSuccess(state, () => "Target row added", onDone);
+  useActionSuccessToast(state, () => "Target row added", onDone);
   const [effectiveFrom, setEffectiveFrom] = useState("");
 
   return (

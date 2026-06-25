@@ -14,7 +14,7 @@ import { CategoryTargetHistory } from "@/components/budget/category/CategoryTarg
 import { SectionHeader } from "@/components/budget/category/SectionHeader";
 import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
-import { useToastOnSuccess } from "@/hooks/useToastOnSuccess";
+import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import {
   currentMonthKey,
   fmt,
@@ -118,8 +118,8 @@ export function CategoryEditSheet({
   );
   const [, startTransition] = useTransition();
 
-  useToastOnSuccess(detailsState, () => "Category updated");
-  useToastOnSuccess(
+  useActionSuccessToast(detailsState, () => "Category updated");
+  useActionSuccessToast(
     capState,
     () =>
       `${targetLabel(category.kind)} updated · effective ${monthLabel(

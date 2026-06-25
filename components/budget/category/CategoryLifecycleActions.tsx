@@ -12,7 +12,7 @@ import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { DeleteCategoryDialog } from "@/components/budget/category/DeleteCategoryDialog";
 import { EndCategoryDialog } from "@/components/budget/category/EndCategoryDialog";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
-import { useToastOnSuccess } from "@/hooks/useToastOnSuccess";
+import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { monthLabel } from "@/lib/budget";
 import type { Category } from "@/types/budget";
 
@@ -43,7 +43,7 @@ export function CategoryLifecycleActions({
     reopenCategoryAction,
     CATEGORY_ACTION_INITIAL,
   );
-  useToastOnSuccess(reopenState, () => `${category.name} reopened`);
+  useActionSuccessToast(reopenState, () => `${category.name} reopened`);
 
   const [endOpen, setEndOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);

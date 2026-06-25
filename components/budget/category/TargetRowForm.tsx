@@ -8,7 +8,7 @@ import {
 } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
-import { useToastOnSuccess } from "@/hooks/useToastOnSuccess";
+import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { monthLabel } from "@/lib/budget";
 import type { CategoryTarget } from "@/types/budget";
 
@@ -34,11 +34,11 @@ export function TargetRowForm({
     deleteCategoryTargetAction,
     CATEGORY_ACTION_INITIAL,
   );
-  useToastOnSuccess(
+  useActionSuccessToast(
     updateState,
     () => `Target updated for ${monthLabel(row.effectiveFrom)}`,
   );
-  useToastOnSuccess(
+  useActionSuccessToast(
     deleteState,
     () => `Target row removed (${monthLabel(row.effectiveFrom)})`,
   );
