@@ -26,6 +26,8 @@ export async function createCategory(input: {
   kind: Category["kind"];
   activeFrom: string;
   activeUntil?: string;
+  incomeFrequency?: Category["incomeFrequency"];
+  payCadence?: Category["payCadence"];
 }): Promise<Category> {
   const db = await getDb();
   await ensureIndexes(db);
@@ -37,10 +39,14 @@ export async function createCategory(input: {
     kind: input.kind,
     activeFrom: input.activeFrom,
     createdAt: new Date(),
-    // Only set `activeUntil` when actually provided. Writing `undefined`
+    // Only set optional fields when actually provided. Writing `undefined`
     // makes Mongo persist `null`, which then leaks through readers as
     // truthy-undefined and trips checks like `activeUntil !== undefined`.
     ...(input.activeUntil !== undefined ? { activeUntil: input.activeUntil } : {}),
+    ...(input.incomeFrequency !== undefined
+      ? { incomeFrequency: input.incomeFrequency }
+      : {}),
+    ...(input.payCadence !== undefined ? { payCadence: input.payCadence } : {}),
   };
 
   await db.collection<CategoryDocument>(COLLECTIONS.categories).insertOne(doc);
@@ -53,9 +59,19 @@ type CategoryPatch = {
   kind?: Category["kind"];
   activeFrom?: string;
   activeUntil?: string;
-  /** `null` clears the field via `$unset`; `undefined` leaves it alone. */
+  incomeFrequency?: Category["incomeFrequency"];
+  payCadence?: Category["payCadence"];
+  /** `true` clears the field via `$unset`; falsy leaves it alone. */
   clearActiveUntil?: boolean;
+  /**
+   * Clears `payCadence` via `$unset` — e.g. switching a source to one-time, or
+   * a recurring source back to cadence-unset. Falsy leaves it alone.
+   */
+  clearPayCadence?: boolean;
 };
+
+// Keys on CategoryPatch that drive `$unset` rather than `$set`.
+const CLEAR_FLAGS = new Set(["clearActiveUntil", "clearPayCadence"]);
 
 // Returns true if a matching category was found and patched.
 export async function updateCategory(
@@ -64,12 +80,13 @@ export async function updateCategory(
 ): Promise<boolean> {
   const set: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
-    if (key === "clearActiveUntil") continue;
+    if (CLEAR_FLAGS.has(key)) continue;
     if (value !== undefined) set[key] = value;
   }
 
   const unset: Record<string, "" | true> = {};
   if (patch.clearActiveUntil) unset.activeUntil = "";
+  if (patch.clearPayCadence) unset.payCadence = "";
 
   if (Object.keys(set).length === 0 && Object.keys(unset).length === 0) {
     return false;

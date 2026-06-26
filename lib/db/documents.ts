@@ -1,7 +1,7 @@
 // BSON document shapes stored in Mongo-compatible databases.
 // Keep fields simple and portable across Atlas and Cosmos DB Mongo API.
 
-import type { CategoryKind } from "@/types/budget";
+import type { CategoryKind, IncomeFrequency, PayCadence } from "@/types/budget";
 
 export type CategoryDocument = {
   _id: string;
@@ -10,6 +10,10 @@ export type CategoryDocument = {
   kind: CategoryKind;
   activeFrom: string; // "YYYY-MM"
   activeUntil?: string; // "YYYY-MM"
+  // Income-only (#46). Absent on legacy income docs — `toCategory` defaults
+  // those to "recurring" on read rather than via a write migration.
+  incomeFrequency?: IncomeFrequency;
+  payCadence?: PayCadence;
   createdAt: Date;
 };
 

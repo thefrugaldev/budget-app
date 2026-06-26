@@ -20,7 +20,9 @@ import { ensureIndexes } from "./indexes";
 const ACTIVE_FROM = "2026-01";
 
 type SeedCategory = Omit<CategoryDocument, "createdAt"> & {
-  initialMonthly: number;
+  // Omitted for one-time income sources, which have no baseline target — their
+  // story is received transactions, not a monthly figure (#46).
+  initialMonthly?: number;
 };
 
 const CATEGORIES: SeedCategory[] = [
@@ -35,7 +37,10 @@ const CATEGORIES: SeedCategory[] = [
   { _id: "hysa", name: "HYSA", emoji: "🏦", kind: "savings", activeFrom: ACTIVE_FROM, initialMonthly: 800 },
   { _id: "brokerage", name: "Brokerage", emoji: "📈", kind: "savings", activeFrom: ACTIVE_FROM, initialMonthly: 600 },
   { _id: "vacation", name: "Vacation fund", emoji: "🏖️", kind: "savings", activeFrom: ACTIVE_FROM, initialMonthly: 200 },
-  { _id: "salary", name: "Salary", emoji: "💼", kind: "income", activeFrom: ACTIVE_FROM, initialMonthly: 7500 },
+  { _id: "salary", name: "Salary", emoji: "💼", kind: "income", activeFrom: ACTIVE_FROM, initialMonthly: 7500, incomeFrequency: "recurring", payCadence: "bi-weekly" },
+  // One-time source (#46): no baseline target; its receipts are the RSU vest
+  // transactions below, so the fresh install showcases both income kinds.
+  { _id: "rsu", name: "RSU vests", emoji: "📊", kind: "income", activeFrom: ACTIVE_FROM, incomeFrequency: "one-time" },
 ];
 
 type SeedTransaction = Omit<TransactionDocument, "createdAt">;
@@ -94,6 +99,8 @@ const TRANSACTIONS: SeedTransaction[] = [
   { _id: "t51", categoryId: "hysa", amount: 800, date: "2026-01-15", vendor: "Ally Bank" },
   { _id: "t52", categoryId: "brokerage", amount: 600, date: "2026-01-02", vendor: "Vanguard" },
   { _id: "t53", categoryId: "entertainment", amount: 95, date: "2026-01-12", vendor: "Concert tix" },
+  { _id: "t54", categoryId: "rsu", amount: 12500, date: "2026-03-15", vendor: "Morgan Stanley", note: "Q1 vest" },
+  { _id: "t55", categoryId: "rsu", amount: 12500, date: "2026-06-15", vendor: "Morgan Stanley", note: "Q2 vest" },
 ];
 
 let seedPromise: Promise<void> | undefined;
@@ -130,6 +137,39 @@ async function doSeed(): Promise<void> {
   await backfillMissingCategories(db, now);
 }
 
+// Omit optional fields when absent so Mongo doesn't persist `null` (mirrors
+// createCategory's null-avoidance, which the readers in mappers.ts rely on).
+function buildCategoryDoc(c: SeedCategory, now: Date): CategoryDocument {
+  return {
+    _id: c._id,
+    name: c.name,
+    emoji: c.emoji,
+    kind: c.kind,
+    activeFrom: c.activeFrom,
+    createdAt: now,
+    ...(c.activeUntil !== undefined ? { activeUntil: c.activeUntil } : {}),
+    ...(c.incomeFrequency !== undefined
+      ? { incomeFrequency: c.incomeFrequency }
+      : {}),
+    ...(c.payCadence !== undefined ? { payCadence: c.payCadence } : {}),
+  };
+}
+
+// One-time income sources have no baseline, so they get no target row.
+function buildTargetDoc(
+  c: SeedCategory,
+  now: Date,
+): CategoryTargetDocument | undefined {
+  if (c.initialMonthly === undefined) return undefined;
+  return {
+    _id: `${c._id}:${c.activeFrom}`,
+    categoryId: c._id,
+    monthly: c.initialMonthly,
+    effectiveFrom: c.activeFrom,
+    createdAt: now,
+  };
+}
+
 async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
   const existingIds = new Set(
     (
@@ -142,48 +182,31 @@ async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
   const missing = CATEGORIES.filter((c) => !existingIds.has(c._id));
   if (missing.length === 0) return;
 
-  const catDocs: CategoryDocument[] = missing.map((c) => ({
-    _id: c._id,
-    name: c.name,
-    emoji: c.emoji,
-    kind: c.kind,
-    activeFrom: c.activeFrom,
-    createdAt: now,
-  }));
-  await db.collection<CategoryDocument>(COLLECTIONS.categories).insertMany(catDocs);
-
-  const targetDocs: CategoryTargetDocument[] = missing.map((c) => ({
-    _id: `${c._id}:${c.activeFrom}`,
-    categoryId: c._id,
-    monthly: c.initialMonthly,
-    effectiveFrom: c.activeFrom,
-    createdAt: now,
-  }));
   await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .insertMany(targetDocs);
+    .collection<CategoryDocument>(COLLECTIONS.categories)
+    .insertMany(missing.map((c) => buildCategoryDoc(c, now)));
+
+  const targetDocs = missing
+    .map((c) => buildTargetDoc(c, now))
+    .filter((d): d is CategoryTargetDocument => d !== undefined);
+  // A backfill of only one-time sources yields no targets — insertMany([]) throws.
+  if (targetDocs.length > 0) {
+    await db
+      .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
+      .insertMany(targetDocs);
+  }
 }
 
 async function seedCategories(db: Db, now: Date): Promise<void> {
-  const docs: CategoryDocument[] = CATEGORIES.map((c) => ({
-    _id: c._id,
-    name: c.name,
-    emoji: c.emoji,
-    kind: c.kind,
-    activeFrom: c.activeFrom,
-    createdAt: now,
-  }));
-  await db.collection<CategoryDocument>(COLLECTIONS.categories).insertMany(docs);
+  await db
+    .collection<CategoryDocument>(COLLECTIONS.categories)
+    .insertMany(CATEGORIES.map((c) => buildCategoryDoc(c, now)));
 }
 
 async function seedTargets(db: Db, now: Date): Promise<void> {
-  const docs: CategoryTargetDocument[] = CATEGORIES.map((c) => ({
-    _id: `${c._id}:${c.activeFrom}`,
-    categoryId: c._id,
-    monthly: c.initialMonthly,
-    effectiveFrom: c.activeFrom,
-    createdAt: now,
-  }));
+  const docs = CATEGORIES.map((c) => buildTargetDoc(c, now)).filter(
+    (d): d is CategoryTargetDocument => d !== undefined,
+  );
   await db
     .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
     .insertMany(docs);
