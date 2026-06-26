@@ -1,5 +1,5 @@
-import type { IncomeSourceStatus } from "@/lib/income";
 import { cn } from "@/lib/utils";
+import type { IncomeSourceStatus } from "@/types/budget";
 
 /**
  * Exception-only pill rendered alongside the income source's display label

@@ -1,7 +1,10 @@
-import type { Category, CategoryTarget, PayCadence } from "@/types/budget";
+import type {
+  Category,
+  CategoryTarget,
+  IncomeSourceStatus,
+  PayCadence,
+} from "@/types/budget";
 import { monthLabel } from "./budget";
-
-export type IncomeSourceStatus = "active" | "scheduled-change" | "ended";
 
 /**
  * Average monthly amount for a recurring source paid `amountPerPaycheck` on the
