@@ -68,20 +68,26 @@ export function AddIncomeSourceDialog({
   const [cadence, setCadence] = useState<PayCadence>("bi-weekly");
   const [perPaycheck, setPerPaycheck] = useState("");
 
-  // Reset to a clean step-1 state when the dialog transitions open → closed,
-  // so the next opening starts fresh. Render-time prev comparison (React 19's
-  // set-state-in-effect rule forbids the more obvious useEffect form).
+  // Clears every field back to a fresh step-1 state. Used both when the dialog
+  // closes and by the step-2 Back link, so re-picking a frequency never carries
+  // stale entries from the other branch (e.g. a typed amount surviving a switch
+  // to one-time).
+  function resetForm() {
+    setStep(1);
+    setFrequency(null);
+    setEmoji("💰");
+    setName("");
+    setCadence("bi-weekly");
+    setPerPaycheck("");
+  }
+
+  // Reset when the dialog transitions open → closed, so the next opening starts
+  // fresh. Render-time prev comparison (React 19's set-state-in-effect rule
+  // forbids the more obvious useEffect form).
   const [prevOpen, setPrevOpen] = useState(open);
   if (prevOpen !== open) {
     setPrevOpen(open);
-    if (!open) {
-      setStep(1);
-      setFrequency(null);
-      setEmoji("💰");
-      setName("");
-      setCadence("bi-weekly");
-      setPerPaycheck("");
-    }
+    if (!open) resetForm();
   }
 
   useEffect(() => {
@@ -227,10 +233,7 @@ export function AddIncomeSourceDialog({
               <div className="flex items-center justify-between gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    setStep(1);
-                    setFrequency(null);
-                  }}
+                  onClick={resetForm}
                   className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <ArrowLeft className="size-3.5" aria-hidden />

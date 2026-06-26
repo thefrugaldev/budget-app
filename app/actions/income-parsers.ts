@@ -59,7 +59,10 @@ export function parseIncomeFrequency(
 
 /** Pay cadence for a recurring source. */
 export function parsePayCadence(raw: FormDataEntryValue | null): PayCadence {
-  if (typeof raw === "string" && PAY_CADENCES.includes(raw as PayCadence)) {
+  // Cast the known-cadence array to string[] for the membership test rather
+  // than asserting `raw` is a PayCadence before it's been validated; the
+  // narrowing cast happens only on the proven-good return path.
+  if (typeof raw === "string" && (PAY_CADENCES as readonly string[]).includes(raw)) {
     return raw as PayCadence;
   }
   throw new Error("Pick a pay cadence");
