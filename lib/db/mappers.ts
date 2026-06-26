@@ -18,6 +18,14 @@ export function toCategory(doc: CategoryDocument): Category {
     // like `activeUntil !== undefined` and `monthLabel(activeUntil!)`
     // would otherwise crash on the leaked null.
     activeUntil: doc.activeUntil ?? undefined,
+    // Read-time migration (story 8): an income doc with no stored frequency
+    // predates #46 and reads back as "recurring". Non-income categories have
+    // no frequency at all. `?? undefined` also normalises a leaked Mongo null.
+    incomeFrequency:
+      doc.incomeFrequency ?? (doc.kind === "income" ? "recurring" : undefined),
+    // Legacy recurring sources and one-time sources both leave this unset;
+    // the cadence-unset case falls back to calendar-day pro-ration (story 10).
+    payCadence: doc.payCadence ?? undefined,
   };
 }
 

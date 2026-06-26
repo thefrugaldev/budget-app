@@ -9,6 +9,15 @@ export type CategoryKind = "expense" | "savings" | "income";
 export type PayCadence = "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
 
 /**
+ * Whether an income source arrives on a schedule (`recurring` — salary, paid
+ * gigs) or sporadically (`one-time` — annual bonus, RSU vests, side gig). Only
+ * meaningful for `kind: "income"`. Drives the two-step Add form, card display,
+ * and YTD pro-ration (#46). Existing income rows read back as `"recurring"`
+ * (see `toCategory`).
+ */
+export type IncomeFrequency = "recurring" | "one-time";
+
+/**
  * Row status for an income source on `/income`. Derived from the source's
  * lifecycle + target history by `classifyIncomeSourceStatus` (`lib/income.ts`)
  * and consumed by the card + status pill. "active" is the default (no pill);
@@ -25,6 +34,17 @@ export type Category = {
   activeFrom: string;
   /** Inclusive upper bound, "YYYY-MM". Undefined means "no end". */
   activeUntil?: string;
+  /**
+   * Only meaningful when `kind === "income"`. Existing income rows migrate to
+   * `"recurring"` on read (story 8); non-income categories leave it undefined.
+   */
+  incomeFrequency?: IncomeFrequency;
+  /**
+   * Only set when `incomeFrequency === "recurring"`. Undefined for one-time
+   * sources and for legacy recurring sources whose cadence is unset — the
+   * latter falls back to calendar-day YTD pro-ration (story 10).
+   */
+  payCadence?: PayCadence;
 };
 
 /**
