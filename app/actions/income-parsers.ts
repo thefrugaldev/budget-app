@@ -1,29 +1,71 @@
+import type { IncomeFrequency, PayCadence } from "@/types/budget";
+
 import { parseMonthKey } from "./category-parsers";
 
+const PAY_CADENCES: readonly PayCadence[] = [
+  "weekly",
+  "bi-weekly",
+  "semi-monthly",
+  "monthly",
+];
+
 /**
- * Parses a user-entered yearly amount. Accepts currency-formatted strings
- * (`"$90,000"`, `"$ 90,000.50"`) and bare numerics. Throws on empty input,
- * non-numeric text, or non-positive values so the calling action surfaces an
- * inline error.
+ * Parses a user-entered positive currency amount under a caller-supplied
+ * `label` (which drives the error copy, e.g. "Yearly amount", "Amount per
+ * paycheck"). Accepts currency-formatted strings (`"$90,000"`, `"$ 90,000.50"`)
+ * and bare numerics. Throws on empty input, non-numeric text, or non-positive
+ * values so the calling action surfaces an inline error.
  */
-export function parseYearly(raw: FormDataEntryValue | null): number {
+export function parsePositiveAmount(
+  raw: FormDataEntryValue | null,
+  label: string,
+): number {
   if (typeof raw !== "string" || raw.trim() === "") {
-    throw new Error("Yearly amount is required");
+    throw new Error(`${label} is required`);
   }
   const cleaned = raw.replace(/[^0-9.\-]/g, "");
   // `Number("")` === 0; treat empty-after-stripping as "no digits" so non-
   // numeric input like "abc" rejects with the right message, not "≤ 0".
   if (cleaned === "" || !/[0-9]/.test(cleaned)) {
-    throw new Error("Yearly amount must be a number");
+    throw new Error(`${label} must be a number`);
   }
   const n = Number(cleaned);
   if (!Number.isFinite(n)) {
-    throw new Error("Yearly amount must be a number");
+    throw new Error(`${label} must be a number`);
   }
   if (n <= 0) {
-    throw new Error("Yearly amount must be greater than zero");
+    throw new Error(`${label} must be greater than zero`);
   }
   return n;
+}
+
+/** Yearly baseline amount (inline editor + legacy create path). */
+export function parseYearly(raw: FormDataEntryValue | null): number {
+  return parsePositiveAmount(raw, "Yearly amount");
+}
+
+/** Per-paycheck amount entered for a recurring source's cadence (story 3). */
+export function parsePerPaycheck(raw: FormDataEntryValue | null): number {
+  return parsePositiveAmount(raw, "Amount per paycheck");
+}
+
+/** Step-1 frequency discriminator from the two-step Add Source form. */
+export function parseIncomeFrequency(
+  raw: FormDataEntryValue | null,
+): IncomeFrequency {
+  if (raw === "recurring" || raw === "one-time") return raw;
+  throw new Error("Choose whether this income is recurring or one-time");
+}
+
+/** Pay cadence for a recurring source. */
+export function parsePayCadence(raw: FormDataEntryValue | null): PayCadence {
+  // Cast the known-cadence array to string[] for the membership test rather
+  // than asserting `raw` is a PayCadence before it's been validated; the
+  // narrowing cast happens only on the proven-good return path.
+  if (typeof raw === "string" && (PAY_CADENCES as readonly string[]).includes(raw)) {
+    return raw as PayCadence;
+  }
+  throw new Error("Pick a pay cadence");
 }
 
 /**
