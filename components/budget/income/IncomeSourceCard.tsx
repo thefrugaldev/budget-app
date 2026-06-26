@@ -10,12 +10,15 @@ import { fmt, monthLabel, resolveTargetForMonth } from "@/lib/budget";
 import {
   buildIncomeSourceDisplayLabel,
   classifyIncomeSourceStatus,
-  type IncomeSourceStatus,
   monthlyToYearly,
   nextScheduledTarget,
 } from "@/lib/income";
 import { cn } from "@/lib/utils";
-import type { Category, CategoryTarget } from "@/types/budget";
+import type {
+  Category,
+  CategoryTarget,
+  IncomeSourceStatus,
+} from "@/types/budget";
 
 /**
  * Read-mode + inline editor card for an income source on `/income`

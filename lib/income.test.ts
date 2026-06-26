@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { Category, CategoryTarget } from "@/types/budget";
 import {
   buildIncomeSourceDisplayLabel,
+  cadenceLabel,
   classifyIncomeSourceStatus,
+  monthlyFromCadence,
   monthlyToYearly,
   nextScheduledTarget,
+  paychecksInMonth,
+  paychecksThroughDate,
   yearlyToMonthly,
 } from "./income";
 
@@ -222,5 +226,109 @@ describe("monthlyToYearly / yearlyToMonthly", () => {
 
   it("is the inverse of monthlyToYearly within cent precision", () => {
     expect(monthlyToYearly(yearlyToMonthly(90000))).toBe(90000);
+  });
+});
+
+describe("monthlyFromCadence", () => {
+  it("converts each cadence to its monthly average", () => {
+    expect(monthlyFromCadence(600, "weekly")).toBe(2600); // 600 × 52 / 12
+    expect(monthlyFromCadence(600, "bi-weekly")).toBe(1300); // 600 × 26 / 12
+    expect(monthlyFromCadence(600, "semi-monthly")).toBe(1200); // 600 × 24 / 12
+    expect(monthlyFromCadence(5000, "monthly")).toBe(5000); // pass-through
+  });
+
+  it("recovers the $7,500/mo baseline from the $90k/yr bi-weekly headline example", () => {
+    // $90,000/yr paid bi-weekly is $3,461.54/check; the stored monthly must be
+    // exactly $7,500 (90000 / 12), not float-drift.
+    expect(monthlyFromCadence(90000 / 26, "bi-weekly")).toBeCloseTo(7500, 6);
+  });
+});
+
+describe("cadenceLabel", () => {
+  it("returns the human display name for each cadence", () => {
+    expect(cadenceLabel("weekly")).toBe("weekly");
+    expect(cadenceLabel("bi-weekly")).toBe("bi-weekly");
+    expect(cadenceLabel("semi-monthly")).toBe("semi-monthly");
+    expect(cadenceLabel("monthly")).toBe("monthly");
+  });
+});
+
+describe("paychecksInMonth", () => {
+  it("monthly is always one per month", () => {
+    expect(paychecksInMonth("monthly", "2026-02")).toBe(1);
+    expect(paychecksInMonth("monthly", "2026-07")).toBe(1);
+  });
+
+  it("semi-monthly is always two (1st and 15th)", () => {
+    expect(paychecksInMonth("semi-monthly", "2026-02")).toBe(2);
+    expect(paychecksInMonth("semi-monthly", "2026-12")).toBe(2);
+  });
+
+  it("weekly yields 5 in a month the weekday recurs five times, 4 otherwise", () => {
+    // Anchor Fri 2026-01-02: Jan has paydays 2,9,16,23,30 (5); Feb has 6,13,20,27 (4).
+    expect(paychecksInMonth("weekly", "2026-01", "2026-01-02")).toBe(5);
+    expect(paychecksInMonth("weekly", "2026-02", "2026-01-02")).toBe(4);
+  });
+
+  it("bi-weekly yields 3 in a third-stride month, 2 otherwise", () => {
+    // Anchor 2026-01-02: Jan has 2,16,30 (3); Feb has 13,27 (2).
+    expect(paychecksInMonth("bi-weekly", "2026-01", "2026-01-02")).toBe(3);
+    expect(paychecksInMonth("bi-weekly", "2026-02", "2026-01-02")).toBe(2);
+  });
+
+  it("defaults the anchor to the first of the month when none is given", () => {
+    // Period-7 from the 1st: Jan 1,8,15,22,29 = 5 in a 31-day month.
+    expect(paychecksInMonth("weekly", "2026-01")).toBe(5);
+  });
+
+  it("sums to 27 over the bi-weekly 27-paycheck year, 26 in an ordinary year", () => {
+    const months = Array.from(
+      { length: 12 },
+      (_, i) => `2026-${String(i + 1).padStart(2, "0")}`,
+    );
+    // Anchor Jan 1: paydays at Jan1 + 14k land on Dec 31 (day 364), giving 27.
+    const sum27 = months.reduce(
+      (n, ym) => n + paychecksInMonth("bi-weekly", ym, "2026-01-01"),
+      0,
+    );
+    expect(sum27).toBe(27);
+    // Anchor Jan 8: the final stride falls in Jan 2027, so 2026 sees only 26.
+    const sum26 = months.reduce(
+      (n, ym) => n + paychecksInMonth("bi-weekly", ym, "2026-01-08"),
+      0,
+    );
+    expect(sum26).toBe(26);
+  });
+});
+
+describe("paychecksThroughDate", () => {
+  it("counts only paychecks on or before throughDate within the month", () => {
+    // Weekly anchor 2026-01-02: through the 15th counts Jan 2 and 9 only.
+    expect(paychecksThroughDate("weekly", "2026-01", "2026-01-15", "2026-01-02")).toBe(2);
+    expect(paychecksThroughDate("weekly", "2026-01", "2026-01-31", "2026-01-02")).toBe(5);
+  });
+
+  it("counts the 1st inclusively on the first of the month", () => {
+    // Semi-monthly through the 1st counts the 1st's paycheck (story 9: a
+    // paycheck that lands on the 1st is received, not pending).
+    expect(paychecksThroughDate("semi-monthly", "2026-03", "2026-03-01", "2026-03-01")).toBe(1);
+    expect(paychecksThroughDate("semi-monthly", "2026-03", "2026-03-14", "2026-03-01")).toBe(1);
+    expect(paychecksThroughDate("semi-monthly", "2026-03", "2026-03-15", "2026-03-01")).toBe(2);
+  });
+
+  it("returns zero when throughDate precedes the month", () => {
+    expect(paychecksThroughDate("bi-weekly", "2026-02", "2026-01-20", "2026-01-02")).toBe(0);
+  });
+
+  it("counts the whole month when throughDate is past month-end", () => {
+    expect(paychecksThroughDate("bi-weekly", "2026-02", "2026-12-31", "2026-01-02")).toBe(
+      paychecksInMonth("bi-weekly", "2026-02", "2026-01-02"),
+    );
+  });
+
+  it("clamps a monthly anchor's day-of-month to the month length", () => {
+    // A 31st anchor pays on Feb 28; through the 27th nothing has landed yet.
+    expect(paychecksThroughDate("monthly", "2026-02", "2026-02-28", "2026-01-31")).toBe(1);
+    expect(paychecksThroughDate("monthly", "2026-02", "2026-02-27", "2026-01-31")).toBe(0);
   });
 });

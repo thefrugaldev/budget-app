@@ -1,7 +1,155 @@
-import type { Category, CategoryTarget } from "@/types/budget";
+import type {
+  Category,
+  CategoryTarget,
+  IncomeSourceStatus,
+  PayCadence,
+} from "@/types/budget";
 import { monthLabel } from "./budget";
 
-export type IncomeSourceStatus = "active" | "scheduled-change" | "ended";
+/**
+ * Average monthly amount for a recurring source paid `amountPerPaycheck` on the
+ * given `cadence`. This is the figure stored as `CategoryTarget.monthly` so the
+ * storage shape stays uniform across kinds (ADR 0001) — the cadence + per-paycheck
+ * amount are a display/entry convenience layered on top, not a second source of
+ * truth. Annual paycheck counts: weekly 52, bi-weekly 26, semi-monthly 24,
+ * monthly 12 (so `monthly` cadence is a straight pass-through).
+ */
+export function monthlyFromCadence(
+  amountPerPaycheck: number,
+  cadence: PayCadence,
+): number {
+  switch (cadence) {
+    case "weekly":
+      return (amountPerPaycheck * 52) / 12;
+    case "bi-weekly":
+      return (amountPerPaycheck * 26) / 12;
+    case "semi-monthly":
+      return (amountPerPaycheck * 24) / 12;
+    case "monthly":
+      return amountPerPaycheck;
+  }
+}
+
+const CADENCE_LABELS: Record<PayCadence, string> = {
+  weekly: "weekly",
+  "bi-weekly": "bi-weekly",
+  "semi-monthly": "semi-monthly",
+  monthly: "monthly",
+};
+
+/**
+ * Human display name for a cadence (e.g. `$3,461.54 bi-weekly`). Decoupled from
+ * the stored enum token so display copy can diverge from persistence later
+ * without a data migration.
+ */
+export function cadenceLabel(cadence: PayCadence): string {
+  return CADENCE_LABELS[cadence];
+}
+
+/** UTC day number (integer days since the epoch) for a "YYYY-MM-DD" date. */
+function toDayNumber(isoDate: string): number {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000);
+}
+
+/** Number of days in the calendar month "YYYY-MM". */
+function daysInMonth(ym: string): number {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/** "YYYY-MM-DD" for day-of-month `dom` within month "YYYY-MM". */
+function dateInMonth(ym: string, dom: number): string {
+  return `${ym}-${String(dom).padStart(2, "0")}`;
+}
+
+/**
+ * Count of integers in `[fromDay, toDay]` (inclusive, day numbers) congruent to
+ * `anchorDay` modulo `period`. The schedule is periodic in both directions from
+ * the anchor, so a month later than the anchor still lands on the right phase.
+ */
+function countOnCadence(
+  period: number,
+  anchorDay: number,
+  fromDay: number,
+  toDay: number,
+): number {
+  if (toDay < fromDay) return 0;
+  const rem = (((fromDay - anchorDay) % period) + period) % period;
+  const firstPayday = rem === 0 ? fromDay : fromDay + (period - rem);
+  if (firstPayday > toDay) return 0;
+  return Math.floor((toDay - firstPayday) / period) + 1;
+}
+
+/**
+ * Count of paychecks expected in month `ym` that fall on or before
+ * `throughDate` ("YYYY-MM-DD"). `throughDate` is clamped to the month, so a
+ * date past month-end counts the whole month and a date before month-start
+ * counts zero — this is exactly the "paychecks received so far this month"
+ * primitive Pulse needs to pro-rate YTD income by paychecks instead of calendar
+ * days (story 9).
+ *
+ * Cadence semantics:
+ *  - `weekly` / `bi-weekly` — periodic from `anchorDate` (the source's first
+ *    known paycheck); 7- and 14-day strides. The anchor's *phase* is what
+ *    matters, so bi-weekly naturally yields 3 paychecks in the ~2 months/year
+ *    where a third stride lands inside the month, and 2 otherwise.
+ *  - `semi-monthly` — the 1st and 15th, always 2 in a full month
+ *    (anchor-independent).
+ *  - `monthly` — one paycheck on the anchor's day-of-month, clamped to the
+ *    month length (e.g. a 31st anchor pays on Feb 28).
+ */
+export function paychecksThroughDate(
+  cadence: PayCadence,
+  ym: string,
+  throughDate: string,
+  anchorDate: string,
+): number {
+  const monthFirst = toDayNumber(dateInMonth(ym, 1));
+  const monthLast = toDayNumber(dateInMonth(ym, daysInMonth(ym)));
+  const to = Math.min(monthLast, toDayNumber(throughDate));
+  if (to < monthFirst) return 0;
+
+  switch (cadence) {
+    case "weekly":
+      return countOnCadence(7, toDayNumber(anchorDate), monthFirst, to);
+    case "bi-weekly":
+      return countOnCadence(14, toDayNumber(anchorDate), monthFirst, to);
+    case "semi-monthly": {
+      let n = 0;
+      for (const dom of [1, 15]) {
+        if (toDayNumber(dateInMonth(ym, dom)) <= to) n++;
+      }
+      return n;
+    }
+    case "monthly": {
+      const anchorDom = Number(anchorDate.split("-")[2]);
+      const dom = Math.min(anchorDom, daysInMonth(ym));
+      return toDayNumber(dateInMonth(ym, dom)) <= to ? 1 : 0;
+    }
+  }
+}
+
+/**
+ * Count of paychecks expected across the whole calendar month `ym`. Thin
+ * wrapper over {@link paychecksThroughDate} through month-end. `anchorDate`
+ * (the source's first known paycheck) defaults to the first of the month for
+ * cadences that need a phase (weekly/bi-weekly); pass an explicit anchor when
+ * counting across multiple months so the phase stays consistent — e.g. summing
+ * a bi-weekly source over a year yields 27 in the year a third stride lands.
+ */
+export function paychecksInMonth(
+  cadence: PayCadence,
+  ym: string,
+  anchorDate: string = dateInMonth(ym, 1),
+): number {
+  return paychecksThroughDate(
+    cadence,
+    ym,
+    dateInMonth(ym, daysInMonth(ym)),
+    anchorDate,
+  );
+}
 
 /**
  * Yearly⇄monthly conversion at the income UI boundary. Income targets are
