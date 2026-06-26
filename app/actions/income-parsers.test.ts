@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseCancelScheduledBaselineInput,
+  parseIncomeFrequency,
+  parsePayCadence,
+  parsePerPaycheck,
   parseYearly,
 } from "./income-parsers";
 
@@ -49,6 +52,48 @@ describe("parseYearly", () => {
 
   it("rejects negative values", () => {
     expect(() => parseYearly("-100")).toThrow(/greater than zero/i);
+  });
+});
+
+describe("parsePerPaycheck", () => {
+  it("accepts a currency-formatted per-paycheck amount", () => {
+    expect(parsePerPaycheck("$3,461.54")).toBe(3461.54);
+  });
+
+  it("rejects empty input with a per-paycheck-specific message", () => {
+    expect(() => parsePerPaycheck("")).toThrow(/Amount per paycheck is required/);
+  });
+
+  it("rejects non-numeric and non-positive input", () => {
+    expect(() => parsePerPaycheck("abc")).toThrow(/Amount per paycheck must be a number/);
+    expect(() => parsePerPaycheck("0")).toThrow(
+      /Amount per paycheck must be greater than zero/,
+    );
+  });
+});
+
+describe("parseIncomeFrequency", () => {
+  it("accepts the two valid discriminators", () => {
+    expect(parseIncomeFrequency("recurring")).toBe("recurring");
+    expect(parseIncomeFrequency("one-time")).toBe("one-time");
+  });
+
+  it("rejects anything else", () => {
+    expect(() => parseIncomeFrequency(null)).toThrow(/recurring or one-time/);
+    expect(() => parseIncomeFrequency("weekly")).toThrow(/recurring or one-time/);
+  });
+});
+
+describe("parsePayCadence", () => {
+  it("accepts each of the four cadences", () => {
+    for (const c of ["weekly", "bi-weekly", "semi-monthly", "monthly"] as const) {
+      expect(parsePayCadence(c)).toBe(c);
+    }
+  });
+
+  it("rejects a missing or unknown cadence", () => {
+    expect(() => parsePayCadence(null)).toThrow(/pay cadence/i);
+    expect(() => parsePayCadence("fortnightly")).toThrow(/pay cadence/i);
   });
 });
 

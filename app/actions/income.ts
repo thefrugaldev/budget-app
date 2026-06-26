@@ -17,8 +17,13 @@ import {
 } from "@/lib/repositories/categoryTargets";
 import { countTransactionsForCategory } from "@/lib/repositories/transactions";
 
+import { monthlyFromCadence } from "@/lib/income";
+
 import {
   parseCancelScheduledBaselineInput,
+  parseIncomeFrequency,
+  parsePayCadence,
+  parsePerPaycheck,
   parseYearly,
 } from "./income-parsers";
 import type { IncomeActionState } from "./income-state";
@@ -110,9 +115,18 @@ async function collapseRedundantForwardTargets(
 }
 
 /**
- * Adds a brand-new income source: a `kind: "income"` category and an initial
- * baseline target row. `activeFrom` defaults to the current month so the
- * source contributes to today's annualized header value immediately.
+ * Adds a brand-new income source from the two-step Add Source form (#46).
+ * `activeFrom` defaults to the current month so the source contributes to
+ * today's annualized header value immediately. The shape branches on the
+ * step-1 frequency:
+ *
+ *  - **recurring** — stores `payCadence` and an initial baseline target whose
+ *    monthly value is derived from the per-paycheck amount via
+ *    `monthlyFromCadence`, so storage stays monthly (ADR 0001) while the user
+ *    enters their natural per-paycheck unit (story 3).
+ *  - **one-time** — `incomeFrequency: "one-time"` with **no** target row; a
+ *    one-time source has no baseline, its story is its received transactions
+ *    (story 5).
  */
 export async function createIncomeSourceAction(
   prev: IncomeActionState,
@@ -121,21 +135,34 @@ export async function createIncomeSourceAction(
   try {
     const name = requireString(formData.get("name"), "name");
     const emoji = (formData.get("emoji") as string | null)?.trim() || "💰";
-    const yearly = parseYearly(formData.get("yearly"));
+    const frequency = parseIncomeFrequency(formData.get("frequency"));
     const activeFrom = currentMonthKey();
 
-    const category = await createCategory({
-      name,
-      emoji,
-      kind: "income",
-      activeFrom,
-    });
-
-    await createCategoryTarget({
-      categoryId: category.id,
-      monthly: yearly / 12,
-      effectiveFrom: activeFrom,
-    });
+    if (frequency === "recurring") {
+      const cadence = parsePayCadence(formData.get("cadence"));
+      const perPaycheck = parsePerPaycheck(formData.get("amountPerPaycheck"));
+      const category = await createCategory({
+        name,
+        emoji,
+        kind: "income",
+        activeFrom,
+        incomeFrequency: "recurring",
+        payCadence: cadence,
+      });
+      await createCategoryTarget({
+        categoryId: category.id,
+        monthly: monthlyFromCadence(perPaycheck, cadence),
+        effectiveFrom: activeFrom,
+      });
+    } else {
+      await createCategory({
+        name,
+        emoji,
+        kind: "income",
+        activeFrom,
+        incomeFrequency: "one-time",
+      });
+    }
 
     revalidatePath("/");
     revalidatePath("/income");
