@@ -1,5 +1,13 @@
 export type CategoryKind = "expense" | "savings" | "income";
 
+/**
+ * Pay schedule for a recurring income source. Drives the lived-denomination
+ * display on `/income` cards and paycheck-aware YTD pro-ration on Pulse (#46).
+ * Only meaningful for `kind: "income"` sources; chunk 2 of #46 adds the
+ * optional `payCadence` field to `Category`.
+ */
+export type PayCadence = "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
+
 export type Category = {
   id: string;
   name: string;
