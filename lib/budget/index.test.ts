@@ -577,6 +577,21 @@ describe("computeIncomeForRange", () => {
     const inc = computeIncomeForRange([anchored], history, [], "2026-06", "2026-06", today);
     expect(inc).toBeCloseTo(perCheck * 2, 5);
   });
+
+  it("applies firstPaycheckDate to full past months too, not just the current one", () => {
+    // Same Jan–Feb window as the default-anchor test above (which lands 5
+    // paychecks), but anchored to the 14th: paydays fall Jan 14/28, Feb 11/25 →
+    // 4 paychecks. Proves the anchor drives past-month counts, not only the
+    // current month's pro-ration.
+    const anchored = incomeCat({
+      id: "salary",
+      payCadence: "bi-weekly",
+      firstPaycheckDate: "2026-01-14",
+    });
+    const today = new Date("2026-03-01T00:00:00Z");
+    const inc = computeIncomeForRange([anchored], history, [], "2026-01", "2026-02", today);
+    expect(inc).toBeCloseTo(perCheck * 4, 5);
+  });
 });
 
 describe("thresholdFor negative-pct cases", () => {
