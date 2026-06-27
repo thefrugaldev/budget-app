@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { currentMonthKey, nextMonth } from "@/lib/budget";
+import { currentMonthKey, nextMonth, resolveTargetForMonth } from "@/lib/budget";
 import {
   createCategory,
   deleteCategory,
   getCategoryById,
+  updateCategory,
 } from "@/lib/repositories/categories";
 import {
   createCategoryTarget,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/repositories/categoryTargets";
 import { countTransactionsForCategory } from "@/lib/repositories/transactions";
 
-import { monthlyFromCadence } from "@/lib/income";
+import { monthlyFromCadence, monthlyToYearly } from "@/lib/income";
 
 import {
   parseCancelScheduledBaselineInput,
@@ -53,43 +54,76 @@ function failure(prev: IncomeActionState, err: unknown): IncomeActionState {
 }
 
 /**
- * Writes a new effective-dated baseline for an income source. The UI enters a
- * yearly value; persistence stores monthly (yearly ÷ 12) to keep the storage
- * shape uniform across kinds. `applyThisMonth` toggles between effective-from
- * = current month vs. next month (the default).
+ * Persists an inline edit to an income source's frequency-shaped fields
+ * (#46 chunk 7). One action, branched by the submitted frequency so the editor
+ * doesn't fork by kind (story 11):
+ *
+ *  - **one-time** — sets `incomeFrequency: "one-time"`, clears `payCadence`, and
+ *    deletes every baseline target. A one-time source is measured by its
+ *    receipts, not a baseline (story 12); the editor confirms before this
+ *    discard. Idempotent when the source is already one-time.
+ *  - **recurring** — persists `payCadence` (the "set pay cadence" path for a
+ *    migrated legacy source), then writes a new effective-dated baseline from
+ *    the yearly amount (stored monthly ÷ 12, ADR 0001). The baseline write is
+ *    *conditional*: a cadence-only change touches no target row, so it can't
+ *    spawn a redundant "scheduled change → same value" row. A genuine amount
+ *    change, an `applyThisMonth` toggle, or a source with no baseline yet
+ *    (switching one-time → recurring) all trigger the write.
+ *
+ * `applyThisMonth` toggles effective-from between the current and next month;
+ * a source gaining its first baseline always lands in the current month so it
+ * contributes immediately.
  */
-export async function updateIncomeBaselineAction(
+export async function updateIncomeSourceAction(
   prev: IncomeActionState,
   formData: FormData,
 ): Promise<IncomeActionState> {
   try {
     const categoryId = requireString(formData.get("categoryId"), "categoryId");
     await assertIncomeCategory(categoryId);
+    const frequency = parseIncomeFrequency(formData.get("frequency"));
+
+    if (frequency === "one-time") {
+      await updateCategory(categoryId, {
+        incomeFrequency: "one-time",
+        clearPayCadence: true,
+      });
+      await deleteAllCategoryTargets(categoryId);
+      revalidatePath("/");
+      revalidatePath("/income");
+      return success(prev);
+    }
+
+    const cadence = parsePayCadence(formData.get("cadence"));
     const yearly = parseYearly(formData.get("yearly"));
     const applyThisMonth = formData.get("applyThisMonth") === "on";
 
-    const thisMonth = currentMonthKey();
-    const effectiveFrom = applyThisMonth ? thisMonth : nextMonth(thisMonth);
-
-    const monthly = yearly / 12;
-    await upsertCategoryTarget({
-      categoryId,
-      monthly,
-      effectiveFrom,
+    await updateCategory(categoryId, {
+      incomeFrequency: "recurring",
+      payCadence: cadence,
     });
 
-    // Collapse redundant immediately-next future target(s). After this write,
-    // resolving any month M >= effectiveFrom returns the most recent target
-    // with effectiveFrom <= M. So a future row whose `monthly` equals the
-    // chain value coming from our write is a no-op for every month it
-    // covers — removing it changes nothing. Walk forward, deleting while
-    // the chain stays at the same monthly; stop at the first mismatch.
-    //
-    // Without this cleanup an "Apply this month" edit that matches a queued
-    // future change leaves both rows in place — the card then reads as
-    // "Scheduled change → $X starting next month" even though nothing
-    // actually changes ($X is already in effect). See PR #47 / issue #39.
-    await collapseRedundantForwardTargets(categoryId, effectiveFrom, monthly);
+    const thisMonth = currentMonthKey();
+    const existing = await listCategoryTargetsFor(categoryId);
+    const currentMonthly = resolveTargetForMonth(categoryId, thisMonth, existing);
+    const monthly = yearly / 12;
+    // Compare in the same rounded-yearly space the editor's dirty check uses, so
+    // a reopened-and-resaved clean amount doesn't write a no-op row.
+    const amountChanged = yearly !== monthlyToYearly(currentMonthly);
+
+    if (existing.length === 0 || amountChanged || applyThisMonth) {
+      const effectiveFrom =
+        existing.length === 0 || applyThisMonth ? thisMonth : nextMonth(thisMonth);
+      await upsertCategoryTarget({ categoryId, monthly, effectiveFrom });
+      // Collapse redundant immediately-next future target(s). After this write,
+      // resolving any month M >= effectiveFrom returns the most recent target
+      // with effectiveFrom <= M, so a future row whose `monthly` equals the
+      // chain value is a no-op for every month it covers — removing it changes
+      // nothing. Without this an "Apply this month" edit matching a queued
+      // change leaves both rows, and the card reads "Scheduled change → $X"
+      // when $X is already in effect. See PR #47 / issue #39.
+      await collapseRedundantForwardTargets(categoryId, effectiveFrom, monthly);
+    }
 
     revalidatePath("/");
     revalidatePath("/income");
