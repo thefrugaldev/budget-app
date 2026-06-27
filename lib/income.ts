@@ -5,7 +5,7 @@ import type {
   PayCadence,
   Transaction,
 } from "@/types/budget";
-import { monthLabel } from "./budget";
+import { monthLabel, mostRecentTransactionInCategory } from "./budget";
 
 /**
  * Average monthly amount for a recurring source paid `amountPerPaycheck` on the
@@ -79,7 +79,9 @@ export function cadenceLabel(cadence: PayCadence): string {
  * `last` is null when the source has no receipts in `year`, which the card
  * renders as the "Awaiting first receipt" empty state. Basing the empty check
  * on receipt *presence* (not a zero sum) keeps a vest-then-reversed source that
- * nets to $0 out of the empty state — it did receive something.
+ * nets to $0 out of the empty state — it did receive something. The latest
+ * receipt — including its deterministic same-date id tie-break — is resolved by
+ * the shared `mostRecentTransactionInCategory` rather than re-derived here.
  */
 export type OneTimeReceiptSummary = {
   received: number;
@@ -91,16 +93,11 @@ export function oneTimeReceiptSummary(
   categoryId: string,
   year: string,
 ): OneTimeReceiptSummary {
-  let received = 0;
-  let last: Transaction | undefined;
-  for (const t of transactions) {
-    if (t.categoryId !== categoryId) continue;
-    if (t.date.slice(0, 4) !== year) continue;
-    received += t.amount;
-    // `>=` so that on a same-date tie the later array entry wins; transaction
-    // order is otherwise unspecified and the rendered date is identical anyway.
-    if (!last || t.date >= last.date) last = t;
-  }
+  const inYear = transactions.filter(
+    (t) => t.categoryId === categoryId && t.date.slice(0, 4) === year,
+  );
+  const received = inYear.reduce((sum, t) => sum + t.amount, 0);
+  const last = mostRecentTransactionInCategory(inYear, categoryId);
   return {
     received,
     last: last ? { date: last.date, noun: receiptNoun(last) } : null,

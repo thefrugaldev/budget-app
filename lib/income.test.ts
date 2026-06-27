@@ -326,6 +326,21 @@ describe("oneTimeReceiptSummary", () => {
       ),
     ).toEqual({ received: 0, last: null });
   });
+
+  it("breaks a same-date tie by id, inheriting mostRecentTransactionInCategory", () => {
+    // Same date, supplied lowest-id-last to prove the winner isn't array order:
+    // the higher id ("v2") wins, so its note drives the noun.
+    const summary = oneTimeReceiptSummary(
+      [
+        tx({ id: "v2", amount: 2000, date: "2026-04-01", note: "spot bonus" }),
+        tx({ id: "v1", amount: 1000, date: "2026-04-01", note: "RSU vest" }),
+      ],
+      "rsu",
+      "2026",
+    );
+    expect(summary.received).toBe(3000);
+    expect(summary.last).toEqual({ date: "2026-04-01", noun: "bonus" });
+  });
 });
 
 describe("perPaycheckFromMonthly", () => {
