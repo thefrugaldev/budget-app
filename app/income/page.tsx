@@ -8,6 +8,10 @@ import {
   currentMonthlyBaseline,
   fmt,
 } from "@/lib/budget";
+import {
+  oneTimeReceiptSummary,
+  type OneTimeReceiptSummary,
+} from "@/lib/income";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
@@ -34,6 +38,7 @@ export default async function IncomePage() {
   ]);
 
   const thisMonth = currentMonthKey();
+  const thisYear = thisMonth.slice(0, 4);
   const incomeCategories = categories.filter((c) => c.kind === "income");
 
   // Bucket transaction counts by categoryId in one pass — the ⋯ menu needs
@@ -42,6 +47,19 @@ export default async function IncomePage() {
   const txCountByCategory = new Map<string, number>();
   for (const t of transactions) {
     txCountByCategory.set(t.categoryId, (txCountByCategory.get(t.categoryId) ?? 0) + 1);
+  }
+
+  // One-time sources are measured against their receipts, not a baseline, so
+  // their card needs YTD-received + last-receipt — computed here on the server
+  // (chunk 5). Recurring sources skip this; their card reads from `targets`.
+  const oneTimeSummaryByCategory = new Map<string, OneTimeReceiptSummary>();
+  for (const c of incomeCategories) {
+    if (c.incomeFrequency === "one-time") {
+      oneTimeSummaryByCategory.set(
+        c.id,
+        oneTimeReceiptSummary(transactions, c.id, thisYear),
+      );
+    }
   }
 
   // currentMonthlyBaseline already filters to sources active *this* month,
@@ -109,6 +127,7 @@ export default async function IncomePage() {
               targets={targets}
               currentMonth={thisMonth}
               txCount={txCountByCategory.get(c.id) ?? 0}
+              oneTimeSummary={oneTimeSummaryByCategory.get(c.id)}
             />
           ))}
         </ul>

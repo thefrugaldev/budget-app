@@ -3,8 +3,9 @@ import type {
   CategoryTarget,
   IncomeSourceStatus,
   PayCadence,
+  Transaction,
 } from "@/types/budget";
-import { monthLabel } from "./budget";
+import { monthLabel, mostRecentTransactionInCategory } from "./budget";
 
 /**
  * Average monthly amount for a recurring source paid `amountPerPaycheck` on the
@@ -67,6 +68,52 @@ const CADENCE_LABELS: Record<PayCadence, string> = {
  */
 export function cadenceLabel(cadence: PayCadence): string {
   return CADENCE_LABELS[cadence];
+}
+
+/**
+ * What a one-time income source's `/income` card needs to tell its story (#46
+ * stories 6/7): the signed sum received in `year` and the most recent receipt
+ * that year. A one-time source has no baseline — it's measured against its own
+ * transactions — so this is derived purely from the transaction log.
+ *
+ * `last` is null when the source has no receipts in `year`, which the card
+ * renders as the "Awaiting first receipt" empty state. Basing the empty check
+ * on receipt *presence* (not a zero sum) keeps a vest-then-reversed source that
+ * nets to $0 out of the empty state — it did receive something. The latest
+ * receipt — including its deterministic same-date id tie-break — is resolved by
+ * the shared `mostRecentTransactionInCategory` rather than re-derived here.
+ */
+export type OneTimeReceiptSummary = {
+  received: number;
+  last: { date: string; noun: string } | null;
+};
+
+export function oneTimeReceiptSummary(
+  transactions: Transaction[],
+  categoryId: string,
+  year: string,
+): OneTimeReceiptSummary {
+  const inYear = transactions.filter(
+    (t) => t.categoryId === categoryId && t.date.slice(0, 4) === year,
+  );
+  const received = inYear.reduce((sum, t) => sum + t.amount, 0);
+  const last = mostRecentTransactionInCategory(inYear, categoryId);
+  return {
+    received,
+    last: last ? { date: last.date, noun: receiptNoun(last) } : null,
+  };
+}
+
+/**
+ * Picks the noun for the last-receipt line from the transaction's vendor/note
+ * (`last vest …` / `last bonus …`), falling back to the neutral `receipt` when
+ * neither keyword is present.
+ */
+function receiptNoun(t: Transaction): string {
+  const haystack = `${t.vendor ?? ""} ${t.note ?? ""}`.toLowerCase();
+  if (haystack.includes("vest")) return "vest";
+  if (haystack.includes("bonus")) return "bonus";
+  return "receipt";
 }
 
 /** UTC day number (integer days since the epoch) for a "YYYY-MM-DD" date. */

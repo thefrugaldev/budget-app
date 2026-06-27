@@ -30,6 +30,20 @@ export function dayLabel(iso: string, today = new Date()): string {
   });
 }
 
+/**
+ * Full calendar date for a "YYYY-MM-DD" string, e.g. `"May 15, 2026"`. Used for
+ * the one-time income card's last-receipt line. UTC-pinned like the other date
+ * helpers so server and client render identically.
+ */
+export function longDateLabel(iso: string): string {
+  return new Date(iso + "T00:00:00Z").toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function monthLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", {
