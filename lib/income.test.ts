@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Category, CategoryTarget } from "@/types/budget";
+import type { Category, CategoryTarget, Transaction } from "@/types/budget";
 import {
   buildIncomeSourceDisplayLabel,
   cadenceLabel,
@@ -7,6 +7,7 @@ import {
   monthlyFromCadence,
   monthlyToYearly,
   nextScheduledTarget,
+  oneTimeReceiptSummary,
   paychecksInMonth,
   paychecksThroughDate,
   perPaycheckFromMonthly,
@@ -242,6 +243,88 @@ describe("monthlyFromCadence", () => {
     // $90,000/yr paid bi-weekly is $3,461.54/check; the stored monthly must be
     // exactly $7,500 (90000 / 12), not float-drift.
     expect(monthlyFromCadence(90000 / 26, "bi-weekly")).toBeCloseTo(7500, 6);
+  });
+});
+
+describe("oneTimeReceiptSummary", () => {
+  const tx = (o: Partial<Transaction> = {}): Transaction => ({
+    id: "t",
+    categoryId: "rsu",
+    amount: 1000,
+    date: "2026-03-15",
+    ...o,
+  });
+
+  it("sums this year's receipts and reports the latest as the last receipt", () => {
+    const summary = oneTimeReceiptSummary(
+      [
+        tx({ id: "a", amount: 12500, date: "2026-03-15", note: "Q1 vest" }),
+        tx({ id: "b", amount: 12500, date: "2026-06-15", note: "Q2 vest" }),
+      ],
+      "rsu",
+      "2026",
+    );
+    expect(summary.received).toBe(25000);
+    expect(summary.last).toEqual({ date: "2026-06-15", noun: "vest" });
+  });
+
+  it("derives the noun from vendor/note, defaulting to 'receipt'", () => {
+    expect(
+      oneTimeReceiptSummary([tx({ note: "annual bonus" })], "rsu", "2026").last
+        ?.noun,
+    ).toBe("bonus");
+    expect(
+      oneTimeReceiptSummary(
+        [tx({ vendor: "Morgan Stanley", note: "RSU vest" })],
+        "rsu",
+        "2026",
+      ).last?.noun,
+    ).toBe("vest");
+    expect(
+      oneTimeReceiptSummary([tx({ vendor: "Acme", note: "" })], "rsu", "2026")
+        .last?.noun,
+    ).toBe("receipt");
+  });
+
+  it("returns an empty summary when there are no receipts this year", () => {
+    expect(oneTimeReceiptSummary([], "rsu", "2026")).toEqual({
+      received: 0,
+      last: null,
+    });
+  });
+
+  it("excludes other years — a prior-year-only source reads as awaiting (story 15)", () => {
+    expect(
+      oneTimeReceiptSummary(
+        [tx({ date: "2025-11-01", amount: 9000 })],
+        "rsu",
+        "2026",
+      ),
+    ).toEqual({ received: 0, last: null });
+  });
+
+  it("nets signed amounts, but a fully-reversed receipt still counts as received", () => {
+    const summary = oneTimeReceiptSummary(
+      [
+        tx({ id: "a", amount: 5000, date: "2026-02-01", note: "vest" }),
+        tx({ id: "b", amount: -5000, date: "2026-02-10", note: "vest reversed" }),
+      ],
+      "rsu",
+      "2026",
+    );
+    expect(summary.received).toBe(0);
+    expect(summary.last).not.toBeNull(); // not the empty state
+    expect(summary.last?.date).toBe("2026-02-10");
+  });
+
+  it("ignores transactions for other categories", () => {
+    expect(
+      oneTimeReceiptSummary(
+        [tx({ categoryId: "salary", amount: 8000 })],
+        "rsu",
+        "2026",
+      ),
+    ).toEqual({ received: 0, last: null });
   });
 });
 

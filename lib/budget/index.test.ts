@@ -8,6 +8,7 @@ import {
   isCategoryActiveForMonth,
   isCategoryActiveInRange,
   isRangePreset,
+  longDateLabel,
   matchesTransactionFilter,
   monthTotalsByCategory,
   monthlyTotalsLastN,
@@ -304,6 +305,14 @@ describe("computeSavingsRate", () => {
       expect(computeSavingsRate(c.income, c.saved)).toBe(c.expected);
     });
   }
+});
+
+describe("longDateLabel", () => {
+  it("formats a YYYY-MM-DD date as a full calendar date, UTC-pinned", () => {
+    expect(longDateLabel("2026-05-15")).toBe("May 15, 2026");
+    expect(longDateLabel("2026-01-01")).toBe("January 1, 2026");
+    expect(longDateLabel("2026-12-31")).toBe("December 31, 2026");
+  });
 });
 
 describe("nextMonth", () => {

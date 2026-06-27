@@ -6,13 +6,20 @@ import { useRef, useState } from "react";
 import { IncomeSourceCardActions } from "@/components/budget/income/IncomeSourceCardActions";
 import { IncomeSourceEditor } from "@/components/budget/income/IncomeSourceEditor";
 import { IncomeSourceStatusPill } from "@/components/budget/income/IncomeSourceStatusPill";
-import { fmt, fmtExact, monthLabel, resolveTargetForMonth } from "@/lib/budget";
+import {
+  fmt,
+  fmtExact,
+  longDateLabel,
+  monthLabel,
+  resolveTargetForMonth,
+} from "@/lib/budget";
 import {
   buildIncomeSourceDisplayLabel,
   cadenceLabel,
   classifyIncomeSourceStatus,
   monthlyToYearly,
   nextScheduledTarget,
+  type OneTimeReceiptSummary,
   perPaycheckFromMonthly,
 } from "@/lib/income";
 import { cn } from "@/lib/utils";
@@ -51,6 +58,7 @@ export function IncomeSourceCard({
   targets,
   currentMonth,
   txCount,
+  oneTimeSummary,
 }: {
   source: Category;
   allSources: Category[];
@@ -58,10 +66,18 @@ export function IncomeSourceCard({
   currentMonth: string;
   /** Transaction count on this source — gates hard-delete in the ⋯ menu. */
   txCount: number;
+  /** Receipt summary for one-time sources (computed server-side); undefined
+   * for recurring sources, which read their summary from `targets`. */
+  oneTimeSummary?: OneTimeReceiptSummary;
 }) {
   const status = classifyIncomeSourceStatus(source, currentMonth, targets);
   const label = buildIncomeSourceDisplayLabel(source, allSources, status);
-  const summary = baselineSummary(source, targets, currentMonth, status);
+  // One-time sources tell a receipts story (chunk 5); recurring/legacy sources
+  // tell a baseline story. The status pill logic is shared either way.
+  const summary =
+    source.incomeFrequency === "one-time"
+      ? oneTimeSummaryText(oneTimeSummary, currentMonth.slice(0, 4))
+      : baselineSummary(source, targets, currentMonth, status);
   const pillCopy = statusPillCopy(source, status);
   const currentMonthly = resolveTargetForMonth(
     source.id,
@@ -156,6 +172,20 @@ function statusPillCopy(
       // `activeUntil` is guaranteed set when status === "ended".
       return `Ended ${monthLabel(source.activeUntil!)}`;
   }
+}
+
+/**
+ * Summary line for a one-time source (chunk 5): YTD received + last-receipt
+ * date, or the honest empty-state copy when nothing has landed this year. The
+ * structured figures come from the server-side `oneTimeReceiptSummary`; this
+ * just formats them.
+ */
+function oneTimeSummaryText(
+  summary: OneTimeReceiptSummary | undefined,
+  year: string,
+): string {
+  if (!summary || !summary.last) return `Awaiting first receipt of ${year}`;
+  return `${fmt(summary.received)} received YTD · last ${summary.last.noun} ${longDateLabel(summary.last.date)}`;
 }
 
 function baselineSummary(
