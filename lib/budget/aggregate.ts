@@ -1,4 +1,12 @@
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+// Imported from the cycle-free cadence module (not the `@/lib/income` barrel) so
+// this primitive layer doesn't take a dependency on the budget-using income
+// helpers — see `lib/income/cadence.ts` for why.
+import {
+  paychecksInMonth,
+  paychecksThroughDate,
+  perPaycheckFromMonthly,
+} from "@/lib/income/cadence";
 
 import { currentMonthKey, currentYearStart, monthsInRange } from "./range";
 
@@ -74,7 +82,7 @@ export function resolveTargetForMonth(
  * is optional — undefined means "no end". A row whose `activeUntil === ym`
  * is still active here (the month is part of its window); the income page's
  * status pill reads that same row as "ended" — see `classifyIncomeSourceStatus`
- * in `lib/income.ts`.
+ * in `lib/income`.
  */
 export function isCategoryActiveForMonth(category: Category, ym: string): boolean {
   if (ym < category.activeFrom) return false;
@@ -155,20 +163,32 @@ function daysInUtcMonth(year: number, monthIndex0: number): number {
 }
 
 /**
- * Total income earned across [rangeStart, rangeEnd], in dollars. Combines:
+ * Total income earned across [rangeStart, rangeEnd], in dollars. Combines a
+ * baseline contribution per active income category with the signed sum of
+ * income-category transactions in the range — bonuses, RSU vests, side-gig
+ * income, etc. (story 52).
  *
- *   - the resolved monthly baseline target for each in-range month an income
- *     category was active. The current month is pro-rated by **calendar day**
- *     (`baseline × today.getUTCDate() / daysInMonth`), counted *inclusively*:
- *     on the 1st of the month one full day's worth of baseline is counted,
- *     not zero. This keeps the YTD savings rate moving smoothly past midnight
- *     on the 1st rather than jumping the moment a paycheck would have landed
- *     (story 51);
- *   - the signed sum of income-category transactions in the range — bonuses,
- *     RSU vests, side-gig income, etc. (story 52).
+ * The baseline is computed per `incomeFrequency` (#46):
+ *
+ *   - **Recurring with a `payCadence`** — paycheck-aware. Each in-range month
+ *     contributes `perPaycheck × paychecks landed`, where the current month
+ *     counts only paychecks on or before `today` and past months count the
+ *     whole month. The per-paycheck amount is recovered from the resolved
+ *     monthly baseline, so a mid-year raise still flows through. This keeps the
+ *     YTD savings rate from drifting up before a paycheck has actually arrived
+ *     (story 9). Paychecks are anchored to the source's `activeFrom` so the
+ *     weekly/bi-weekly phase stays consistent across months.
+ *   - **Recurring with no cadence (legacy)** — calendar-day pro-ration fallback
+ *     (story 10): the current month is `monthly × today.getUTCDate() /
+ *     daysInMonth`, counted *inclusively* (day 1 counts one day, not zero), and
+ *     past months count the full `monthly`.
+ *   - **One-time** — no baseline at all; a one-time source is measured purely by
+ *     its receipts, which land via the transaction sum below.
  *
  * Future months past `today`'s current month are skipped even if they fall in
- * the range, since baseline income hasn't happened yet.
+ * the range, since baseline income hasn't happened yet. A source that has ended
+ * (`activeUntil` in the past) stops contributing once its window closes, so the
+ * rate reflects the source actually being gone (story 16).
  */
 export function computeIncomeForRange(
   incomeCategories: Category[],
@@ -179,13 +199,27 @@ export function computeIncomeForRange(
   today = new Date(),
 ): number {
   const thisMonth = currentMonthKey(today);
+  const todayIso = today.toISOString().slice(0, 10);
   let baseline = 0;
   for (const ym of monthsInRange(rangeStart, rangeEnd)) {
     if (ym > thisMonth) continue; // future month — baseline hasn't happened
     for (const cat of incomeCategories) {
       if (!isCategoryActiveForMonth(cat, ym)) continue;
+      // One-time sources have no baseline — they're measured by their receipts,
+      // counted in the transaction sum below.
+      if (cat.incomeFrequency === "one-time") continue;
       const monthly = resolveTargetForMonth(cat.id, ym, targets);
-      if (ym === thisMonth) {
+      const cadence = cat.payCadence;
+      if (cadence) {
+        // Anchor the schedule to the source's first active month so the
+        // weekly/bi-weekly phase is consistent across the months we sum.
+        const anchor = `${cat.activeFrom}-01`;
+        const paychecks =
+          ym === thisMonth
+            ? paychecksThroughDate(cadence, ym, todayIso, anchor)
+            : paychecksInMonth(cadence, ym, anchor);
+        baseline += perPaycheckFromMonthly(monthly, cadence) * paychecks;
+      } else if (ym === thisMonth) {
         const dim = daysInUtcMonth(today.getUTCFullYear(), today.getUTCMonth());
         baseline += (monthly * today.getUTCDate()) / dim;
       } else {

@@ -12,7 +12,7 @@ import {
   paychecksThroughDate,
   perPaycheckFromMonthly,
   yearlyToMonthly,
-} from "./income";
+} from ".";
 
 const incomeCat = (overrides: Partial<Category> = {}): Category => ({
   id: "salary",

@@ -484,6 +484,85 @@ describe("computeIncomeForRange", () => {
     const today = new Date("2026-06-09T00:00:00Z");
     expect(computeIncomeForRange([], history, [], "2026-06", "2026-06", today)).toBe(0);
   });
+
+  // #46 chunk 6 — paycheck-aware pro-ration for cadence-set recurring sources.
+  const perCheck = (7500 * 12) / 26; // bi-weekly per-paycheck for a 7500/mo baseline
+
+  it("pro-rates the current month by paychecks landed, not calendar days (story 9)", () => {
+    // Bi-weekly anchored to activeFrom (2026-01-01): June paydays are the 4th
+    // and 18th. Through June 15 only the 4th has landed → 1 paycheck, NOT
+    // 15/30 of the monthly baseline.
+    const biweekly = incomeCat({ id: "salary", payCadence: "bi-weekly" });
+    const today = new Date("2026-06-15T00:00:00Z");
+    const inc = computeIncomeForRange([biweekly], history, [], "2026-06", "2026-06", today);
+    expect(inc).toBeCloseTo(perCheck * 1, 5);
+  });
+
+  it("counts paychecks per month across full past months (not month × monthly)", () => {
+    // Jan has 3 bi-weekly paydays (1/15/29), Feb has 2 (12/26) → 5 paychecks.
+    // A calendar/month-count view would give 2 × 7500; paycheck-aware gives 5×.
+    const biweekly = incomeCat({ id: "salary", payCadence: "bi-weekly" });
+    const today = new Date("2026-03-01T00:00:00Z");
+    const inc = computeIncomeForRange([biweekly], history, [], "2026-01", "2026-02", today);
+    expect(inc).toBeCloseTo(perCheck * 5, 5);
+  });
+
+  it("honors a mid-year raise through the per-paycheck amount", () => {
+    const raisedHistory: CategoryTarget[] = [
+      { categoryId: "salary", monthly: 7500, effectiveFrom: "2026-01" },
+      { categoryId: "salary", monthly: 9000, effectiveFrom: "2026-02" },
+    ];
+    const biweekly = incomeCat({ id: "salary", payCadence: "bi-weekly" });
+    const today = new Date("2026-03-01T00:00:00Z");
+    // Jan (3 checks) at 7500/mo, Feb (2 checks) at 9000/mo.
+    const inc = computeIncomeForRange([biweekly], raisedHistory, [], "2026-01", "2026-02", today);
+    expect(inc).toBeCloseTo((7500 * 12 / 26) * 3 + (9000 * 12 / 26) * 2, 5);
+  });
+
+  it("pays a monthly-cadence source in full on its payday, not pro-rated by day", () => {
+    // Monthly cadence pays on the anchor's day-of-month (the 1st). On June 1 the
+    // whole paycheck has landed — 7500, not 7500 × 1/30.
+    const monthlyCadence = incomeCat({ id: "salary", payCadence: "monthly" });
+    const today = new Date("2026-06-01T00:00:00Z");
+    const inc = computeIncomeForRange([monthlyCadence], history, [], "2026-06", "2026-06", today);
+    expect(inc).toBeCloseTo(7500, 5);
+  });
+
+  it("keeps calendar-day pro-ration for a cadence-unset recurring source (story 10)", () => {
+    // incomeFrequency set but no payCadence (e.g. migrated legacy) → fallback.
+    const legacy = incomeCat({ id: "salary", incomeFrequency: "recurring" });
+    const today = new Date("2026-06-09T00:00:00Z");
+    const inc = computeIncomeForRange([legacy], history, [], "2026-06", "2026-06", today);
+    expect(inc).toBeCloseTo((7500 * 9) / 30, 5);
+  });
+
+  it("gives one-time sources no baseline — only their receipts count", () => {
+    // Even with a stray target row, a one-time source contributes no baseline;
+    // its $12,500 vest is the only income.
+    const oneTime = incomeCat({ id: "salary", incomeFrequency: "one-time" });
+    const vest: Transaction = {
+      id: "vest",
+      categoryId: "salary",
+      amount: 12500,
+      date: "2026-06-10",
+    };
+    const today = new Date("2026-06-30T00:00:00Z");
+    const inc = computeIncomeForRange([oneTime], history, [vest], "2026-06", "2026-06", today);
+    expect(inc).toBeCloseTo(12500, 5);
+  });
+
+  it("stops accruing once an ended source's window closes (story 16)", () => {
+    // Bi-weekly source ended in April: Jan–Apr contribute 9 paychecks; May/June
+    // (after activeUntil, though before today) contribute nothing.
+    const ended = incomeCat({
+      id: "salary",
+      payCadence: "bi-weekly",
+      activeUntil: "2026-04",
+    });
+    const today = new Date("2026-06-20T00:00:00Z");
+    const inc = computeIncomeForRange([ended], history, [], "2026-01", "2026-06", today);
+    expect(inc).toBeCloseTo(perCheck * 9, 5);
+  });
 });
 
 describe("thresholdFor negative-pct cases", () => {
