@@ -9,6 +9,7 @@ import {
   nextScheduledTarget,
   paychecksInMonth,
   paychecksThroughDate,
+  perPaycheckFromMonthly,
   yearlyToMonthly,
 } from "./income";
 
@@ -241,6 +242,31 @@ describe("monthlyFromCadence", () => {
     // $90,000/yr paid bi-weekly is $3,461.54/check; the stored monthly must be
     // exactly $7,500 (90000 / 12), not float-drift.
     expect(monthlyFromCadence(90000 / 26, "bi-weekly")).toBeCloseTo(7500, 6);
+  });
+});
+
+describe("perPaycheckFromMonthly", () => {
+  it("recovers the per-paycheck amount from a stored monthly baseline", () => {
+    expect(perPaycheckFromMonthly(2600, "weekly")).toBeCloseTo(600, 6); // 2600 × 12 / 52
+    expect(perPaycheckFromMonthly(1200, "semi-monthly")).toBeCloseTo(600, 6); // 1200 × 12 / 24
+    expect(perPaycheckFromMonthly(5000, "monthly")).toBe(5000); // pass-through
+  });
+
+  it("turns the $7,500/mo salary into the $3,461.54 bi-weekly headline figure", () => {
+    expect(perPaycheckFromMonthly(7500, "bi-weekly")).toBeCloseTo(3461.54, 2);
+  });
+
+  it("is the inverse of monthlyFromCadence for every cadence", () => {
+    for (const cadence of [
+      "weekly",
+      "bi-weekly",
+      "semi-monthly",
+      "monthly",
+    ] as const) {
+      expect(
+        perPaycheckFromMonthly(monthlyFromCadence(600, cadence), cadence),
+      ).toBeCloseTo(600, 6);
+    }
   });
 });
 
