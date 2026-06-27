@@ -45,6 +45,15 @@ export type Category = {
    * latter falls back to calendar-day YTD pro-ration (story 10).
    */
   payCadence?: PayCadence;
+  /**
+   * A known real payday, "YYYY-MM-DD" — the phase anchor for paycheck-aware YTD
+   * pro-ration. Lets weekly/bi-weekly paydays land on the right day-of-week and
+   * a monthly cadence on the right day-of-month, instead of assuming the 1st of
+   * `activeFrom`. Optional and only meaningful for cadence-set recurring
+   * sources; when unset, pro-ration falls back to the first of `activeFrom`.
+   * (Ignored for `semi-monthly`, which always pays the 1st and 15th.)
+   */
+  firstPaycheckDate?: string;
 };
 
 /**

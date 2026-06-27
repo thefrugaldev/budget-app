@@ -23,6 +23,7 @@ import { monthlyFromCadence, monthlyToYearly } from "@/lib/income";
 import {
   parseCancelScheduledBaselineInput,
   parseIncomeFrequency,
+  parseOptionalFirstPaycheckDate,
   parsePayCadence,
   parsePerPaycheck,
   parseYearly,
@@ -87,6 +88,7 @@ export async function updateIncomeSourceAction(
       await updateCategory(categoryId, {
         incomeFrequency: "one-time",
         clearPayCadence: true,
+        clearFirstPaycheckDate: true,
       });
       await deleteAllCategoryTargets(categoryId);
       revalidatePath("/");
@@ -95,12 +97,20 @@ export async function updateIncomeSourceAction(
     }
 
     const cadence = parsePayCadence(formData.get("cadence"));
+    const firstPaycheckDate = parseOptionalFirstPaycheckDate(
+      formData.get("firstPaycheckDate"),
+    );
     const yearly = parseYearly(formData.get("yearly"));
     const applyThisMonth = formData.get("applyThisMonth") === "on";
 
     await updateCategory(categoryId, {
       incomeFrequency: "recurring",
       payCadence: cadence,
+      // Persist when provided; an emptied field clears the anchor so the source
+      // reverts to the activeFrom fallback.
+      ...(firstPaycheckDate !== undefined
+        ? { firstPaycheckDate }
+        : { clearFirstPaycheckDate: true }),
     });
 
     const thisMonth = currentMonthKey();
@@ -175,6 +185,9 @@ export async function createIncomeSourceAction(
     if (frequency === "recurring") {
       const cadence = parsePayCadence(formData.get("cadence"));
       const perPaycheck = parsePerPaycheck(formData.get("amountPerPaycheck"));
+      const firstPaycheckDate = parseOptionalFirstPaycheckDate(
+        formData.get("firstPaycheckDate"),
+      );
       const category = await createCategory({
         name,
         emoji,
@@ -182,6 +195,7 @@ export async function createIncomeSourceAction(
         activeFrom,
         incomeFrequency: "recurring",
         payCadence: cadence,
+        firstPaycheckDate,
       });
       await createCategoryTarget({
         categoryId: category.id,

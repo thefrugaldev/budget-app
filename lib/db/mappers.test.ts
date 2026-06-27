@@ -70,4 +70,15 @@ describe("toCategory", () => {
     const doc = { ...baseDoc, payCadence: null as unknown as undefined };
     expect(toCategory(doc).payCadence).toBeUndefined();
   });
+
+  it("reads firstPaycheckDate through and normalizes unset/null to undefined", () => {
+    expect(toCategory(baseDoc).firstPaycheckDate).toBeUndefined();
+    const withDate = { ...baseDoc, firstPaycheckDate: "2026-06-15" };
+    expect(toCategory(withDate).firstPaycheckDate).toBe("2026-06-15");
+    const leaked = {
+      ...baseDoc,
+      firstPaycheckDate: null as unknown as undefined,
+    };
+    expect(toCategory(leaked).firstPaycheckDate).toBeUndefined();
+  });
 });

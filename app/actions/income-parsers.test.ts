@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseCancelScheduledBaselineInput,
   parseIncomeFrequency,
+  parseOptionalFirstPaycheckDate,
   parsePayCadence,
   parsePerPaycheck,
   parseYearly,
@@ -94,6 +95,32 @@ describe("parsePayCadence", () => {
   it("rejects a missing or unknown cadence", () => {
     expect(() => parsePayCadence(null)).toThrow(/pay cadence/i);
     expect(() => parsePayCadence("fortnightly")).toThrow(/pay cadence/i);
+  });
+});
+
+describe("parseOptionalFirstPaycheckDate", () => {
+  it("returns undefined for blank or absent input (the field is optional)", () => {
+    expect(parseOptionalFirstPaycheckDate(null)).toBeUndefined();
+    expect(parseOptionalFirstPaycheckDate("")).toBeUndefined();
+    expect(parseOptionalFirstPaycheckDate("   ")).toBeUndefined();
+  });
+
+  it("accepts a valid ISO date", () => {
+    expect(parseOptionalFirstPaycheckDate("2026-06-15")).toBe("2026-06-15");
+    expect(parseOptionalFirstPaycheckDate(" 2026-06-15 ")).toBe("2026-06-15");
+  });
+
+  it("rejects a malformed date", () => {
+    expect(() => parseOptionalFirstPaycheckDate("06/15/2026")).toThrow(
+      /YYYY-MM-DD/,
+    );
+    expect(() => parseOptionalFirstPaycheckDate("2026-6-5")).toThrow(/YYYY-MM-DD/);
+  });
+
+  it("rejects an impossible calendar date that passes the shape check", () => {
+    expect(() => parseOptionalFirstPaycheckDate("2026-02-30")).toThrow(
+      /not a real date/,
+    );
   });
 });
 
