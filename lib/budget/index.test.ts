@@ -563,6 +563,20 @@ describe("computeIncomeForRange", () => {
     const inc = computeIncomeForRange([ended], history, [], "2026-01", "2026-06", today);
     expect(inc).toBeCloseTo(perCheck * 9, 5);
   });
+
+  it("anchors paydays to firstPaycheckDate when set, shifting the phase", () => {
+    // Default anchor (first of activeFrom = 2026-01-01) puts June paydays on the
+    // 4th & 18th → 1 landed through June 15. A firstPaycheckDate of 2026-06-15
+    // re-phases them to the 1st/15th/29th → 2 landed through June 15.
+    const anchored = incomeCat({
+      id: "salary",
+      payCadence: "bi-weekly",
+      firstPaycheckDate: "2026-06-15",
+    });
+    const today = new Date("2026-06-15T00:00:00Z");
+    const inc = computeIncomeForRange([anchored], history, [], "2026-06", "2026-06", today);
+    expect(inc).toBeCloseTo(perCheck * 2, 5);
+  });
 });
 
 describe("thresholdFor negative-pct cases", () => {

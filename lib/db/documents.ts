@@ -14,6 +14,7 @@ export type CategoryDocument = {
   // those to "recurring" on read rather than via a write migration.
   incomeFrequency?: IncomeFrequency;
   payCadence?: PayCadence;
+  firstPaycheckDate?: string; // "YYYY-MM-DD" — phase anchor for paychecks
   createdAt: Date;
 };
 

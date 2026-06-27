@@ -28,6 +28,7 @@ export async function createCategory(input: {
   activeUntil?: string;
   incomeFrequency?: Category["incomeFrequency"];
   payCadence?: Category["payCadence"];
+  firstPaycheckDate?: string;
 }): Promise<Category> {
   const db = await getDb();
   await ensureIndexes(db);
@@ -47,6 +48,9 @@ export async function createCategory(input: {
       ? { incomeFrequency: input.incomeFrequency }
       : {}),
     ...(input.payCadence !== undefined ? { payCadence: input.payCadence } : {}),
+    ...(input.firstPaycheckDate !== undefined
+      ? { firstPaycheckDate: input.firstPaycheckDate }
+      : {}),
   };
 
   await db.collection<CategoryDocument>(COLLECTIONS.categories).insertOne(doc);
@@ -61,6 +65,7 @@ type CategoryPatch = {
   activeUntil?: string;
   incomeFrequency?: Category["incomeFrequency"];
   payCadence?: Category["payCadence"];
+  firstPaycheckDate?: string;
   /** `true` clears the field via `$unset`; falsy leaves it alone. */
   clearActiveUntil?: boolean;
   /**
@@ -68,10 +73,19 @@ type CategoryPatch = {
    * a recurring source back to cadence-unset. Falsy leaves it alone.
    */
   clearPayCadence?: boolean;
+  /**
+   * Clears `firstPaycheckDate` via `$unset` — e.g. the user blanks the anchor,
+   * or it's dropped when switching to one-time. Falsy leaves it alone.
+   */
+  clearFirstPaycheckDate?: boolean;
 };
 
 // Keys on CategoryPatch that drive `$unset` rather than `$set`.
-const CLEAR_FLAGS = new Set(["clearActiveUntil", "clearPayCadence"]);
+const CLEAR_FLAGS = new Set([
+  "clearActiveUntil",
+  "clearPayCadence",
+  "clearFirstPaycheckDate",
+]);
 
 // Returns true if a matching category was found and patched.
 export async function updateCategory(
@@ -87,6 +101,7 @@ export async function updateCategory(
   const unset: Record<string, "" | true> = {};
   if (patch.clearActiveUntil) unset.activeUntil = "";
   if (patch.clearPayCadence) unset.payCadence = "";
+  if (patch.clearFirstPaycheckDate) unset.firstPaycheckDate = "";
 
   if (Object.keys(set).length === 0 && Object.keys(unset).length === 0) {
     return false;

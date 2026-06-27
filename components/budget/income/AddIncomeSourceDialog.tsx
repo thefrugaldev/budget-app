@@ -67,6 +67,7 @@ export function AddIncomeSourceDialog({
   const [name, setName] = useState("");
   const [cadence, setCadence] = useState<PayCadence>("bi-weekly");
   const [perPaycheck, setPerPaycheck] = useState("");
+  const [firstPaycheckDate, setFirstPaycheckDate] = useState("");
 
   // Clears every field back to a fresh step-1 state. Used both when the dialog
   // closes and by the step-2 Back link, so re-picking a frequency never carries
@@ -79,6 +80,7 @@ export function AddIncomeSourceDialog({
     setName("");
     setCadence("bi-weekly");
     setPerPaycheck("");
+    setFirstPaycheckDate("");
   }
 
   // Reset when the dialog transitions open → closed, so the next opening starts
@@ -203,6 +205,20 @@ export function AddIncomeSourceDialog({
                       </p>
                     )}
                   </div>
+                  {cadence !== "semi-monthly" && (
+                    <label className="flex items-center gap-2">
+                      <span className="w-24 shrink-0 text-xs text-muted-foreground">
+                        First paycheck
+                      </span>
+                      <input
+                        name="firstPaycheckDate"
+                        type="date"
+                        value={firstPaycheckDate}
+                        onChange={(e) => setFirstPaycheckDate(e.target.value)}
+                        className="flex-1 rounded-md bg-background px-2 py-1.5 text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+                      />
+                    </label>
+                  )}
                 </>
               )}
 

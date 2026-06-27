@@ -57,6 +57,30 @@ export function parseIncomeFrequency(
   throw new Error("Choose whether this income is recurring or one-time");
 }
 
+const ISO_DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/**
+ * Optional "YYYY-MM-DD" paycheck anchor for a recurring source. Returns
+ * `undefined` for blank/absent input (the source falls back to the first of
+ * `activeFrom`). Validates both the shape and that it's a real calendar date —
+ * the format regex admits `2026-02-30`, so a round-trip through `Date` rejects
+ * impossible days.
+ */
+export function parseOptionalFirstPaycheckDate(
+  raw: FormDataEntryValue | null,
+): string | undefined {
+  if (typeof raw !== "string" || raw.trim() === "") return undefined;
+  const trimmed = raw.trim();
+  if (!ISO_DATE_RE.test(trimmed)) {
+    throw new Error("First paycheck date must look like YYYY-MM-DD");
+  }
+  const asUtc = new Date(`${trimmed}T00:00:00Z`);
+  if (Number.isNaN(asUtc.getTime()) || asUtc.toISOString().slice(0, 10) !== trimmed) {
+    throw new Error("First paycheck date is not a real date");
+  }
+  return trimmed;
+}
+
 /** Pay cadence for a recurring source. */
 export function parsePayCadence(raw: FormDataEntryValue | null): PayCadence {
   // Cast the known-cadence array to string[] for the membership test rather

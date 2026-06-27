@@ -63,6 +63,9 @@ export function IncomeSourceEditor({
   const [yearlyInput, setYearlyInput] = useState(
     initialYearly > 0 ? initialYearly.toString() : "",
   );
+  const [firstPaycheckInput, setFirstPaycheckInput] = useState(
+    source.firstPaycheckDate ?? "",
+  );
   const [applyThisMonth, setApplyThisMonth] = useState(false);
 
   const [state, formAction] = useActionState(
@@ -78,12 +81,18 @@ export function IncomeSourceEditor({
   const yearlyChanged =
     Number.isFinite(parsedYearly) && parsedYearly !== initialYearly;
   const cadenceChanged = cadence !== source.payCadence;
+  const firstPaycheckChanged =
+    (firstPaycheckInput || undefined) !== source.firstPaycheckDate;
   const frequencyChanged = frequency !== originalFrequency;
 
   const dirty =
     frequency === "one-time"
       ? frequencyChanged
-      : frequencyChanged || cadenceChanged || yearlyChanged || applyThisMonth;
+      : frequencyChanged ||
+        cadenceChanged ||
+        yearlyChanged ||
+        firstPaycheckChanged ||
+        applyThisMonth;
 
   // Recurring → one-time throws the baseline away, so gate it behind a confirm.
   const needsDiscardConfirm =
@@ -97,12 +106,13 @@ export function IncomeSourceEditor({
         applyThisMonth ? currentMonth : nextMonth(currentMonth),
       )}`;
     }
-    return "Pay cadence updated";
+    return "Pay schedule updated";
   };
 
   useActionSuccessToast(state, successMessage, onClose);
 
   const yearlyId = `income-yearly-${source.id}`;
+  const firstPaycheckId = `income-first-paycheck-${source.id}`;
   const isRecurring = frequency === "recurring";
   const cadenceUnset = !source.payCadence;
 
@@ -167,6 +177,24 @@ export function IncomeSourceEditor({
                 </p>
               )}
             </div>
+            {cadence !== "semi-monthly" && (
+              <div className="flex items-center gap-2">
+                <label
+                  className="text-xs text-muted-foreground"
+                  htmlFor={firstPaycheckId}
+                >
+                  First paycheck
+                </label>
+                <input
+                  id={firstPaycheckId}
+                  name="firstPaycheckDate"
+                  type="date"
+                  value={firstPaycheckInput}
+                  onChange={(e) => setFirstPaycheckInput(e.target.value)}
+                  className="flex-1 rounded-md bg-background px-2 py-1.5 text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+                />
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <label
                 className="text-xs text-muted-foreground"

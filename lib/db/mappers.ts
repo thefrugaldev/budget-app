@@ -26,6 +26,9 @@ export function toCategory(doc: CategoryDocument): Category {
     // Legacy recurring sources and one-time sources both leave this unset;
     // the cadence-unset case falls back to calendar-day pro-ration (story 10).
     payCadence: doc.payCadence ?? undefined,
+    // Optional paycheck phase anchor; unset sources fall back to the first of
+    // `activeFrom`. `?? undefined` normalises a leaked Mongo null.
+    firstPaycheckDate: doc.firstPaycheckDate ?? undefined,
   };
 }
 
