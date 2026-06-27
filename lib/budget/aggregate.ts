@@ -211,8 +211,10 @@ export function computeIncomeForRange(
       const monthly = resolveTargetForMonth(cat.id, ym, targets);
       const cadence = cat.payCadence;
       if (cadence) {
-        // Anchor the schedule to the source's first active month so the
-        // weekly/bi-weekly phase is consistent across the months we sum.
+        // Anchor the schedule to the source's first active month, and reuse the
+        // same anchor for both the current month (through today) and full past
+        // months, so the weekly/bi-weekly phase stays consistent across every
+        // month we sum.
         const anchor = `${cat.activeFrom}-01`;
         const paychecks =
           ym === thisMonth
