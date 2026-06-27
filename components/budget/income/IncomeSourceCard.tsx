@@ -6,12 +6,14 @@ import { useRef, useState } from "react";
 import { IncomeSourceCardActions } from "@/components/budget/income/IncomeSourceCardActions";
 import { IncomeSourceEditor } from "@/components/budget/income/IncomeSourceEditor";
 import { IncomeSourceStatusPill } from "@/components/budget/income/IncomeSourceStatusPill";
-import { fmt, monthLabel, resolveTargetForMonth } from "@/lib/budget";
+import { fmt, fmtExact, monthLabel, resolveTargetForMonth } from "@/lib/budget";
 import {
   buildIncomeSourceDisplayLabel,
+  cadenceLabel,
   classifyIncomeSourceStatus,
   monthlyToYearly,
   nextScheduledTarget,
+  perPaycheckFromMonthly,
 } from "@/lib/income";
 import { cn } from "@/lib/utils";
 import type {
@@ -171,7 +173,16 @@ function baselineSummary(
 
   const currentMonthly = resolveTargetForMonth(source.id, currentMonth, targets);
   const currentYearly = monthlyToYearly(currentMonthly);
-  const base = `${fmt(currentYearly)}/yr · ${fmt(currentMonthly)}/mo`;
+
+  // Recurring sources with a cadence lead with the lived per-paycheck figure
+  // (story 4) — `$3,461.54 bi-weekly · $90,000/yr`. fmtExact keeps the cents
+  // that make the amount match a bank statement (fmt would drop them above
+  // $100). Cadence-unset recurring (migrated legacy) and one-time sources
+  // (chunk 5 reshapes those) keep today's `$X/yr · $Y/mo` summary.
+  const base =
+    source.incomeFrequency === "recurring" && source.payCadence
+      ? `${fmtExact(perPaycheckFromMonthly(currentMonthly, source.payCadence))} ${cadenceLabel(source.payCadence)} · ${fmt(currentYearly)}/yr`
+      : `${fmt(currentYearly)}/yr · ${fmt(currentMonthly)}/mo`;
 
   if (status === "scheduled-change") {
     const next = nextScheduledTarget(source.id, currentMonth, targets);

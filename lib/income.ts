@@ -30,6 +30,29 @@ export function monthlyFromCadence(
   }
 }
 
+/**
+ * Inverse of {@link monthlyFromCadence}: recovers the per-paycheck amount from a
+ * stored monthly baseline. Used by the `/income` card to show the lived
+ * denomination (`$3,461.54 bi-weekly`) from the monthly figure that's actually
+ * persisted (story 4). `monthly` cadence is a pass-through, mirroring the
+ * forward helper.
+ */
+export function perPaycheckFromMonthly(
+  monthly: number,
+  cadence: PayCadence,
+): number {
+  switch (cadence) {
+    case "weekly":
+      return (monthly * 12) / 52;
+    case "bi-weekly":
+      return (monthly * 12) / 26;
+    case "semi-monthly":
+      return (monthly * 12) / 24;
+    case "monthly":
+      return monthly;
+  }
+}
+
 const CADENCE_LABELS: Record<PayCadence, string> = {
   weekly: "weekly",
   "bi-weekly": "bi-weekly",
