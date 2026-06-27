@@ -1,0 +1,40 @@
+# Fast verification gate for PRs into main. Production builds + deploy previews
+# are handled by Vercel, so this workflow deliberately does NOT run `next build`
+# — it covers the checks Vercel doesn't: lint, types, unit tests, and the
+# circular-dependency guard (added after #74 broke the budget↔income cycle, so a
+# regression fails the PR instead of silently re-coupling the layers).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # action-setup reads the pinned version from package.json's packageManager.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Unit tests
+        run: pnpm exec vitest run
+
+      - name: Circular dependencies
+        run: pnpm lint:cycles
