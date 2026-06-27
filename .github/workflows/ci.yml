@@ -20,9 +20,11 @@ jobs:
       # action-setup reads the pinned version from package.json's packageManager.
       - uses: pnpm/action-setup@v4
 
+      # Node 22+ is required by the pinned pnpm (11.5.2 needs >= 22.13); the
+      # `cache: pnpm` step shells out to pnpm, so an older Node fails here.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
