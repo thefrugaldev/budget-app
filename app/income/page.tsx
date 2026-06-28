@@ -8,10 +8,8 @@ import {
   currentMonthlyBaseline,
   fmt,
 } from "@/lib/budget";
-import {
-  oneTimeReceiptSummary,
-  type OneTimeReceiptSummary,
-} from "@/lib/income";
+import { oneTimeReceiptSummary } from "@/lib/income";
+import type { OneTimeReceiptSummary } from "@/types/budget";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";

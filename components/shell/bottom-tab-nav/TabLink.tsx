@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { ActiveIndicator } from "@/components/shell/bottom-tab-nav/ActiveIndicator";
-import { type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import type { NavItem } from "@/types/nav";
 
 export function TabLink({ item, active }: { item: NavItem; active: boolean }) {
   return (

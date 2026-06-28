@@ -21,7 +21,7 @@ import { FilterRow } from "@/components/budget/transaction/FilterRow";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { useNotify } from "@/hooks/useNotify";
 import { useTransactionSelection } from "@/hooks/useTransactionSelection";
-import { matchesTransactionFilter, type TransactionFilter } from "@/lib/budget";
+import { matchesTransactionFilter } from "@/lib/budget";
 import { groupTransactionsByDay, streakKey } from "@/lib/transaction";
 import {
   allTransactionIds,
@@ -33,6 +33,7 @@ import {
 } from "@/lib/transaction-selection";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind, Transaction } from "@/types/budget";
+import type { TransactionFilter } from "@/types/transaction";
 
 const UNDO_WINDOW_MS = 5000;
 const EMPTY_FILTER: TransactionFilter = {

@@ -25,8 +25,8 @@ import {
   thresholdFor,
   vendorSuggestionsForCategory,
   ytdTotalsByCategory,
-  type RangePreset,
 } from ".";
+import type { RangePreset } from "@/types/range";
 
 const expenseCat = (overrides: Partial<Category> = {}): Category => ({
   id: "groc",

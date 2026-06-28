@@ -4,14 +4,7 @@
  * slot in by adding one entry.
  */
 
-export type MobileTab = "primary" | "more";
-
-export type NavItem = {
-  label: string;
-  href: string;
-  icon: string;
-  mobileTab: MobileTab;
-};
+import type { NavItem } from "@/types/nav";
 
 export const NAV_ITEMS = [
   { label: "Pulse", href: "/", icon: "📊", mobileTab: "primary" },

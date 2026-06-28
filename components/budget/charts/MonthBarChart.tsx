@@ -1,16 +1,5 @@
-import type { CategoryKind } from "@/types/budget";
+import type { CategoryKind, MonthBarDatum } from "@/types/budget";
 import { monthLabelShort } from "@/lib/budget";
-
-export type MonthBarDatum = {
-  ym: string;
-  total: number;
-  /**
-   * Historically-resolved target for this month — drawn as a per-bar dashed
-   * segment. A target raised mid-range still shows each past bar against the
-   * cap that was actually in effect that month.
-   */
-  target: number;
-};
 
 export function MonthBarChart({
   data,

@@ -82,3 +82,24 @@ export type MonthlySpendByCategory = {
   categoryName: string;
   total: number;
 };
+
+/** Per-month datum for the category trend bar chart. */
+export type MonthBarDatum = {
+  ym: string;
+  total: number;
+  /**
+   * Historically-resolved target for this month — drawn as a per-bar dashed
+   * segment. A target raised mid-range still shows each past bar against the
+   * cap that was actually in effect that month.
+   */
+  target: number;
+};
+
+/** YTD summary for a one-time income source: total received + last receipt. */
+export type OneTimeReceiptSummary = {
+  received: number;
+  last: { date: string; noun: string } | null;
+};
+
+/** Precision mode for the shared AmountInput (auto-decimal cents vs whole dollars). */
+export type AmountPrecision = "cents" | "whole";

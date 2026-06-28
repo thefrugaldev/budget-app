@@ -1,6 +1,10 @@
 import type { Category, CategoryKind } from "@/types/budget";
-
-export type ThresholdState = "under" | "near" | "at" | "over";
+import type {
+  ThresholdDescriptor,
+  ThresholdPalette,
+  ThresholdState,
+  ThresholdTone,
+} from "@/types/threshold";
 
 /**
  * Expense thresholds count toward the cap (over = bad). Savings and income
@@ -25,11 +29,6 @@ export function thresholdFor(
   if (pct >= 0.7) return "near";
   return "under";
 }
-
-export type ThresholdPalette = {
-  text: string;
-  bar: string;
-};
 
 const SIGNAL = {
   good: { text: "text-signal-good-foreground", bar: "bg-signal-good" },
@@ -60,20 +59,6 @@ export function thresholdColor(
   if (state === "at") return SIGNAL.warn;
   return SIGNAL.good;
 }
-
-export type ThresholdTone = "good" | "warn" | "bad";
-
-/**
- * Text-bearing, color-independent description of a category's threshold state.
- * `label` is a short word/abbreviation so colorblind users get the signal
- * without relying on the meter color, and `tone` mirrors {@link thresholdColor}
- * so the (optional) color reinforcement always agrees with the words.
- */
-export type ThresholdDescriptor = {
-  state: ThresholdState;
-  label: string;
-  tone: ThresholdTone;
-};
 
 // "over" means opposite things by kind, so the words diverge: a maxed expense
 // is bad ("Over cap"), a maxed savings goal is good ("Goal met").

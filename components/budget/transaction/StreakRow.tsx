@@ -8,10 +8,10 @@ import { CheckboxCell } from "@/components/budget/transaction/CheckboxCell";
 import { Row } from "@/components/budget/transaction/Row";
 import type { TransactionSelection } from "@/hooks/useTransactionSelection";
 import { fmtExact } from "@/lib/budget";
-import type { CollapsedStreak } from "@/lib/transaction";
 import { areAllSelected, areSomeSelected } from "@/lib/transaction-selection";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
+import type { CollapsedStreak } from "@/types/transaction";
 
 /**
  * A day's run of ≥ 2 transactions at one vendor as a single disclosure row:

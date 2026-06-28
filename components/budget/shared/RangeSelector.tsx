@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { RANGE_PRESETS, rangeLabel, type RangePreset } from "@/lib/budget";
+import { RANGE_PRESETS, rangeLabel } from "@/lib/budget";
+import type { RangePreset } from "@/types/range";
 import { cn } from "@/lib/utils";
 
 /**

@@ -1,54 +1,10 @@
 import { dayLabel } from "@/lib/budget";
 import type { Transaction } from "@/types/budget";
-
-/**
- * One transaction shown on its own — used when the row has no qualifying
- * streak peers within its day (no other transaction sharing the same
- * `(vendor, amount)`).
- */
-export type SingleRow = {
-  kind: "single";
-  transaction: Transaction;
-};
-
-/**
- * Run of ≥ 2 transactions at the same vendor in the same day, *regardless of
- * amount*. Real days have several trips to one vendor at different prices
- * (#17 follow-up, 2026-06-18) — not just exact duplicates — so the key is
- * vendor + day; neither amount nor note participates.
- *
- * `subtotal` is the signed sum of the run, so refunds net (a +$50 and a −$10
- * at Target report `subtotal: 40, count: 2`). `amount` is set *only* when
- * every member shares one amount — the uniform-duplicate case (e.g. 19× $87.42)
- * — which lets the UI show a per-unit "N× $X"; it is undefined when amounts
- * vary. The disclosure preserves each underlying row, so individual amounts
- * and notes stay reachable.
- */
-export type CollapsedStreak = {
-  kind: "streak";
-  vendor: string;
-  count: number;
-  subtotal: number;
-  amount?: number;
-  transactionIds: string[];
-};
-
-export type TransactionRow = SingleRow | CollapsedStreak;
-
-export type DayGroup = {
-  /** "YYYY-MM-DD". */
-  date: string;
-  /** Human-readable: "Today" / "Yesterday" / "Mon, Jun 8" via `dayLabel`. */
-  label: string;
-  /** Signed sum across the day's rows; refunds reduce, all-refund days go negative. */
-  subtotal: number;
-  rows: TransactionRow[];
-};
-
-export type GroupOptions = {
-  /** Anchor for "Today"/"Yesterday" copy on `label`. Defaults to `new Date()`. */
-  today?: Date;
-};
+import type {
+  DayGroup,
+  GroupOptions,
+  TransactionRow,
+} from "@/types/transaction";
 
 /**
  * Groups a transaction list into day buckets, newest-first. Within each day,

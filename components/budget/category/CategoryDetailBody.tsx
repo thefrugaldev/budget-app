@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { CategoryEditSheet } from "@/components/budget/category/CategoryEditSheet";
 import { CategorySummaryActions } from "@/components/budget/category/CategorySummaryActions";
 import { EndedBadge } from "@/components/budget/category/EndedBadge";
-import { MonthBarChart, type MonthBarDatum } from "@/components/budget/charts/MonthBarChart";
+import { MonthBarChart } from "@/components/budget/charts/MonthBarChart";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/charts/ThresholdMeter";
 import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
@@ -18,10 +18,15 @@ import {
   resolveTargetForMonth,
   targetLabel,
   thresholdColor,
-  type RangeSelection,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
-import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+import type {
+  Category,
+  CategoryTarget,
+  MonthBarDatum,
+  Transaction,
+} from "@/types/budget";
+import type { RangeSelection } from "@/types/range";
 
 /**
  * Client wrapper around the category detail page's body (everything below

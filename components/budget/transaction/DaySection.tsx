@@ -8,7 +8,7 @@ import { StreakRow } from "@/components/budget/transaction/StreakRow";
 import { Checkbox } from "@/components/ui/Checkbox";
 import type { TransactionSelection } from "@/hooks/useTransactionSelection";
 import { fmtExact } from "@/lib/budget";
-import { streakKey, type DayGroup } from "@/lib/transaction";
+import { streakKey } from "@/lib/transaction";
 import {
   areAllSelected,
   areSomeSelected,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/transaction-selection";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
+import type { DayGroup } from "@/types/transaction";
 
 /**
  * One day rendered agenda-style: a sticky day header (bold label + signed
