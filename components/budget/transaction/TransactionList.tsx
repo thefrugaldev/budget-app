@@ -142,6 +142,8 @@ export function TransactionList({
   rangeText,
   now,
   onHiddenIdsChange,
+  filter: filterProp,
+  onFilterChange,
 }: {
   /**
    * The page category in single-category (detail) mode. Omitted on the global
@@ -162,8 +164,17 @@ export function TransactionList({
    * immediately. Covers both the single-row and bulk delete paths.
    */
   onHiddenIdsChange?: (ids: string[]) => void;
+  /**
+   * Controlled filter state. The global `/transactions` list passes these to
+   * bind the filter to the URL (story 8); the category-detail list omits them
+   * and falls back to internal state.
+   */
+  filter?: TransactionFilter;
+  onFilterChange?: (next: TransactionFilter) => void;
 }) {
-  const [filter, setFilter] = useState<TransactionFilter>(EMPTY_FILTER);
+  const [localFilter, setLocalFilter] = useState<TransactionFilter>(EMPTY_FILTER);
+  const filter = filterProp ?? localFilter;
+  const setFilter = onFilterChange ?? setLocalFilter;
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
   const [bulkPending, setBulkPending] = useState<PendingBulkDelete | null>(null);

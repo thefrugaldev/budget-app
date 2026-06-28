@@ -105,3 +105,80 @@ export function matchesTransactionFilter(
   }
   return true;
 }
+
+/**
+ * Query-param keys for the transaction filter set. Short, and distinct from the
+ * page's `?range=` preset so the two coexist in one URL.
+ */
+const FILTER_PARAMS = {
+  text: "q",
+  vendor: "vendor",
+  dateFrom: "from",
+  dateTo: "to",
+  categoryIds: "cat",
+} as const;
+
+/**
+ * Serialize a filter to query params — only non-empty fields are emitted, so an
+ * empty filter produces an empty param set (a clean URL). Inverse of
+ * {@link parseTransactionFilter}.
+ */
+export function serializeTransactionFilter(
+  filter: TransactionFilter,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  const text = filter.text?.trim();
+  if (text) params.set(FILTER_PARAMS.text, text);
+  const vendor = filter.vendor?.trim();
+  if (vendor) params.set(FILTER_PARAMS.vendor, vendor);
+  if (filter.dateFrom) params.set(FILTER_PARAMS.dateFrom, filter.dateFrom);
+  if (filter.dateTo) params.set(FILTER_PARAMS.dateTo, filter.dateTo);
+  const categoryIds = filter.categoryIds?.filter(Boolean) ?? [];
+  if (categoryIds.length > 0) {
+    params.set(FILTER_PARAMS.categoryIds, categoryIds.join(","));
+  }
+  return params;
+}
+
+/**
+ * Parse a filter from query params, ignoring unrelated keys (e.g. `range`).
+ * Returns a sparse filter: absent fields stay `undefined`, which both the
+ * predicate and the filter-row controls treat as "no constraint".
+ */
+export function parseTransactionFilter(
+  params: URLSearchParams,
+): TransactionFilter {
+  const filter: TransactionFilter = {};
+  const text = params.get(FILTER_PARAMS.text)?.trim();
+  if (text) filter.text = text;
+  const vendor = params.get(FILTER_PARAMS.vendor)?.trim();
+  if (vendor) filter.vendor = vendor;
+  const dateFrom = params.get(FILTER_PARAMS.dateFrom);
+  if (dateFrom) filter.dateFrom = dateFrom;
+  const dateTo = params.get(FILTER_PARAMS.dateTo);
+  if (dateTo) filter.dateTo = dateTo;
+  const categoryIds = params
+    .get(FILTER_PARAMS.categoryIds)
+    ?.split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (categoryIds && categoryIds.length > 0) filter.categoryIds = categoryIds;
+  return filter;
+}
+
+/**
+ * Apply a filter onto an existing param set, returning a new one. The filter's
+ * own keys are cleared first so emptying a field drops it from the URL, while
+ * unrelated keys (notably `range`) are preserved.
+ */
+export function applyTransactionFilterToParams(
+  base: URLSearchParams,
+  filter: TransactionFilter,
+): URLSearchParams {
+  const next = new URLSearchParams(base.toString());
+  for (const key of Object.values(FILTER_PARAMS)) next.delete(key);
+  for (const [key, value] of serializeTransactionFilter(filter)) {
+    next.set(key, value);
+  }
+  return next;
+}
