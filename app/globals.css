@@ -55,6 +55,7 @@
 }
 
 :root {
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -96,6 +97,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -144,5 +146,23 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/*
+ * Global reduced-motion baseline. Users who request reduced motion get all
+ * animation and transition curtailed to a near-instant duration — this covers
+ * tw-animate-css keyframes, Radix dialog/popover transitions, and any future
+ * CSS-driven motion (charts included) without per-component opt-outs. Add a
+ * component-level override only where an animation is load-bearing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

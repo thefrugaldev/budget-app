@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { NotifyRoot } from "@/components/notify";
@@ -22,6 +22,17 @@ export const metadata: Metadata = {
     template: "%s — Budget",
   },
   description: "Track monthly spend by category",
+};
+
+// Theme colors match the app background tokens (--background) in globals.css:
+// light is oklch(1 0 0) = #ffffff, dark is oklch(0.145 0 0) = #0a0a0a. Mobile
+// browser chrome follows the user's system color scheme until the in-app theme
+// toggle lands (chunk 2 of #79).
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({
