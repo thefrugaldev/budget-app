@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
-import { TransactionList } from "@/components/budget/transaction/TransactionList";
+import { UrlFilteredTransactionList } from "@/components/budget/transaction/UrlFilteredTransactionList";
 import {
   isRangePreset,
   rangeLabel,
@@ -64,13 +65,16 @@ export default async function TransactionsPage({
         </div>
       </header>
 
-      <TransactionList
-        categories={categories}
-        transactions={inRange}
-        allTransactions={transactions}
-        rangeText={rangeText}
-        now={now}
-      />
+      {/* Suspense boundary for useSearchParams inside the URL-bound list. */}
+      <Suspense fallback={null}>
+        <UrlFilteredTransactionList
+          categories={categories}
+          transactions={inRange}
+          allTransactions={transactions}
+          rangeText={rangeText}
+          now={now}
+        />
+      </Suspense>
     </div>
   );
 }
