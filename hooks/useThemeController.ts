@@ -23,11 +23,15 @@ export function useThemeController(): {
   resolvedTheme: ResolvedTheme;
   setPreference: (preference: ThemePreference) => void;
 } {
-  const [preference, setPreferenceState] = useState<ThemePreference>(() =>
-    typeof window === "undefined"
-      ? "system"
-      : parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY)),
-  );
+  const [preference, setPreferenceState] = useState<ThemePreference>(() => {
+    if (typeof window === "undefined") return "system";
+    try {
+      return parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
+    } catch {
+      // Some embedded/sandboxed contexts throw on read, not just write.
+      return "system";
+    }
+  });
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
 
   useEffect(() => {
@@ -43,6 +47,18 @@ export function useThemeController(): {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [preference]);
+
+  // Keep tabs in sync: the `storage` event fires in every *other* tab when one
+  // tab writes the preference, so a choice made elsewhere applies here too.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === THEME_STORAGE_KEY) {
+        setPreferenceState(parseThemePreference(event.newValue));
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const setPreference = useCallback((next: ThemePreference) => {
     try {

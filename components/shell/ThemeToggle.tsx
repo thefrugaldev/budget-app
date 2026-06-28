@@ -16,10 +16,14 @@ const OPTIONS: { value: ThemePreference; label: string; Icon: LucideIcon }[] = [
  * Header theme control — interim home for the light/dark/system toggle (chunk 2
  * of #79). #81 relocates this into the Settings page once that route is real.
  *
+ * A `Menu.RadioGroup` carries the right semantics natively: each option renders
+ * `role="menuitemradio"` with `aria-checked`, so screen-reader users hear which
+ * theme is active rather than relying on the visual checkmark alone.
+ *
  * No hydration gate is needed: `resolvedTheme` starts "light" on both server and
- * client (the apply effect runs only after hydration), and the active-preference
- * checkmark lives in the popup, which Base UI doesn't render until the menu
- * opens — so the first client render matches the server markup.
+ * client (the apply effect runs only after hydration), and the radio group lives
+ * in a popup that Base UI doesn't render until the menu opens — so the first
+ * client render matches the server markup.
  */
 export function ThemeToggle() {
   const { preference, resolvedTheme, setPreference } = useThemeController();
@@ -36,17 +40,24 @@ export function ThemeToggle() {
       <Menu.Portal>
         <Menu.Positioner sideOffset={8} align="end" className="z-30 outline-none">
           <Menu.Popup className="min-w-40 rounded-xl bg-card p-1 text-sm shadow-xl ring-1 ring-border outline-none">
-            {OPTIONS.map(({ value, label, Icon }) => (
-              <Menu.Item
-                key={value}
-                onClick={() => setPreference(value)}
-                className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 outline-none data-[highlighted]:bg-muted"
-              >
-                <Icon className="size-4 text-muted-foreground" aria-hidden />
-                <span className="flex-1">{label}</span>
-                {preference === value && <Check className="size-4" aria-hidden />}
-              </Menu.Item>
-            ))}
+            <Menu.RadioGroup
+              value={preference}
+              onValueChange={(value) => setPreference(value as ThemePreference)}
+            >
+              {OPTIONS.map(({ value, label, Icon }) => (
+                <Menu.RadioItem
+                  key={value}
+                  value={value}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 outline-none data-[highlighted]:bg-muted"
+                >
+                  <Icon className="size-4 text-muted-foreground" aria-hidden />
+                  <span className="flex-1">{label}</span>
+                  <Menu.RadioItemIndicator>
+                    <Check className="size-4" aria-hidden />
+                  </Menu.RadioItemIndicator>
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
