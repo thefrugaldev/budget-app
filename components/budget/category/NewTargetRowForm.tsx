@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 
 import { upsertCategoryTargetAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
@@ -61,18 +62,15 @@ export function NewTargetRowForm({
             value={Number.isFinite(parsedAmount) ? yearlyToMonthly(parsedAmount) : ""}
           />
         )}
-        <input
+        <AmountInput
           name={isIncome ? undefined : "monthly"}
-          type="number"
-          step="0.01"
-          min="0"
-          inputMode="decimal"
+          precision={isIncome ? "whole" : "cents"}
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={setAmount}
+          allowZero
           placeholder={isIncome ? "$0/yr" : "$0/mo"}
-          required
-          aria-label={isIncome ? "Yearly baseline" : "Monthly target"}
-          className="w-28 rounded-md bg-background px-2 py-1 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+          ariaLabel={isIncome ? "Yearly baseline" : "Monthly target"}
+          className="w-28 px-2 py-1"
         />
       </div>
       {state.error && (

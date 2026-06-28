@@ -8,10 +8,13 @@ import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { AddIncomeSourceSubmitButton } from "@/components/budget/income/AddIncomeSourceSubmitButton";
 import { CadenceField } from "@/components/budget/income/CadenceField";
+import {
+  type AmountUnit,
+  RecurringAmountField,
+} from "@/components/budget/income/RecurringAmountField";
 import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
 import { useNotify } from "@/hooks/useNotify";
-import { fmt } from "@/lib/budget";
-import { monthlyFromCadence } from "@/lib/income";
+import { paycheckFromYearly } from "@/lib/income";
 import { cn } from "@/lib/utils";
 import type { IncomeFrequency, PayCadence } from "@/types/budget";
 
@@ -66,7 +69,11 @@ export function AddIncomeSourceDialog({
   const [emoji, setEmoji] = useState("💰");
   const [name, setName] = useState("");
   const [cadence, setCadence] = useState<PayCadence>("bi-weekly");
-  const [perPaycheck, setPerPaycheck] = useState("");
+  // Amount entry defaults to yearly with a per-paycheck toggle (RecurringAmountField).
+  // `amountValue` is in `amountUnit`'s denomination; we convert to the
+  // per-paycheck figure the create action expects at submit.
+  const [amountUnit, setAmountUnit] = useState<AmountUnit>("yearly");
+  const [amountValue, setAmountValue] = useState("");
   const [firstPaycheckDate, setFirstPaycheckDate] = useState("");
 
   // Clears every field back to a fresh step-1 state. Used both when the dialog
@@ -79,7 +86,8 @@ export function AddIncomeSourceDialog({
     setEmoji("💰");
     setName("");
     setCadence("bi-weekly");
-    setPerPaycheck("");
+    setAmountUnit("yearly");
+    setAmountValue("");
     setFirstPaycheckDate("");
   }
 
@@ -104,14 +112,15 @@ export function AddIncomeSourceDialog({
   const onStep2 = step === 2;
   const isRecurring = frequency === "recurring";
 
-  // Live annualized preview for the recurring per-paycheck amount. Parsed
-  // leniently (strip currency formatting) and only shown for a positive
-  // number, so a blank or in-progress entry stays quiet.
-  const parsedPaycheck = Number(perPaycheck.replace(/[^0-9.]/g, ""));
-  const yearlyPreview =
-    isRecurring && Number.isFinite(parsedPaycheck) && parsedPaycheck > 0
-      ? monthlyFromCadence(parsedPaycheck, cadence) * 12
-      : null;
+  // The create action stores monthly = monthlyFromCadence(perPaycheck, cadence),
+  // so submit the per-paycheck figure regardless of the entry unit.
+  const amountNum = Number(amountValue);
+  const perPaycheckValue =
+    amountValue === "" || !Number.isFinite(amountNum)
+      ? ""
+      : amountUnit === "per-paycheck"
+        ? amountValue
+        : paycheckFromYearly(amountNum, cadence).toFixed(2);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -124,7 +133,7 @@ export function AddIncomeSourceDialog({
           <Dialog.Description className="mt-1 text-xs text-muted-foreground">
             {onStep2
               ? isRecurring
-                ? "Enter the amount you take home each paycheck."
+                ? "Enter your pay — yearly, or switch to per-paycheck."
                 : "Log this source; record each receipt as it lands."
               : "How does this income arrive?"}
           </Dialog.Description>
@@ -182,29 +191,21 @@ export function AddIncomeSourceDialog({
               {isRecurring && (
                 <>
                   <CadenceField value={cadence} onChange={setCadence} />
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <span className="w-24 shrink-0 text-xs text-muted-foreground">
-                        Per paycheck
-                      </span>
-                      <input
-                        name="amountPerPaycheck"
-                        type="text"
-                        inputMode="decimal"
-                        value={perPaycheck}
-                        onChange={(e) => setPerPaycheck(e.target.value)}
-                        placeholder="$0.00"
-                        required
-                        autoFocus
-                        className="flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
-                      />
-                    </label>
-                    {yearlyPreview !== null && (
-                      <p className="mt-1 text-right text-xs text-muted-foreground tabular-nums">
-                        ≈ {fmt(yearlyPreview)}/yr
-                      </p>
-                    )}
-                  </div>
+                  <input
+                    type="hidden"
+                    name="amountPerPaycheck"
+                    value={perPaycheckValue}
+                  />
+                  <RecurringAmountField
+                    unit={amountUnit}
+                    value={amountValue}
+                    cadence={cadence}
+                    onChange={({ unit, value }) => {
+                      setAmountUnit(unit);
+                      setAmountValue(value);
+                    }}
+                    autoFocus
+                  />
                   {cadence !== "semi-monthly" && (
                     <label className="flex items-center gap-2">
                       <span className="w-24 shrink-0 text-xs text-muted-foreground">

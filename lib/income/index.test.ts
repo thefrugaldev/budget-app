@@ -8,9 +8,11 @@ import {
   monthlyToYearly,
   nextScheduledTarget,
   oneTimeReceiptSummary,
+  paycheckFromYearly,
   paychecksInMonth,
   paychecksThroughDate,
   perPaycheckFromMonthly,
+  yearlyFromPaycheck,
   yearlyToMonthly,
 } from ".";
 
@@ -364,6 +366,31 @@ describe("perPaycheckFromMonthly", () => {
       expect(
         perPaycheckFromMonthly(monthlyFromCadence(600, cadence), cadence),
       ).toBeCloseTo(600, 6);
+    }
+  });
+});
+
+describe("yearlyFromPaycheck / paycheckFromYearly", () => {
+  it("converts a $100k bi-weekly salary to/from its paycheck", () => {
+    expect(paycheckFromYearly(100000, "bi-weekly")).toBeCloseTo(3846.15, 2);
+    // round-trips back to ~$100k (cent-level drift from the monthly rounding)
+    expect(yearlyFromPaycheck(3846.15, "bi-weekly")).toBeCloseTo(100000, 0);
+  });
+
+  it("is a pass-through-ish round trip for monthly cadence", () => {
+    expect(paycheckFromYearly(120000, "monthly")).toBeCloseTo(10000, 6);
+    expect(yearlyFromPaycheck(10000, "monthly")).toBe(120000);
+  });
+
+  it("round-trips yearly -> paycheck -> yearly within a dollar for each cadence", () => {
+    for (const cadence of [
+      "weekly",
+      "bi-weekly",
+      "semi-monthly",
+      "monthly",
+    ] as const) {
+      const back = yearlyFromPaycheck(paycheckFromYearly(90000, cadence), cadence);
+      expect(Math.round(back)).toBe(90000);
     }
   });
 });

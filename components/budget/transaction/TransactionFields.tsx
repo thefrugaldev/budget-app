@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { CompactField } from "@/components/budget/transaction/CompactField";
 import { FieldRow } from "@/components/budget/transaction/FieldRow";
 import { SignControl } from "@/components/budget/transaction/SignControl";
@@ -57,73 +58,75 @@ export function TransactionFields({
 
   if (compact) {
     return (
-      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end md:gap-3">
+      <div className="space-y-3">
         <input type="hidden" name="sign" value={sign} />
 
-        <CompactField label="Date" className="md:w-44">
-          <DatePickerField
-            value={date}
-            onChange={setDate}
-            name="date"
+        {/* Amount leads as the big display (size "md" to fit the sidebar), with
+            the sign control beneath — consistent with the Add-transaction
+            dialog. The remaining fields stay in a dense wrapping row below. */}
+        <div className="flex flex-col items-center gap-2">
+          <AmountInput
+            name="amount"
+            value={amount}
+            onChange={setAmount}
+            variant="display"
+            size="md"
             required
-            ariaLabel="Transaction date"
+            ariaLabel="Amount"
           />
-        </CompactField>
+          <SignControl labels={signLabels} value={sign} onChange={setSign} />
+        </div>
 
-        <CompactField label="Amount" className="md:w-52">
-          <div className="flex gap-2">
-            <SignControl labels={signLabels} value={sign} onChange={setSign} />
-            <input
-              name="amount"
-              type="text"
-              inputMode="decimal"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+        <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end md:gap-3">
+          <CompactField label="Date" className="md:w-44">
+            <DatePickerField
+              value={date}
+              onChange={setDate}
+              name="date"
               required
-              className="w-full flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
-            />
-          </div>
-        </CompactField>
-
-        <CompactField label="Vendor" className="md:min-w-40 md:flex-1">
-          <VendorInput
-            value={vendor}
-            onChange={setVendor}
-            options={vendorOptions}
-            placeholder={vendorPlaceholder}
-          />
-        </CompactField>
-
-        {noteOpen ? (
-          // w-full + md:order-last so the Note wraps onto its own row below the
-          // main fields at md+, while keeping its natural DOM-order spot above
-          // the trailing group on mobile (no explicit order class applies).
-          <CompactField label="Note" className="w-full md:order-last">
-            <textarea
-              name="note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={2}
-              placeholder="Optional"
-              className="w-full resize-none rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+              ariaLabel="Transaction date"
             />
           </CompactField>
-        ) : (
-          <input type="hidden" name="note" value={note} />
-        )}
 
-        <div className="flex items-end gap-2 md:ml-auto">
-          {!noteOpen && (
-            <button
-              type="button"
-              onClick={() => setNoteOpen(true)}
-              className="cursor-pointer rounded-md bg-muted px-3 py-2 text-sm font-medium text-muted-foreground ring-1 ring-border hover:bg-muted/80 hover:text-foreground"
-            >
-              + Note
-            </button>
+          <CompactField label="Vendor" className="md:min-w-40 md:flex-1">
+            <VendorInput
+              value={vendor}
+              onChange={setVendor}
+              options={vendorOptions}
+              placeholder={vendorPlaceholder}
+            />
+          </CompactField>
+
+          {noteOpen ? (
+            // w-full + md:order-last so the Note wraps onto its own row below the
+            // main fields at md+, while keeping its natural DOM-order spot above
+            // the trailing group on mobile (no explicit order class applies).
+            <CompactField label="Note" className="w-full md:order-last">
+              <textarea
+                name="note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={2}
+                placeholder="Optional"
+                className="w-full resize-none rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+              />
+            </CompactField>
+          ) : (
+            <input type="hidden" name="note" value={note} />
           )}
-          {submitButton}
+
+          <div className="flex items-end gap-2 md:ml-auto">
+            {!noteOpen && (
+              <button
+                type="button"
+                onClick={() => setNoteOpen(true)}
+                className="cursor-pointer rounded-md bg-muted px-3 py-2 text-sm font-medium text-muted-foreground ring-1 ring-border hover:bg-muted/80 hover:text-foreground"
+              >
+                + Note
+              </button>
+            )}
+            {submitButton}
+          </div>
         </div>
       </div>
     );
@@ -144,18 +147,17 @@ export function TransactionFields({
       </FieldRow>
 
       <FieldRow label="Amount">
-        <div className="flex gap-2">
-          <SignControl labels={signLabels} value={sign} onChange={setSign} />
-          <input
+        <div className="flex flex-col items-center gap-3">
+          <AmountInput
             name="amount"
-            type="text"
-            inputMode="decimal"
-            placeholder="0.00"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={setAmount}
+            variant="display"
             required
-            className="w-full flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+            autoFocus
+            ariaLabel="Amount"
           />
+          <SignControl labels={signLabels} value={sign} onChange={setSign} />
         </div>
       </FieldRow>
 
