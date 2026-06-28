@@ -60,3 +60,61 @@ export function thresholdColor(
   if (state === "at") return SIGNAL.warn;
   return SIGNAL.good;
 }
+
+export type ThresholdTone = "good" | "warn" | "bad";
+
+/**
+ * Text-bearing, color-independent description of a category's threshold state.
+ * `label` is a short word/abbreviation so colorblind users get the signal
+ * without relying on the meter color, and `tone` mirrors {@link thresholdColor}
+ * so the (optional) color reinforcement always agrees with the words.
+ */
+export type ThresholdDescriptor = {
+  state: ThresholdState;
+  label: string;
+  tone: ThresholdTone;
+};
+
+// "over" means opposite things by kind, so the words diverge: a maxed expense
+// is bad ("Over cap"), a maxed savings goal is good ("Goal met").
+const EXPENSE_LABELS: Record<ThresholdState, string> = {
+  under: "Under cap",
+  near: "Near cap",
+  at: "At cap",
+  over: "Over cap",
+};
+
+const EXPENSE_TONES: Record<ThresholdState, ThresholdTone> = {
+  under: "good",
+  near: "good",
+  at: "warn",
+  over: "bad",
+};
+
+const GOAL_LABELS: Record<ThresholdState, string> = {
+  under: "On track",
+  near: "Near goal",
+  at: "At goal",
+  over: "Goal met",
+};
+
+/**
+ * Render-layer descriptor mirroring {@link thresholdColor}'s meaning-flip:
+ *
+ *   expense → tone tracks cap pressure (good under, warn at cap, bad over).
+ *   non-expense (savings/income) → any net contribution is progress (good);
+ *     only a net withdrawal/reversal is bad, labelled "Withdrawn" since the
+ *     four-state vocabulary has no word for going backwards.
+ */
+export function thresholdDescriptor(
+  kind: Category["kind"],
+  target: number,
+  amount: number,
+): ThresholdDescriptor {
+  const state = thresholdFor(kind, target, amount);
+  if (kind !== "expense") {
+    if (amount < 0) return { state, label: "Withdrawn", tone: "bad" };
+    return { state, label: GOAL_LABELS[state], tone: "good" };
+  }
+  return { state, label: EXPENSE_LABELS[state], tone: EXPENSE_TONES[state] };
+}

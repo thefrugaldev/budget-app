@@ -21,6 +21,7 @@ import {
   signLabelsFor,
   targetLabel,
   thresholdColor,
+  thresholdDescriptor,
   thresholdFor,
   vendorSuggestionsForCategory,
   ytdTotalsByCategory,
@@ -725,6 +726,49 @@ describe("thresholdColor — three-signal palette", () => {
       expect(col.bar).toBe(SIGNAL_BAR[c.signal]);
     });
   }
+});
+
+describe("thresholdDescriptor — text-bearing, non-color signal", () => {
+  // Each state must carry a word (not just color), and the word + tone must
+  // honor the expense/savings meaning-flip: "over" is bad for an expense cap
+  // but good for a savings goal.
+  type Kind = Category["kind"];
+  const cases: Array<{
+    name: string;
+    kind: Kind;
+    target: number;
+    amount: number;
+    label: string;
+    tone: "good" | "warn" | "bad";
+  }> = [
+    { name: "expense well under cap", kind: "expense", target: 800, amount: 100, label: "Under cap", tone: "good" },
+    { name: "expense near cap (75%)", kind: "expense", target: 800, amount: 600, label: "Near cap", tone: "good" },
+    { name: "expense at the cap", kind: "expense", target: 800, amount: 800, label: "At cap", tone: "warn" },
+    { name: "expense over the cap", kind: "expense", target: 800, amount: 900, label: "Over cap", tone: "bad" },
+    { name: "expense with a net refund stays good", kind: "expense", target: 800, amount: -50, label: "Under cap", tone: "good" },
+    { name: "savings early progress", kind: "savings", target: 1000, amount: 200, label: "On track", tone: "good" },
+    { name: "savings near goal (80%)", kind: "savings", target: 1000, amount: 800, label: "Near goal", tone: "good" },
+    { name: "savings at goal — over is GOOD here", kind: "savings", target: 1000, amount: 1500, label: "Goal met", tone: "good" },
+    { name: "savings net-negative (withdrawal)", kind: "savings", target: 1000, amount: -200, label: "Withdrawn", tone: "bad" },
+    { name: "income partial month", kind: "income", target: 8000, amount: 3000, label: "On track", tone: "good" },
+    { name: "income net-negative (reversal)", kind: "income", target: 8000, amount: -100, label: "Withdrawn", tone: "bad" },
+  ];
+
+  for (const c of cases) {
+    it(c.name, () => {
+      const d = thresholdDescriptor(c.kind, c.target, c.amount);
+      expect(d.label).toBe(c.label);
+      expect(d.tone).toBe(c.tone);
+    });
+  }
+
+  it("tone always agrees with thresholdColor's signal", () => {
+    const toBar = { good: "bg-signal-good", warn: "bg-signal-warn", bad: "bg-signal-bad" };
+    for (const c of cases) {
+      const d = thresholdDescriptor(c.kind, c.target, c.amount);
+      expect(thresholdColor(c.kind, c.target, c.amount).bar).toBe(toBar[d.tone]);
+    }
+  });
 });
 
 describe("resolveRange", () => {
