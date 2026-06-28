@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BottomTabNav } from "./bottom-tab-nav/BottomTabNav";
 import { PrimaryNav } from "./PrimaryNav";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -20,14 +21,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             Budget
           </Link>
-          {/* Desktop-only: nav and the future user/account slot. On mobile,
-              the bottom-tab nav owns navigation and the header just shows
-              the brand. `md:contents` keeps the desktop justify-between
-              layout (brand left, nav centred) unchanged. */}
+          {/* Desktop-only nav. On mobile the bottom-tab nav owns navigation, so
+              this is hidden and the header keeps brand (left) + theme toggle
+              (right). `md:contents` lets the nav sit centred between them on
+              desktop via the row's justify-between. */}
           <div className="hidden md:contents">
             <PrimaryNav />
-            <div aria-hidden className="w-[3.5rem]" />
           </div>
+          <ThemeToggle />
         </div>
       </header>
       <main id="main-content" className="flex-1 pb-16 md:pb-0">

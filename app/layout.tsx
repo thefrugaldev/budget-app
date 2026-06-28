@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { NotifyRoot } from "@/components/notify";
 import { AppShell } from "@/components/shell/AppShell";
+import { ThemeScript } from "@/components/shell/ThemeScript";
 import "react-day-picker/style.css";
 import "./globals.css";
 
@@ -43,9 +44,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      // The before-paint ThemeScript toggles `.dark` on <html> before React
+      // hydrates, so the class differs from the server-rendered markup by design.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <ThemeScript />
         <NotifyRoot>
           <AppShell>{children}</AppShell>
         </NotifyRoot>
