@@ -103,8 +103,10 @@ const GOAL_LABELS: Record<ThresholdState, string> = {
  *
  *   expense → tone tracks cap pressure (good under, warn at cap, bad over).
  *   non-expense (savings/income) → any net contribution is progress (good);
- *     only a net withdrawal/reversal is bad, labelled "Withdrawn" since the
- *     four-state vocabulary has no word for going backwards.
+ *     a net withdrawal/reversal is bad, labelled "Withdrawn", and a zero
+ *     balance reads "Not started" so an untouched goal doesn't over-claim
+ *     "On track". Both are render-layer distinctions on top of the shared
+ *     four-state vocabulary — no new ThresholdState.
  */
 export function thresholdDescriptor(
   kind: Category["kind"],
@@ -114,6 +116,7 @@ export function thresholdDescriptor(
   const state = thresholdFor(kind, target, amount);
   if (kind !== "expense") {
     if (amount < 0) return { state, label: "Withdrawn", tone: "bad" };
+    if (amount === 0) return { state, label: "Not started", tone: "good" };
     return { state, label: GOAL_LABELS[state], tone: "good" };
   }
   return { state, label: EXPENSE_LABELS[state], tone: EXPENSE_TONES[state] };

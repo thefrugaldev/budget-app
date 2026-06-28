@@ -746,6 +746,7 @@ describe("thresholdDescriptor — text-bearing, non-color signal", () => {
     { name: "expense at the cap", kind: "expense", target: 800, amount: 800, label: "At cap", tone: "warn" },
     { name: "expense over the cap", kind: "expense", target: 800, amount: 900, label: "Over cap", tone: "bad" },
     { name: "expense with a net refund stays good", kind: "expense", target: 800, amount: -50, label: "Under cap", tone: "good" },
+    { name: "savings with no contribution yet", kind: "savings", target: 1000, amount: 0, label: "Not started", tone: "good" },
     { name: "savings early progress", kind: "savings", target: 1000, amount: 200, label: "On track", tone: "good" },
     { name: "savings near goal (80%)", kind: "savings", target: 1000, amount: 800, label: "Near goal", tone: "good" },
     { name: "savings at goal (92%)", kind: "savings", target: 1000, amount: 920, label: "At goal", tone: "good" },
