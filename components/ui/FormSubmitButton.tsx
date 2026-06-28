@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * compile error. Per-call-site tweaks go through `className`, which is
  * tailwind-merge'd so overriding e.g. padding doesn't fight the preset.
  */
-export type SubmitVariant =
+type SubmitVariant =
   | "primary"
   | "compact"
   | "ghost"

@@ -40,3 +40,6 @@ jobs:
 
       - name: Circular dependencies
         run: pnpm lint:cycles
+
+      - name: Type placement
+        run: pnpm lint:types

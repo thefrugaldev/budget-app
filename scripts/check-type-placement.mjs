@@ -50,7 +50,14 @@ const files = ROOTS.flatMap((r) => {
     return [];
   }
 });
-const sources = new Map(files.map((f) => [f, readFileSync(f, "utf8")]));
+// Strip comments so a commented-out `import`/`export type` can't false-match.
+// The `[^:]` guard before `//` leaves `https://` (and other `://`) intact.
+const stripComments = (s) =>
+  s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+
+const sources = new Map(
+  files.map((f) => [f, stripComments(readFileSync(f, "utf8"))]),
+);
 
 const declRe = /^export\s+(?:type|interface)\s+([A-Za-z0-9_]+)/gm;
 const violations = [];
