@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BottomTabNav } from "./bottom-tab-nav/BottomTabNav";
 import { PrimaryNav } from "./PrimaryNav";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -13,20 +14,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-6 px-6">
-          <Link
-            href="/"
-            className="font-heading text-lg font-semibold tracking-tight"
-          >
-            Budget
-          </Link>
-          {/* Desktop-only: nav and the future user/account slot. On mobile,
-              the bottom-tab nav owns navigation and the header just shows
-              the brand. `md:contents` keeps the desktop justify-between
-              layout (brand left, nav centred) unchanged. */}
-          <div className="hidden md:contents">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-6 px-6">
+          {/* Equal-width flex-1 side slots keep the desktop nav truly centred
+              regardless of the brand/toggle width difference. On mobile the
+              nav is hidden, leaving brand (left) + theme toggle (right). */}
+          <div className="flex flex-1 items-center">
+            <Link
+              href="/"
+              className="font-heading text-lg font-semibold tracking-tight"
+            >
+              Budget
+            </Link>
+          </div>
+          <div className="hidden md:block">
             <PrimaryNav />
-            <div aria-hidden className="w-[3.5rem]" />
+          </div>
+          <div className="flex flex-1 items-center justify-end">
+            <ThemeToggle />
           </div>
         </div>
       </header>
