@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 
 import { createCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
 import { useNotify } from "@/hooks/useNotify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
@@ -87,6 +88,7 @@ export function CategoryForm({
     KIND_PLACEHOLDERS[presetKind ?? pickerKinds[0]].emoji,
   );
   const [activeFrom, setActiveFrom] = useState<string>(currentMonthKey());
+  const [monthly, setMonthly] = useState("");
 
   return (
     <form action={formAction} className={cn("space-y-3", className)}>
@@ -145,15 +147,21 @@ export function CategoryForm({
               ? "Monthly goal"
               : "Monthly baseline"}
         </span>
-        <input
+        <AmountInput
           name="monthly"
-          type="number"
-          step="0.01"
-          min="0"
-          inputMode="decimal"
+          precision={effectiveKind === "income" ? "whole" : "cents"}
+          variant="display"
+          value={monthly}
+          onChange={setMonthly}
+          allowZero
           placeholder="$0/mo"
-          required
-          className="w-full rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+          ariaLabel={
+            effectiveKind === "expense"
+              ? "Monthly cap"
+              : effectiveKind === "savings"
+                ? "Monthly goal"
+                : "Monthly baseline"
+          }
         />
       </label>
 

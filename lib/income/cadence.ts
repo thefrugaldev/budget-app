@@ -196,3 +196,20 @@ export function monthlyToYearly(monthly: number): number {
 export function yearlyToMonthly(yearly: number): number {
   return yearly / 12;
 }
+
+/**
+ * Gross yearly equivalent of a per-paycheck amount on a cadence — the round-trip
+ * `paycheck → monthly → yearly`. Lets the income forms offer a yearly⇄per-paycheck
+ * entry toggle without each one re-deriving the chain.
+ */
+export function yearlyFromPaycheck(
+  amountPerPaycheck: number,
+  cadence: PayCadence,
+): number {
+  return monthlyToYearly(monthlyFromCadence(amountPerPaycheck, cadence));
+}
+
+/** Inverse of {@link yearlyFromPaycheck}: per-paycheck amount for a gross yearly. */
+export function paycheckFromYearly(yearly: number, cadence: PayCadence): number {
+  return perPaycheckFromMonthly(yearlyToMonthly(yearly), cadence);
+}

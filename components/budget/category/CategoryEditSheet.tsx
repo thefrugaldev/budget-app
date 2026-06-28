@@ -9,6 +9,7 @@ import {
   upsertCategoryTargetAction,
 } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { CategoryLifecycleActions } from "@/components/budget/category/CategoryLifecycleActions";
 import { CategoryTargetHistory } from "@/components/budget/category/CategoryTargetHistory";
 import { SectionHeader } from "@/components/budget/category/SectionHeader";
@@ -329,15 +330,13 @@ export function CategoryEditSheet({
                   <span className="text-xs font-medium text-muted-foreground">
                     {isIncome ? "Yearly" : "Monthly"}
                   </span>
-                  <input
-                    type="number"
-                    step={isIncome ? "0.01" : "1"}
-                    min="0"
-                    inputMode="decimal"
+                  <AmountInput
+                    precision={isIncome ? "whole" : "cents"}
+                    variant="display"
                     value={targetInput}
-                    onChange={(e) => setTargetInput(e.target.value)}
-                    required
-                    className="w-full rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+                    onChange={setTargetInput}
+                    allowZero
+                    ariaLabel={isIncome ? "Yearly" : "Monthly"}
                   />
                 </label>
                 <label className="flex items-center gap-2 text-xs text-muted-foreground">

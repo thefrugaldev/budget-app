@@ -7,6 +7,7 @@ import {
   upsertCategoryTargetAction,
 } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { monthLabel, targetLabel } from "@/lib/budget";
@@ -71,17 +72,14 @@ export function TargetRowForm({
             value={Number.isFinite(parsed) ? yearlyToMonthly(parsed) : ""}
           />
         )}
-        <input
+        <AmountInput
           name={isIncome ? undefined : "monthly"}
-          type="number"
-          step="0.01"
-          min="0"
-          inputMode="decimal"
+          precision={isIncome ? "whole" : "cents"}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          required
-          aria-label={`${isIncome ? "Yearly baseline" : "Monthly target"} effective ${row.effectiveFrom}`}
-          className="w-28 rounded-md bg-background px-2 py-1 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+          onChange={setValue}
+          allowZero
+          ariaLabel={`${isIncome ? "Yearly baseline" : "Monthly target"} effective ${row.effectiveFrom}`}
+          className="w-28 px-2 py-1"
         />
         <FormSubmitButton
           label="Save"

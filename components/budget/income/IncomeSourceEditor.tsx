@@ -5,11 +5,15 @@ import { useActionState, useRef, useState } from "react";
 import { updateIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
 import { CadenceField } from "@/components/budget/income/CadenceField";
+import {
+  type AmountUnit,
+  RecurringAmountField,
+} from "@/components/budget/income/RecurringAmountField";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { monthLabel, nextMonth } from "@/lib/budget";
-import { monthlyToYearly } from "@/lib/income";
+import { monthlyToYearly, yearlyFromPaycheck } from "@/lib/income";
 import { cn } from "@/lib/utils";
 import type { Category, IncomeFrequency, PayCadence } from "@/types/budget";
 
@@ -56,12 +60,14 @@ export function IncomeSourceEditor({
   const [cadence, setCadence] = useState<PayCadence>(
     source.payCadence ?? DEFAULT_CADENCE,
   );
-  // `monthlyToYearly` rounds to cents on read so the input doesn't display
-  // float-drift like 99999.99999999999. A zero baseline (a one-time source
-  // being switched to recurring) starts blank rather than "0".
-  const initialYearly = monthlyToYearly(currentMonthly);
-  const [yearlyInput, setYearlyInput] = useState(
-    initialYearly > 0 ? initialYearly.toString() : "",
+  // Baseline is stored monthly but entered as yearly (default) or per-paycheck
+  // via the unit toggle. `amountValue` is in `amountUnit`'s denomination; the
+  // gross yearly (whole dollars) is derived for the action + dirty check.
+  // Rounding to whole keeps a mere unit toggle from registering as a change.
+  const initialYearly = Math.round(monthlyToYearly(currentMonthly));
+  const [amountUnit, setAmountUnit] = useState<AmountUnit>("yearly");
+  const [amountValue, setAmountValue] = useState(
+    initialYearly > 0 ? String(initialYearly) : "",
   );
   const [firstPaycheckInput, setFirstPaycheckInput] = useState(
     source.firstPaycheckDate ?? "",
@@ -77,9 +83,16 @@ export function IncomeSourceEditor({
   const confirmedRef = useRef(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const parsedYearly = Number(yearlyInput);
-  const yearlyChanged =
-    Number.isFinite(parsedYearly) && parsedYearly !== initialYearly;
+  const amountNum = Number(amountValue);
+  const currentYearly =
+    amountValue === "" || !Number.isFinite(amountNum) || amountNum <= 0
+      ? 0
+      : Math.round(
+          amountUnit === "yearly"
+            ? amountNum
+            : yearlyFromPaycheck(amountNum, cadence),
+        );
+  const yearlyChanged = currentYearly !== initialYearly;
   const cadenceChanged = cadence !== source.payCadence;
   const firstPaycheckChanged =
     (firstPaycheckInput || undefined) !== source.firstPaycheckDate;
@@ -195,27 +208,22 @@ export function IncomeSourceEditor({
                 />
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <label
-                className="text-xs text-muted-foreground"
-                htmlFor={yearlyId}
-              >
-                Yearly
-              </label>
-              <input
-                id={yearlyId}
-                name="yearly"
-                type="number"
-                step="0.01"
-                min="0"
-                inputMode="decimal"
-                value={yearlyInput}
-                onChange={(e) => setYearlyInput(e.target.value)}
-                placeholder="$0.00"
-                autoFocus
-                className="flex-1 rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
-              />
-            </div>
+            <input
+              type="hidden"
+              name="yearly"
+              value={currentYearly > 0 ? String(currentYearly) : ""}
+            />
+            <RecurringAmountField
+              id={yearlyId}
+              unit={amountUnit}
+              value={amountValue}
+              cadence={cadence}
+              onChange={({ unit, value }) => {
+                setAmountUnit(unit);
+                setAmountValue(value);
+              }}
+              autoFocus
+            />
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <input
                 type="checkbox"
