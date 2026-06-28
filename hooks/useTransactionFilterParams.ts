@@ -25,15 +25,20 @@ export function useTransactionFilterParams(): [
   const router = useRouter();
   const pathname = usePathname();
 
+  // Key off the serialized string, not the searchParams object: Next's
+  // useSearchParams return value isn't guaranteed referentially stable across
+  // renders, so depending on the object would rebuild the memo every render.
+  const search = searchParams.toString();
+
   const filter = useMemo(
-    () => parseTransactionFilter(new URLSearchParams(searchParams.toString())),
-    [searchParams],
+    () => parseTransactionFilter(new URLSearchParams(search)),
+    [search],
   );
 
   const setFilter = useCallback(
     (next: TransactionFilter) => {
       const params = applyTransactionFilterToParams(
-        new URLSearchParams(searchParams.toString()),
+        new URLSearchParams(search),
         next,
       );
       const query = params.toString();
@@ -41,7 +46,7 @@ export function useTransactionFilterParams(): [
         scroll: false,
       });
     },
-    [searchParams, router, pathname],
+    [search, router, pathname],
   );
 
   return [filter, setFilter];

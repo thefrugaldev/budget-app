@@ -107,8 +107,9 @@ export function matchesTransactionFilter(
 }
 
 /**
- * Query-param keys for the transaction filter set. Short, and distinct from the
- * page's `?range=` preset so the two coexist in one URL.
+ * Query-param keys for the transaction filter set. Kept short, and deliberately
+ * distinct from `range` — which the `/transactions` page already owns for its
+ * preset selector — so the filter and the range preset coexist in one URL.
  */
 const FILTER_PARAMS = {
   text: "q",
