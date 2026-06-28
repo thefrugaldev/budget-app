@@ -35,9 +35,9 @@ describe("sanitizeAmount — cents (explicit decimal)", () => {
 });
 
 describe("sanitizeAmount — whole (no decimal)", () => {
-  it("drops any decimal and keeps grouping-free digits", () => {
+  it("keeps the integer part and drops anything from the decimal on", () => {
     expect(sanitizeAmount("85000", "whole")).toBe("85000");
-    expect(sanitizeAmount("85000.49", "whole")).toBe("8500049"); // dot removed, digits kept
+    expect(sanitizeAmount("85000.49", "whole")).toBe("85000"); // fractional part dropped
     expect(sanitizeAmount("$85,000", "whole")).toBe("85000");
   });
 });

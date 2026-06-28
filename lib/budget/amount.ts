@@ -31,7 +31,10 @@ export function sanitizeAmount(
   const stripped = input.replace(/[^0-9.]/g, "");
 
   if (precision === "whole") {
-    return trimInt(stripped.replace(/\./g, ""), maxIntDigits);
+    // Drop the fractional part rather than concatenating digits across the dot,
+    // so "85000.49" reads as 85,000 (and a pasted "$85,000.49" loses the cents)
+    // instead of becoming 8,500,049.
+    return trimInt(stripped.split(".")[0], maxIntDigits);
   }
 
   const firstDot = stripped.indexOf(".");

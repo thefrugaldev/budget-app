@@ -28,6 +28,12 @@ const UNITS: ReadonlyArray<{ value: AmountUnit; label: string }> = [
  * action expects — yearly for the editor, per-paycheck for the create dialog.
  * Switching unit reports the converted value alongside the new unit in one
  * `onChange`, so the parent never re-derives the conversion.
+ *
+ * Deliberately takes no `name` and renders no hidden input: the submitted field
+ * differs per call site (the editor posts `yearly`, the dialog posts
+ * `amountPerPaycheck`), so each parent owns its own hidden field and converts
+ * `value` to it. A `targetUnit`/`name` prop here would just push that divergence
+ * inward.
  */
 export function RecurringAmountField({
   unit,

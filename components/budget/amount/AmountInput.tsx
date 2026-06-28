@@ -33,9 +33,11 @@ const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : use
  * monthly) and just needs the entry value back via `onChange`.
  *
  * Two looks: `variant="display"` is the large centered showcase (the cents are
- * rendered smaller and lighter as a visual cue) — `size` tunes it to the host
- * (`"lg"` for dialogs, `"md"` for sidebars). `variant="field"` is the compact
- * inline field that matches the app's other form inputs.
+ * rendered smaller and lighter as a visual cue, with a focus underline and a
+ * trailing icon-clear) — `size` tunes it to the host (`"lg"` for dialogs, `"md"`
+ * for sidebars). `variant="field"` is the compact inline field that matches the
+ * app's other form inputs; it has no clear control by design — the dense rows it
+ * serves don't warrant one.
  */
 export function AmountInput({
   value,
