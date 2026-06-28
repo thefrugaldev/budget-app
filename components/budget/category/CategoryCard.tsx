@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Category, Transaction } from "@/types/budget";
-import { fmt, targetLabel, thresholdColor } from "@/lib/budget";
+import { fmt, targetLabel, thresholdColor, thresholdDescriptor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/charts/ThresholdMeter";
@@ -29,6 +29,7 @@ export function CategoryCard({
   transactions: Transaction[];
 }) {
   const col = thresholdColor(category.kind, denominator, total);
+  const descriptor = thresholdDescriptor(category.kind, denominator, total);
   const pct = denominator === 0 ? 0 : total / denominator;
   const isInflow = category.kind !== "expense";
   const label = targetLabel(category.kind);
@@ -72,12 +73,20 @@ export function CategoryCard({
       </div>
 
       <div>
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-baseline justify-between gap-2">
           <span className={cn("font-heading text-xl font-semibold tabular-nums", col.text)}>
             <SignedAmount kind={category.kind} amount={total} />
           </span>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {Math.round(pct * 100)}% of {label.toLowerCase()}
+          <span className="flex shrink-0 items-baseline gap-1.5">
+            {/* Text-bearing threshold signal so the state is legible without
+                relying on the meter color (#79 story 5). Color/icon styling of
+                this chip is owned by the identity PRD (#80). */}
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+              {descriptor.label}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {Math.round(pct * 100)}%
+            </span>
           </span>
         </div>
         <ThresholdMeter kind={category.kind} target={denominator} amount={total} className="mt-2" />
