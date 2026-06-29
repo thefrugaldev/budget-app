@@ -107,3 +107,48 @@ function collapseStreaks(transactions: Transaction[]): TransactionRow[] {
 export function streakKey(date: string, vendor: string): string {
   return `streak:${date}:${vendor}`;
 }
+
+/**
+ * Flattens day groups into the keyboard-navigable row order used by the
+ * transaction list's roving-tabindex. A single row contributes its transaction
+ * id; a streak header contributes its `streakKey`, followed — only when open —
+ * by each underlying row id that still exists (a row optimistically deleted
+ * mid-streak drops out via `hasTransaction`). The order matches the rendered
+ * DOM exactly so arrow / Home / End navigation lands on real elements.
+ *
+ * `sectionIndexByKey` maps each navigable key back to the index of its day
+ * group. When the list is virtualized, a key whose section is windowed out has
+ * no DOM node to focus; the caller scrolls `sectionIndexByKey.get(key)` into
+ * view first, then focuses once it mounts. Pure and deterministic given its
+ * inputs.
+ */
+export function flattenNavigableRows(
+  dayGroups: DayGroup[],
+  isStreakOpen: (key: string) => boolean,
+  hasTransaction: (id: string) => boolean,
+): { orderedRowKeys: string[]; sectionIndexByKey: Map<string, number> } {
+  const orderedRowKeys: string[] = [];
+  const sectionIndexByKey = new Map<string, number>();
+
+  dayGroups.forEach((group, sectionIndex) => {
+    const push = (key: string) => {
+      orderedRowKeys.push(key);
+      sectionIndexByKey.set(key, sectionIndex);
+    };
+    for (const row of group.rows) {
+      if (row.kind === "single") {
+        push(row.transaction.id);
+      } else {
+        const key = streakKey(group.date, row.vendor);
+        push(key);
+        if (isStreakOpen(key)) {
+          for (const id of row.transactionIds) {
+            if (hasTransaction(id)) push(id);
+          }
+        }
+      }
+    }
+  });
+
+  return { orderedRowKeys, sectionIndexByKey };
+}

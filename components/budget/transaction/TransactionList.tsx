@@ -1,9 +1,11 @@
 "use client";
 
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Check, ListChecks } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -22,7 +24,10 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { useNotify } from "@/hooks/useNotify";
 import { useTransactionSelection } from "@/hooks/useTransactionSelection";
 import { matchesTransactionFilter } from "@/lib/budget";
-import { groupTransactionsByDay, streakKey } from "@/lib/transaction";
+import {
+  flattenNavigableRows,
+  groupTransactionsByDay,
+} from "@/lib/transaction";
 import {
   allTransactionIds,
   areAllSelected,
@@ -531,44 +536,85 @@ export function TransactionList({
   );
 
   // Flattened, DOM-order list of navigable row keys for roving-tabindex arrow
-  // navigation. A streak header contributes its own key, then (when open) each
-  // underlying row id, matching what's rendered.
-  const orderedRowKeys = useMemo(() => {
-    const keys: string[] = [];
-    for (const group of dayGroups) {
-      for (const row of group.rows) {
-        if (row.kind === "single") {
-          keys.push(row.transaction.id);
-        } else {
-          const key = streakKey(group.date, row.vendor);
-          keys.push(key);
-          if (isStreakOpen(key)) {
-            for (const id of row.transactionIds) {
-              if (txById.has(id)) keys.push(id);
-            }
-          }
-        }
-      }
-    }
-    return keys;
-  }, [dayGroups, isStreakOpen, txById]);
+  // navigation, plus each key's day-group index so a windowed-out row can be
+  // scrolled into view before it's focused (see `focusRow`). A streak header
+  // contributes its own key, then (when open) each underlying row id, matching
+  // what's rendered.
+  const { orderedRowKeys, sectionIndexByKey } = useMemo(
+    () => flattenNavigableRows(dayGroups, isStreakOpen, (id) => txById.has(id)),
+    [dayGroups, isStreakOpen, txById],
+  );
 
   const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
-  const effectiveActiveKey =
-    activeRowKey && orderedRowKeys.includes(activeRowKey)
-      ? activeRowKey
-      : (orderedRowKeys[0] ?? null);
 
+  // Day-section virtualization (#79 chunk 5, story 7). The list scrolls with
+  // the page (sticky `top-14` headers, no inner scroll container), so we window
+  // the document scroll rather than introduce an internal scroller — keeping
+  // layout pixel-identical. One day group per virtual item; dynamic measurement
+  // absorbs varying row counts and streak expand/collapse.
   const listRef = useRef<HTMLDivElement>(null);
-  const focusRow = useCallback((key: string) => {
+  // `scrollMargin` is the list's offset from the top of the document. It's null
+  // on first render (no layout yet), so measure it post-layout into state; the
+  // resulting re-render hands the virtualizer the real offset. Only updates when
+  // the offset actually moves (filter row height, range selector), so no loop.
+  const [scrollMargin, setScrollMargin] = useState(0);
+  // Runs every render (no deps) on purpose: the list is conditionally rendered
+  // (the empty state hides it), so a one-shot `[]` effect would miss `listRef`
+  // mounting when a filter clears. The `cur === top` guard makes the setState a
+  // no-op once the offset settles, so there's no update loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const top = listRef.current?.offsetTop ?? 0;
+    setScrollMargin((cur) => (cur === top ? cur : top));
+  });
+  const virtualizer = useWindowVirtualizer({
+    count: dayGroups.length,
+    estimateSize: () => 200,
+    overscan: 4,
+    getItemKey: (index) => dayGroups[index].date,
+    scrollMargin,
+  });
+
+  // Roving-tabindex focus, virtualization-aware. If the target row is rendered
+  // (in the current window) we focus it directly; otherwise we scroll its day
+  // section into view and let the post-render effect below focus it once it
+  // mounts. Always update the active key so the tab stop tracks the intent even
+  // before the element exists.
+  const pendingFocusRef = useRef<string | null>(null);
+  const focusRow = useCallback(
+    (key: string) => {
+      setActiveRowKey(key);
+      const el = listRef.current?.querySelector<HTMLElement>(
+        `[data-row-key="${CSS.escape(key)}"]`,
+      );
+      if (el) {
+        pendingFocusRef.current = null;
+        el.focus();
+        return;
+      }
+      pendingFocusRef.current = key;
+      const sectionIndex = sectionIndexByKey.get(key);
+      if (sectionIndex !== undefined) {
+        virtualizer.scrollToIndex(sectionIndex, { align: "center" });
+      }
+    },
+    [sectionIndexByKey, virtualizer],
+  );
+
+  // Complete a deferred focus once the scrolled-to section mounts. Runs after
+  // every render (cheap no-op when nothing is pending); clears itself as soon
+  // as the awaited element appears.
+  useEffect(() => {
+    const key = pendingFocusRef.current;
+    if (!key) return;
     const el = listRef.current?.querySelector<HTMLElement>(
       `[data-row-key="${CSS.escape(key)}"]`,
     );
     if (el) {
       el.focus();
-      setActiveRowKey(key);
+      pendingFocusRef.current = null;
     }
-  }, []);
+  });
 
   // Container-level arrow / Home / End navigation. Space and Enter are handled
   // on each row element (the streak header is a <button> whose native Space
@@ -588,6 +634,32 @@ export function TransactionList({
     },
     [orderedRowKeys, focusRow],
   );
+
+  // Resolve the roving tab stop to a row that is *currently rendered*. With the
+  // list windowed, the active row's section can scroll out of the DOM (e.g. via
+  // a mouse wheel while focus is elsewhere); if we kept it as the tab stop there
+  // would be no `tabIndex={0}` element to Tab into. So: keep the stored active
+  // key while its section is in the window, otherwise fall back to the first
+  // navigable row whose section is rendered. Keyboard navigation always scrolls
+  // its target into view, so it never trips this fallback.
+  const virtualItems = virtualizer.getVirtualItems();
+  const renderedSectionIndices = new Set(virtualItems.map((item) => item.index));
+  const isKeyRendered = (key: string) => {
+    const sectionIndex = sectionIndexByKey.get(key);
+    return sectionIndex !== undefined && renderedSectionIndices.has(sectionIndex);
+  };
+  const effectiveActiveKey =
+    activeRowKey && orderedRowKeys.includes(activeRowKey) && isKeyRendered(activeRowKey)
+      ? activeRowKey
+      : (orderedRowKeys.find(isKeyRendered) ?? orderedRowKeys[0] ?? null);
+
+  // Spacer heights for the normal-flow windowing (see the render block). The
+  // virtualizer measures item offsets from the document origin, so subtract the
+  // list's own `scrollMargin` to get offsets within the list container.
+  const topSpacer = virtualItems.length ? virtualItems[0].start - scrollMargin : 0;
+  const bottomSpacer = virtualItems.length
+    ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end + scrollMargin
+    : 0;
 
   // Top-level select-all spans every row in the current filter/range (story 9).
   const allIds = useMemo(() => allTransactionIds(dayGroups), [dayGroups]);
@@ -739,23 +811,37 @@ export function TransactionList({
           // the last rows (the bar is ~56px tall plus the mobile tab clearance).
           style={selection.count > 0 ? { paddingBottom: "5rem" } : undefined}
         >
-          {dayGroups.map((group) => (
-            <DaySection
-              key={group.date}
-              group={group}
-              pageCategory={category}
-              pageIsInflow={pageIsInflow}
-              categoryById={categoryById}
-              byId={txById}
-              selection={selection}
-              activeRowKey={effectiveActiveKey}
-              onActivate={setActiveRowKey}
-              isStreakOpen={isStreakOpen}
-              onToggleStreak={toggleStreak}
-              onEdit={setEditing}
-              onDelete={startDelete}
-            />
-          ))}
+          {/* Windowed day sections rendered in normal document flow between two
+              sized spacers: the spacers reserve the full scroll height while
+              only the visible (plus overscan) sections mount. Normal flow (not
+              absolute/transform) is deliberate — a transformed wrapper becomes
+              the sticky day header's containing block and pins it to the wrong
+              edge, so sections stay in flow to keep sticky headers, streak
+              disclosure, selection and roving-tabindex behaving exactly as the
+              unvirtualized list did. */}
+          <div style={{ height: topSpacer }} aria-hidden />
+          {virtualItems.map((item) => {
+            const group = dayGroups[item.index];
+            return (
+              <div key={item.key} data-index={item.index} ref={virtualizer.measureElement}>
+                <DaySection
+                  group={group}
+                  pageCategory={category}
+                  pageIsInflow={pageIsInflow}
+                  categoryById={categoryById}
+                  byId={txById}
+                  selection={selection}
+                  activeRowKey={effectiveActiveKey}
+                  onActivate={setActiveRowKey}
+                  isStreakOpen={isStreakOpen}
+                  onToggleStreak={toggleStreak}
+                  onEdit={setEditing}
+                  onDelete={startDelete}
+                />
+              </div>
+            );
+          })}
+          <div style={{ height: bottomSpacer }} aria-hidden />
         </div>
       )}
 
