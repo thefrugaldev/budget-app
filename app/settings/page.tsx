@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { SettingsSection } from "@/components/settings/SettingsSection";
+import { ThemeControl } from "@/components/settings/ThemeControl";
 import { SoonBadge } from "@/components/shell/SoonBadge";
 
 export const metadata: Metadata = {
@@ -16,10 +17,9 @@ export const metadata: Metadata = {
  * a placeholder, doesn't build it), then **Appearance**, **Data**,
  * **Categories**, and a visually-isolated **Danger zone**.
  *
- * This chunk lays out the shells; each section's description names the control
- * it will hold, and the controls themselves arrive in later chunks — the theme
- * toggle (chunk 2), CSV export (chunk 3), ended-category management (chunk 4),
- * and the guarded reset (chunk 5).
+ * Appearance now hosts the real theme control (chunk 2); the remaining controls
+ * arrive in later chunks — CSV export (chunk 3), ended-category management
+ * (chunk 4), and the guarded reset (chunk 5).
  */
 export default function SettingsPage() {
   return (
@@ -37,8 +37,10 @@ export default function SettingsPage() {
 
         <SettingsSection
           title="Appearance"
-          description="The light / dark / system theme control moves here from the header."
-        />
+          description="Choose how the app looks. System follows your device setting."
+        >
+          <ThemeControl />
+        </SettingsSection>
 
         <SettingsSection
           title="Data"
