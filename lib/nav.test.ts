@@ -23,6 +23,25 @@ describe("NAV_ITEMS", () => {
       expect(item.icon.length).toBeGreaterThan(0);
     }
   });
+
+  it("the redundant Categories index is no longer a destination (#79)", () => {
+    expect(NAV_ITEMS.some((item) => item.href === "/categories")).toBe(false);
+  });
+
+  it("FIRE took the freed slot as a marked placeholder (#79)", () => {
+    const fire = NAV_ITEMS.find((item) => item.href === "/fire");
+    expect(fire?.placeholder).toBe(true);
+  });
+
+  // Story 16: the /categories/[id] detail page is not itself a nav destination,
+  // so no tab should light up while you're on it (the old /categories item used
+  // to claim it via prefix match).
+  it("no nav item is active on a category detail path", () => {
+    const active = NAV_ITEMS.filter((item) =>
+      isActive("/categories/groceries", item.href),
+    );
+    expect(active).toEqual([]);
+  });
 });
 
 describe("isActive", () => {

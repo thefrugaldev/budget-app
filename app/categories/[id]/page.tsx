@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { CategoryDetailBody } from "@/components/budget/category/CategoryDetailBody";
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
+import { BackLink } from "@/components/shell/BackLink";
 import {
   isRangePreset,
   rangeLabel,
@@ -52,6 +53,9 @@ export default async function CategoryDetail({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
+      <div className="mb-4">
+        <BackLink href="/" label="Pulse" />
+      </div>
       <div className="mb-6">
         <RangeSelector active={preset} basePath={`/categories/${category.id}`} />
       </div>

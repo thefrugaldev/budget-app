@@ -6,14 +6,18 @@
 
 import type { NavItem } from "@/types/nav";
 
-export const NAV_ITEMS = [
+export const NAV_ITEMS: readonly NavItem[] = [
   { label: "Pulse", href: "/", icon: "📊", mobileTab: "primary" },
-  { label: "Categories", href: "/categories", icon: "📂", mobileTab: "primary" },
+  // FIRE takes the slot vacated by the dropped Categories index (#79): category
+  // management lives on Pulse + the /categories/[id] detail page, so the index
+  // was redundant. FIRE is a marked placeholder — the feature is a future
+  // discovery effort, but the slot signals the product's direction.
+  { label: "FIRE", href: "/fire", icon: "🔥", mobileTab: "primary", placeholder: true },
   { label: "Income", href: "/income", icon: "💼", mobileTab: "primary" },
   { label: "Transactions", href: "/transactions", icon: "📜", mobileTab: "primary" },
-  { label: "Net worth", href: "/net-worth", icon: "📈", mobileTab: "more" },
+  { label: "Net worth", href: "/net-worth", icon: "📈", mobileTab: "more", placeholder: true },
   { label: "Settings", href: "/settings", icon: "⚙️", mobileTab: "more" },
-] as const satisfies readonly NavItem[];
+];
 
 function stripQueryAndHash(pathname: string): string {
   const queryAt = pathname.indexOf("?");

@@ -5,6 +5,7 @@ import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 
 import { ActiveIndicator } from "@/components/shell/bottom-tab-nav/ActiveIndicator";
+import { SoonBadge } from "@/components/shell/SoonBadge";
 import { isActive } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/types/nav";
@@ -58,6 +59,7 @@ export function MoreTab({
                 >
                   <span aria-hidden="true">{item.icon}</span>
                   <span>{item.label}</span>
+                  {item.placeholder && <SoonBadge className="ml-auto" />}
                 </Menu.Item>
               );
             })}
