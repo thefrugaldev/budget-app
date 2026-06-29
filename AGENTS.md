@@ -35,3 +35,18 @@ Four principles apply across **every** top-level source directory (`components/`
 
 These conventions are enforced by review, not by tooling (with the narrow exception of `pnpm lint:types` for the rule above). New and touched files should follow them.
 <!-- END:code-organization -->
+
+<!-- BEGIN:design-accessibility-baseline -->
+# Design & accessibility baseline
+
+The non-negotiables every new or touched UI surface must satisfy. Enforced by review, like the code-organization rules above. This section has two halves: the **Accessibility** half below (established by #79) and a **Design / visual identity** half owned by the identity work (#80) — keep them as separate subsections so neither rewrites the other.
+
+## Accessibility
+
+- **Respect reduced motion.** Animation and transition are curtailed globally under `prefers-reduced-motion: reduce` by a single layer in `app/globals.css` — lean on it rather than adding per-component handling, and never ship motion that ignores it. Add a component-level override only where an animation is genuinely load-bearing (carries meaning), and say why.
+- **Keep `color-scheme` and `theme-color` in sync with the theme.** `:root` and `.dark` declare `color-scheme` so native controls (date pickers, scrollbars, form fields) follow the active theme; the `viewport` export in `app/layout.tsx` sets light/dark `themeColor` so mobile browser chrome matches the background. Any new theme updates both.
+- **Never communicate state by color alone.** Status must also carry text (a word or abbreviation) or a shape — an unlabeled icon or a bare color swatch is not enough for colorblind or assistive-tech users — and the same state must reach screen readers (e.g. `aria-valuetext` on the threshold meter carries the descriptor word, not just the bar colour). Prior art: the text-bearing `thresholdDescriptor` in `lib/budget` (honoring the expense/savings meaning-flip) and the nav "Soon" badge (a word, not a colored dot).
+- **Preserve visible focus.** Interactive elements keep a visible focus indicator — use `focus-visible:ring-2 focus-visible:ring-ring`; don't strip an outline without an equivalent replacement.
+- **Label every input.** Each control has a real associated label (`<label htmlFor>` or `aria-label`); placeholder text is never the only label.
+- **Virtualize lists once they get long or heavy.** Window a list when it can grow past a few hundred simple rows, past ~50 when the rows are complex or the surface is scroll-heavy (sticky day headers, selection mode, swipe menus, inline charts), or sooner if it visibly stutters on scroll or measurably hurts first paint — the row count is a guide, the symptom is the real trigger. Don't add windowing to a short or trivial list for its own sake. Prior art: the day-grouped transaction list via `@tanstack/react-virtual`. Windowing must preserve keyboard semantics — roving tabindex, selection, and focus reachability.
+<!-- END:design-accessibility-baseline -->
