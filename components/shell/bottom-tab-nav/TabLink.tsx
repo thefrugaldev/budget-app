@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ActiveIndicator } from "@/components/shell/bottom-tab-nav/ActiveIndicator";
+import { SoonBadge } from "@/components/shell/SoonBadge";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/types/nav";
 
@@ -21,6 +22,7 @@ export function TabLink({ item, active }: { item: NavItem; active: boolean }) {
         {item.icon}
       </span>
       <span>{item.label}</span>
+      {item.placeholder && <SoonBadge className="px-1 py-0 text-[9px]" />}
     </Link>
   );
 }
