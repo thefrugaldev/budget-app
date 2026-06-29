@@ -309,13 +309,11 @@ describe("flattenNavigableRows", () => {
   const allPresent = () => true;
 
   it("returns empty results for no day groups", () => {
-    const { orderedRowKeys, sectionIndexByKey } = flattenNavigableRows(
-      [],
-      never,
-      allPresent,
-    );
+    const { orderedRowKeys, sectionIndexByKey, sectionFirstKeys } =
+      flattenNavigableRows([], never, allPresent);
     expect(orderedRowKeys).toEqual([]);
     expect(sectionIndexByKey.size).toBe(0);
+    expect(sectionFirstKeys).toEqual([]);
   });
 
   it("lists single rows by id in DOM order across days", () => {
@@ -326,15 +324,15 @@ describe("flattenNavigableRows", () => {
       ],
       opts,
     );
-    const { orderedRowKeys, sectionIndexByKey } = flattenNavigableRows(
-      groups,
-      never,
-      allPresent,
-    );
+    const { orderedRowKeys, sectionIndexByKey, sectionFirstKeys } =
+      flattenNavigableRows(groups, never, allPresent);
     // Newest day first, mirroring groupTransactionsByDay's ordering.
     expect(orderedRowKeys).toEqual(["a", "b"]);
     expect(sectionIndexByKey.get("a")).toBe(0);
     expect(sectionIndexByKey.get("b")).toBe(1);
+    // One section per day; each section's first key is its lone row, indexed
+    // by section so the caller can resolve a tab stop by section index in O(1).
+    expect(sectionFirstKeys).toEqual(["a", "b"]);
   });
 
   it("contributes only the streak header key when the streak is closed", () => {
@@ -353,16 +351,15 @@ describe("flattenNavigableRows", () => {
       opts,
     );
     const key = streakKey("2026-06-08", "Whole Foods");
-    const { orderedRowKeys, sectionIndexByKey } = flattenNavigableRows(
-      groups,
-      always,
-      allPresent,
-    );
+    const { orderedRowKeys, sectionIndexByKey, sectionFirstKeys } =
+      flattenNavigableRows(groups, always, allPresent);
     expect(orderedRowKeys).toEqual([key, "a", "b"]);
     // The expanded children share their header's day-group section.
     expect(sectionIndexByKey.get(key)).toBe(0);
     expect(sectionIndexByKey.get("a")).toBe(0);
     expect(sectionIndexByKey.get("b")).toBe(0);
+    // The section's first navigable key is the streak header, not a child.
+    expect(sectionFirstKeys).toEqual([key]);
   });
 
   it("drops an open streak's children that no longer exist (optimistic delete)", () => {

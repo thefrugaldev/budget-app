@@ -540,7 +540,7 @@ export function TransactionList({
   // scrolled into view before it's focused (see `focusRow`). A streak header
   // contributes its own key, then (when open) each underlying row id, matching
   // what's rendered.
-  const { orderedRowKeys, sectionIndexByKey } = useMemo(
+  const { orderedRowKeys, sectionIndexByKey, sectionFirstKeys } = useMemo(
     () => flattenNavigableRows(dayGroups, isStreakOpen, (id) => txById.has(id)),
     [dayGroups, isStreakOpen, txById],
   );
@@ -648,10 +648,16 @@ export function TransactionList({
     const sectionIndex = sectionIndexByKey.get(key);
     return sectionIndex !== undefined && renderedSectionIndices.has(sectionIndex);
   };
+  // Resolve in O(1) — both `sectionIndexByKey.has` (does the key still exist?)
+  // and `isKeyRendered` are map lookups, and the windowed-out fallback reads the
+  // topmost rendered section's first key directly rather than scanning the full
+  // key list. This stays cheap as the list grows into tens of thousands of rows.
   const effectiveActiveKey =
-    activeRowKey && orderedRowKeys.includes(activeRowKey) && isKeyRendered(activeRowKey)
+    activeRowKey && sectionIndexByKey.has(activeRowKey) && isKeyRendered(activeRowKey)
       ? activeRowKey
-      : (orderedRowKeys.find(isKeyRendered) ?? orderedRowKeys[0] ?? null);
+      : virtualItems.length > 0
+        ? (sectionFirstKeys[virtualItems[0].index] ?? null)
+        : (orderedRowKeys[0] ?? null);
 
   // Spacer heights for the normal-flow windowing (see the render block). The
   // virtualizer measures item offsets from the document origin, so subtract the
