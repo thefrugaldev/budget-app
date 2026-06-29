@@ -52,6 +52,10 @@ const files = ROOTS.flatMap((r) => {
 });
 // Strip comments so a commented-out `import`/`export type` can't false-match.
 // The `[^:]` guard before `//` leaves `https://` (and other `://`) intact.
+// Line/block-aware, not syntax-aware: a `//` inside a regex literal on the same
+// line as a type decl/import could mis-strip. No such literals exist in the
+// scanned dirs; a real tokenizer would be overkill here. If the guard ever
+// flags something baffling, suspect a regex literal on a declaration line.
 const stripComments = (s) =>
   s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 
