@@ -13,11 +13,14 @@ export function SettingsSection({
   title,
   description,
   tone = "default",
+  badge,
   children,
 }: {
   title: string;
   description?: string;
   tone?: "default" | "danger";
+  /** Inline marker beside the title — e.g. a "Soon" badge on a reserved section. */
+  badge?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -27,14 +30,17 @@ export function SettingsSection({
         tone === "danger" ? "ring-destructive/40" : "ring-border",
       )}
     >
-      <h2
-        className={cn(
-          "font-heading text-lg font-semibold tracking-tight",
-          tone === "danger" && "text-destructive",
-        )}
-      >
-        {title}
-      </h2>
+      <div className="flex items-center gap-2">
+        <h2
+          className={cn(
+            "font-heading text-lg font-semibold tracking-tight",
+            tone === "danger" && "text-destructive",
+          )}
+        >
+          {title}
+        </h2>
+        {badge}
+      </div>
       {description ? (
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       ) : null}

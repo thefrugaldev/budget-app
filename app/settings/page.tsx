@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SoonBadge } from "@/components/shell/SoonBadge";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -27,9 +28,10 @@ export default function SettingsPage() {
         Settings
       </h1>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         <SettingsSection
           title="Account"
+          badge={<SoonBadge />}
           description="Sign-in, profile, and sign-out arrive when accounts land — reserved here so it has an obvious home. This app is single-user today, so there's nothing to manage yet."
         />
 
