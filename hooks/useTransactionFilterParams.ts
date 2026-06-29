@@ -6,8 +6,8 @@ import { useCallback, useMemo } from "react";
 import {
   applyTransactionFilterToParams,
   parseTransactionFilter,
-  type TransactionFilter,
 } from "@/lib/budget";
+import type { TransactionFilter } from "@/types/transaction";
 
 /**
  * Binds the transaction filter set to the URL query string, mirroring how the

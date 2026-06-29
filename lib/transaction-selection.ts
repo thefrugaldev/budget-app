@@ -1,5 +1,5 @@
-import type { DayGroup, TransactionRow } from "@/lib/transaction";
 import type { Transaction } from "@/types/budget";
+import type { DayGroup, TransactionRow } from "@/types/transaction";
 
 /**
  * Pure selection algebra for the transaction list's bulk-operation mode

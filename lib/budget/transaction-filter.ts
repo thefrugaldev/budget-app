@@ -1,4 +1,5 @@
 import type { Transaction } from "@/types/budget";
+import type { TransactionFilter } from "@/types/transaction";
 
 /**
  * Most-recent (by date, then insertion order) transaction in a category, used
@@ -61,21 +62,6 @@ export function vendorSuggestionsForCategory(
     .filter((v) => !seen.has(v));
   return [...localOrdered, ...globalOrdered];
 }
-
-export type TransactionFilter = {
-  text?: string;
-  vendor?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  /**
-   * Cross-category constraint for the global `/transactions` list (issue #17
-   * chunk 5, story 18). When present and non-empty, only rows whose
-   * `categoryId` is in the set pass; an empty array or `undefined` means
-   * "all categories" (the category-detail list never sets it — its rows are
-   * already scoped to one category).
-   */
-  categoryIds?: string[];
-};
 
 /**
  * Predicate behind the transaction filter row — the category-detail list

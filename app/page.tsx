@@ -16,8 +16,8 @@ import {
   rangeLabel,
   resolveRange,
   resolveTargetForMonth,
-  type RangePreset,
 } from "@/lib/budget";
+import type { RangePreset } from "@/types/range";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";

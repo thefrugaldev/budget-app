@@ -2,6 +2,7 @@ import type {
   Category,
   CategoryTarget,
   IncomeSourceStatus,
+  OneTimeReceiptSummary,
   Transaction,
 } from "@/types/budget";
 import { monthLabel, mostRecentTransactionInCategory } from "../budget";
@@ -9,23 +10,18 @@ import { monthLabel, mostRecentTransactionInCategory } from "../budget";
 export * from "./cadence";
 
 /**
- * What a one-time income source's `/income` card needs to tell its story (#46
- * stories 6/7): the signed sum received in `year` and the most recent receipt
- * that year. A one-time source has no baseline — it's measured against its own
- * transactions — so this is derived purely from the transaction log.
+ * Builds a one-time income source's `/income` card summary (#46 stories 6/7):
+ * the signed sum received in `year` and the most recent receipt that year. A
+ * one-time source has no baseline — it's measured against its own transactions
+ * — so this derives purely from the log.
  *
- * `last` is null when the source has no receipts in `year`, which the card
- * renders as the "Awaiting first receipt" empty state. Basing the empty check
- * on receipt *presence* (not a zero sum) keeps a vest-then-reversed source that
- * nets to $0 out of the empty state — it did receive something. The latest
- * receipt — including its deterministic same-date id tie-break — is resolved by
- * the shared `mostRecentTransactionInCategory` rather than re-derived here.
+ * `last` is null only when the source has no receipts in `year`, which the card
+ * renders as the "Awaiting first receipt" empty state. The check is on receipt
+ * *presence*, not a zero sum, so a vest-then-reversed source that nets to $0
+ * stays out of the empty state — it did receive something. The latest receipt
+ * (including its deterministic same-date id tie-break) comes from the shared
+ * `mostRecentTransactionInCategory` rather than being re-derived here.
  */
-export type OneTimeReceiptSummary = {
-  received: number;
-  last: { date: string; noun: string } | null;
-};
-
 export function oneTimeReceiptSummary(
   transactions: Transaction[],
   categoryId: string,

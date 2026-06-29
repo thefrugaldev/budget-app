@@ -4,13 +4,13 @@ import { X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef } from "react";
 
 import {
-  type AmountPrecision,
   formatAmount,
   formatAmountParts,
   padOnBlur,
   sanitizeAmount,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
+import type { AmountPrecision } from "@/types/budget";
 
 // Caret fixes must run before paint to beat React's selection restoration;
 // fall back to useEffect during SSR where layout effects can't run.

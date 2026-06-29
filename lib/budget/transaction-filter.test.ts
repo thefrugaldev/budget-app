@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { TransactionFilter } from "./transaction-filter";
+import type { TransactionFilter } from "@/types/transaction";
+
 import {
   applyTransactionFilterToParams,
   parseTransactionFilter,

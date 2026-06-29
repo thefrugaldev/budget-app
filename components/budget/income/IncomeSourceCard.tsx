@@ -19,7 +19,6 @@ import {
   classifyIncomeSourceStatus,
   monthlyToYearly,
   nextScheduledTarget,
-  type OneTimeReceiptSummary,
   perPaycheckFromMonthly,
 } from "@/lib/income";
 import { cn } from "@/lib/utils";
@@ -27,6 +26,7 @@ import type {
   Category,
   CategoryTarget,
   IncomeSourceStatus,
+  OneTimeReceiptSummary,
 } from "@/types/budget";
 
 /**

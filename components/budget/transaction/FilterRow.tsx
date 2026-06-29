@@ -2,9 +2,9 @@
 
 import { CategoryMultiSelect } from "@/components/budget/category/CategoryMultiSelect";
 import { DateRangeField } from "@/components/ui/DateRangeField";
-import type { TransactionFilter } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { Category } from "@/types/budget";
+import type { TransactionFilter } from "@/types/transaction";
 
 /**
  * Filter controls above the transaction list: free-text search, a vendor

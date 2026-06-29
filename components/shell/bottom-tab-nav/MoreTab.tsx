@@ -5,8 +5,9 @@ import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 
 import { ActiveIndicator } from "@/components/shell/bottom-tab-nav/ActiveIndicator";
-import { isActive, type NavItem } from "@/lib/nav";
+import { isActive } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import type { NavItem } from "@/types/nav";
 
 export function MoreTab({
   overflow,

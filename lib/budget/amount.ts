@@ -12,7 +12,7 @@
  *     (`85000` → `$85,000`). For income baselines where cents are noise.
  */
 
-export type AmountPrecision = "cents" | "whole";
+import type { AmountPrecision } from "@/types/budget";
 
 const DEFAULT_MAX_INT_DIGITS = 9;
 

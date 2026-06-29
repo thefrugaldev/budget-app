@@ -4,6 +4,8 @@
  * comparable by design, so range checks elsewhere reduce to string comparison.
  */
 
+import type { RangePreset, RangeSelection } from "@/types/range";
+
 export function currentMonthKey(today = new Date()): string {
   return `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
 }
@@ -18,15 +20,7 @@ export const RANGE_PRESETS = [
   "last-3-months",
   "ytd",
   "last-12-months",
-] as const;
-
-export type RangePreset = (typeof RANGE_PRESETS)[number];
-
-export type RangeSelection = {
-  preset: RangePreset;
-  ymStart: string;
-  ymEnd: string;
-};
+] as const satisfies readonly RangePreset[];
 
 const PRESET_LABELS: Record<RangePreset, string> = {
   "this-month": "This month",
