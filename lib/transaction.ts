@@ -107,3 +107,63 @@ function collapseStreaks(transactions: Transaction[]): TransactionRow[] {
 export function streakKey(date: string, vendor: string): string {
   return `streak:${date}:${vendor}`;
 }
+
+/**
+ * Flattens day groups into the keyboard-navigable row order used by the
+ * transaction list's roving-tabindex. A single row contributes its transaction
+ * id; a streak header contributes its `streakKey`, followed — only when open —
+ * by each underlying row id that still exists (a row optimistically deleted
+ * mid-streak drops out via `hasTransaction`). The order matches the rendered
+ * DOM exactly so arrow / Home / End navigation lands on real elements.
+ *
+ * `sectionIndexByKey` maps each navigable key back to the index of its day
+ * group. When the list is virtualized, a key whose section is windowed out has
+ * no DOM node to focus; the caller scrolls `sectionIndexByKey.get(key)` into
+ * view first, then focuses once it mounts. It also lets the caller answer
+ * "is this key rendered?" and "does this key exist?" in O(1) rather than
+ * scanning `orderedRowKeys`.
+ *
+ * `sectionFirstKeys[i]` is the first navigable key of day group `i` — the
+ * natural roving tab stop when the active row has been scrolled out of the
+ * window, resolved in O(1) from the topmost rendered section index instead of
+ * a linear search for the first rendered key. Every day group has at least one
+ * row, so every index is populated. Pure and deterministic given its inputs.
+ */
+export function flattenNavigableRows(
+  dayGroups: DayGroup[],
+  isStreakOpen: (key: string) => boolean,
+  hasTransaction: (id: string) => boolean,
+): {
+  orderedRowKeys: string[];
+  sectionIndexByKey: Map<string, number>;
+  sectionFirstKeys: string[];
+} {
+  const orderedRowKeys: string[] = [];
+  const sectionIndexByKey = new Map<string, number>();
+  const sectionFirstKeys: string[] = [];
+
+  dayGroups.forEach((group, sectionIndex) => {
+    const push = (key: string) => {
+      orderedRowKeys.push(key);
+      sectionIndexByKey.set(key, sectionIndex);
+      if (sectionFirstKeys[sectionIndex] === undefined) {
+        sectionFirstKeys[sectionIndex] = key;
+      }
+    };
+    for (const row of group.rows) {
+      if (row.kind === "single") {
+        push(row.transaction.id);
+      } else {
+        const key = streakKey(group.date, row.vendor);
+        push(key);
+        if (isStreakOpen(key)) {
+          for (const id of row.transactionIds) {
+            if (hasTransaction(id)) push(id);
+          }
+        }
+      }
+    }
+  });
+
+  return { orderedRowKeys, sectionIndexByKey, sectionFirstKeys };
+}

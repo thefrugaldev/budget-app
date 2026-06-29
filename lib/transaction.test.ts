@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { groupTransactionsByDay, streakKey } from "./transaction";
+import {
+  flattenNavigableRows,
+  groupTransactionsByDay,
+  streakKey,
+} from "./transaction";
 import type { Transaction } from "@/types/budget";
 
 const tx = (overrides: Partial<Transaction> & Pick<Transaction, "id">): Transaction => ({
@@ -296,5 +300,80 @@ describe("streakKey", () => {
     expect(streakKey("2026-06-08", "Whole Foods")).not.toBe(
       streakKey("2026-06-08", "Costco"),
     );
+  });
+});
+
+describe("flattenNavigableRows", () => {
+  const never = () => false;
+  const always = () => true;
+  const allPresent = () => true;
+
+  it("returns empty results for no day groups", () => {
+    const { orderedRowKeys, sectionIndexByKey, sectionFirstKeys } =
+      flattenNavigableRows([], never, allPresent);
+    expect(orderedRowKeys).toEqual([]);
+    expect(sectionIndexByKey.size).toBe(0);
+    expect(sectionFirstKeys).toEqual([]);
+  });
+
+  it("lists single rows by id in DOM order across days", () => {
+    const groups = groupTransactionsByDay(
+      [
+        tx({ id: "a", date: "2026-06-10", vendor: "Solo A" }),
+        tx({ id: "b", date: "2026-06-09", vendor: "Solo B" }),
+      ],
+      opts,
+    );
+    const { orderedRowKeys, sectionIndexByKey, sectionFirstKeys } =
+      flattenNavigableRows(groups, never, allPresent);
+    // Newest day first, mirroring groupTransactionsByDay's ordering.
+    expect(orderedRowKeys).toEqual(["a", "b"]);
+    expect(sectionIndexByKey.get("a")).toBe(0);
+    expect(sectionIndexByKey.get("b")).toBe(1);
+    // One section per day; each section's first key is its lone row, indexed
+    // by section so the caller can resolve a tab stop by section index in O(1).
+    expect(sectionFirstKeys).toEqual(["a", "b"]);
+  });
+
+  it("contributes only the streak header key when the streak is closed", () => {
+    const groups = groupTransactionsByDay(
+      [tx({ id: "a" }), tx({ id: "b" })],
+      opts,
+    );
+    const key = streakKey("2026-06-08", "Whole Foods");
+    const { orderedRowKeys } = flattenNavigableRows(groups, never, allPresent);
+    expect(orderedRowKeys).toEqual([key]);
+  });
+
+  it("appends underlying row ids after the header when the streak is open", () => {
+    const groups = groupTransactionsByDay(
+      [tx({ id: "a" }), tx({ id: "b" })],
+      opts,
+    );
+    const key = streakKey("2026-06-08", "Whole Foods");
+    const { orderedRowKeys, sectionIndexByKey, sectionFirstKeys } =
+      flattenNavigableRows(groups, always, allPresent);
+    expect(orderedRowKeys).toEqual([key, "a", "b"]);
+    // The expanded children share their header's day-group section.
+    expect(sectionIndexByKey.get(key)).toBe(0);
+    expect(sectionIndexByKey.get("a")).toBe(0);
+    expect(sectionIndexByKey.get("b")).toBe(0);
+    // The section's first navigable key is the streak header, not a child.
+    expect(sectionFirstKeys).toEqual([key]);
+  });
+
+  it("drops an open streak's children that no longer exist (optimistic delete)", () => {
+    const groups = groupTransactionsByDay(
+      [tx({ id: "a" }), tx({ id: "b" }), tx({ id: "c" })],
+      opts,
+    );
+    const key = streakKey("2026-06-08", "Whole Foods");
+    // "b" is mid-delete: still in the grouped data but hidden from the live set.
+    const { orderedRowKeys } = flattenNavigableRows(
+      groups,
+      always,
+      (id) => id !== "b",
+    );
+    expect(orderedRowKeys).toEqual([key, "a", "c"]);
   });
 });
