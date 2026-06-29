@@ -3,8 +3,11 @@
 import { useSyncExternalStore } from "react";
 
 // No external store to subscribe to — the value never changes after hydration,
-// so the subscribe callback is a no-op.
+// so the subscribe callback is a no-op. All three are module-level constants so
+// they're stable references across renders.
 const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 /**
  * `false` during SSR and the first client render, `true` once hydrated.
@@ -15,9 +18,5 @@ const subscribe = () => () => {};
  * `setState`-in-effect dance (which `react-hooks/set-state-in-effect` forbids).
  */
 export function useHydrated(): boolean {
-  return useSyncExternalStore(
-    subscribe,
-    () => true,
-    () => false,
-  );
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
