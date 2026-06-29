@@ -13,6 +13,11 @@ import { cn } from "@/lib/utils";
  * into a single popover. Controlled-only: pass `from` / `to` as YYYY-MM-DD
  * strings (or "" for empty) and `onChange` for the pair. Optional `name` props
  * mount hidden inputs so a parent form picks the values up via FormData.
+ *
+ * Name the trigger one of two ways: pass `ariaLabel`, or pass `id` and point a
+ * real `<label htmlFor={id}>` at it (the trigger is a labelable <button>). When
+ * an associated label is used, omit `ariaLabel` so it doesn't override the
+ * label as the accessible name.
  */
 export type DateRangeFieldProps = {
   from: string;
@@ -20,6 +25,8 @@ export type DateRangeFieldProps = {
   onChange: (next: { from: string; to: string }) => void;
   fromName?: string;
   toName?: string;
+  /** Forwarded to the trigger button so a `<label htmlFor>` can name it. */
+  id?: string;
   ariaLabel?: string;
   placeholder?: string;
   className?: string;
@@ -46,7 +53,8 @@ export function DateRangeField({
   onChange,
   fromName,
   toName,
-  ariaLabel = "Pick a date range",
+  id,
+  ariaLabel,
   placeholder = "Any date",
   className,
 }: DateRangeFieldProps) {
@@ -67,6 +75,7 @@ export function DateRangeField({
       )}
       <div className={cn("flex items-center gap-1", className)}>
         <Popover.Trigger
+          id={id}
           aria-label={ariaLabel}
           className={cn(
             "flex flex-1 cursor-pointer items-center justify-between rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
