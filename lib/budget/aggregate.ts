@@ -107,6 +107,21 @@ export function isCategoryActiveInRange(
   return true;
 }
 
+/**
+ * A category is "ended" when it has an end date set at all. This is the coarse
+ * "has been retired" flag the category lifecycle UI keys off (the Edit sheet,
+ * summary actions, and the `EndedBadge` all read `activeUntil` being present);
+ * `isCategoryActiveForMonth` / `isCategoryActiveInRange` answer the finer "is
+ * it live in *this* window" question Pulse uses to decide what to show.
+ * Settings → Categories lists exactly the ended ones so a retired category can
+ * be reviewed and reopened (#81 stories 7/8).
+ */
+export function isCategoryEnded(
+  category: Category,
+): category is Category & { activeUntil: string } {
+  return category.activeUntil !== undefined;
+}
+
 export type RangeAggregate = {
   categoryId: string;
   total: number;
