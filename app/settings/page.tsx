@@ -27,7 +27,12 @@ export const metadata: Metadata = {
  * list makes this route server-rendered on demand rather than static.
  */
 export default async function SettingsPage() {
-  const endedCategories = (await listCategories()).filter(isCategoryEnded);
+  // Most-recently-ended first: a mis-retirement is the usual reason to open
+  // this section, so the newest end date belongs at the top (listCategories
+  // returns name order, which isn't the useful order here).
+  const endedCategories = (await listCategories())
+    .filter(isCategoryEnded)
+    .sort((a, b) => (b.activeUntil ?? "").localeCompare(a.activeUntil ?? ""));
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">

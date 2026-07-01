@@ -7,7 +7,11 @@ import type { Category } from "@/types/budget";
  * caller (the Settings route) has already filtered to ended categories via
  * `isCategoryEnded`, so this component just presents them.
  */
-export function EndedCategoriesList({ categories }: { categories: Category[] }) {
+export function EndedCategoriesList({
+  categories,
+}: {
+  categories: Array<Category & { activeUntil: string }>;
+}) {
   if (categories.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">

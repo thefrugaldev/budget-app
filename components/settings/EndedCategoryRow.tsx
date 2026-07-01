@@ -14,10 +14,15 @@ import type { Category } from "@/types/budget";
  * category identity, its `EndedBadge`, and a Reopen control. Reopen reuses the
  * existing {@link reopenCategoryAction} — which clears `activeUntil`, no new
  * lifecycle concept — so on success the row drops out once `/settings`
- * revalidates, and a toast confirms it. The list only ever hands this row an
- * ended category, so `activeUntil` is present.
+ * revalidates, and a toast confirms it. The prop type carries `activeUntil`
+ * as required — the caller filters to ended categories via `isCategoryEnded`
+ * (a type guard), so no non-null assertion is needed here.
  */
-export function EndedCategoryRow({ category }: { category: Category }) {
+export function EndedCategoryRow({
+  category,
+}: {
+  category: Category & { activeUntil: string };
+}) {
   const [state, action] = useActionState(
     reopenCategoryAction,
     CATEGORY_ACTION_INITIAL,
@@ -31,7 +36,7 @@ export function EndedCategoryRow({ category }: { category: Category }) {
           {category.emoji}
         </span>
         <span className="truncate font-medium">{category.name}</span>
-        <EndedBadge ym={category.activeUntil!} className="shrink-0" />
+        <EndedBadge ym={category.activeUntil} className="shrink-0" />
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {state.error ? (

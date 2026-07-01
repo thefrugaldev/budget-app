@@ -116,7 +116,9 @@ export function isCategoryActiveInRange(
  * Settings → Categories lists exactly the ended ones so a retired category can
  * be reviewed and reopened (#81 stories 7/8).
  */
-export function isCategoryEnded(category: Category): boolean {
+export function isCategoryEnded(
+  category: Category,
+): category is Category & { activeUntil: string } {
   return category.activeUntil !== undefined;
 }
 
