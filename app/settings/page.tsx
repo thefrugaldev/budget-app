@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 
+import { EndedCategoriesList } from "@/components/settings/EndedCategoriesList";
 import { ExportControl } from "@/components/settings/ExportControl";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { ThemeControl } from "@/components/settings/ThemeControl";
 import { SoonBadge } from "@/components/shell/SoonBadge";
+import { isCategoryEnded } from "@/lib/budget";
+import { listCategories } from "@/lib/repositories/categories";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -18,11 +21,14 @@ export const metadata: Metadata = {
  * a placeholder, doesn't build it), then **Appearance**, **Data**,
  * **Categories**, and a visually-isolated **Danger zone**.
  *
- * Appearance now hosts the real theme control (chunk 2); the remaining controls
- * arrive in later chunks — CSV export (chunk 3), ended-category management
- * (chunk 4), and the guarded reset (chunk 5).
+ * Appearance hosts the real theme control (chunk 2), Data hosts CSV export
+ * (chunk 3), and Categories now lists ended categories for reopen (chunk 4).
+ * The guarded reset (chunk 5) is the remaining shell. Reading the ended-category
+ * list makes this route server-rendered on demand rather than static.
  */
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const endedCategories = (await listCategories()).filter(isCategoryEnded);
+
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
       <h1 className="mb-6 font-heading text-3xl font-semibold tracking-tight">
@@ -53,7 +59,9 @@ export default function SettingsPage() {
         <SettingsSection
           title="Categories"
           description="Review and reopen categories that Pulse hides because their active range has ended."
-        />
+        >
+          <EndedCategoriesList categories={endedCategories} />
+        </SettingsSection>
 
         <SettingsSection
           title="Danger zone"

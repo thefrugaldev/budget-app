@@ -46,6 +46,10 @@ function failure(prev: CategoryActionState, err: unknown): CategoryActionState {
 function revalidateCategory(categoryId: string): void {
   revalidatePath("/");
   revalidatePath(`/categories/${categoryId}`);
+  // Settings → Categories lists ended categories, so any lifecycle change
+  // (end / reopen / delete / edit) must refresh it — otherwise a category
+  // reopened from Settings would linger in the list until a hard reload.
+  revalidatePath("/settings");
 }
 
 /**

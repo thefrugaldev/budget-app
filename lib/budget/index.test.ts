@@ -7,6 +7,7 @@ import {
   currentMonthlyBaseline,
   isCategoryActiveForMonth,
   isCategoryActiveInRange,
+  isCategoryEnded,
   isRangePreset,
   longDateLabel,
   matchesTransactionFilter,
@@ -170,6 +171,33 @@ describe("isCategoryActiveForMonth", () => {
       expect(isCategoryActiveForMonth(c.cat, c.ym)).toBe(c.expected);
     });
   }
+});
+
+describe("isCategoryEnded", () => {
+  it("is false when there is no end date", () => {
+    expect(isCategoryEnded(expenseCat())).toBe(false);
+  });
+
+  it("is true whenever an end date is set (matches the lifecycle-UI flag)", () => {
+    expect(isCategoryEnded(expenseCat({ activeUntil: "2026-03" }))).toBe(true);
+    // Even the current month counts as ended for this coarse flag, mirroring
+    // how endCategoryAction stamps activeUntil = current month.
+    expect(isCategoryEnded(expenseCat({ activeUntil: "2026-06" }))).toBe(true);
+  });
+
+  it("filters a mixed list down to the ended categories (story 7)", () => {
+    const active = expenseCat({ id: "a" });
+    const ended = expenseCat({ id: "b", activeUntil: "2026-04" });
+    expect([active, ended].filter(isCategoryEnded)).toEqual([ended]);
+  });
+
+  it("reads as active again once the end date is cleared (reopen — story 8)", () => {
+    const ended = expenseCat({ id: "b", activeUntil: "2026-04" });
+    // reopenCategoryAction clears activeUntil (updateCategory clearActiveUntil);
+    // the reopened shape drops out of the ended list.
+    const reopened: Category = { ...ended, activeUntil: undefined };
+    expect(isCategoryEnded(reopened)).toBe(false);
+  });
 });
 
 describe("isCategoryActiveInRange", () => {
