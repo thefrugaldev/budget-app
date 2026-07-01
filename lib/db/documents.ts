@@ -37,3 +37,10 @@ export type TransactionDocument = {
   note?: string;
   createdAt: Date;
 };
+
+// App-level state, not user data. `_id` is a well-known string key (e.g. the
+// auto-seed-disabled marker written by the danger-zone reset).
+export type MetaDocument = {
+  _id: string;
+  clearedAt?: Date;
+};

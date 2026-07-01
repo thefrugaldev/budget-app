@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { EndedCategoriesList } from "@/components/settings/EndedCategoriesList";
 import { ExportControl } from "@/components/settings/ExportControl";
+import { ResetDataControl } from "@/components/settings/ResetDataControl";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { ThemeControl } from "@/components/settings/ThemeControl";
 import { SoonBadge } from "@/components/shell/SoonBadge";
@@ -22,9 +23,9 @@ export const metadata: Metadata = {
  * **Categories**, and a visually-isolated **Danger zone**.
  *
  * Appearance hosts the real theme control (chunk 2), Data hosts CSV export
- * (chunk 3), and Categories now lists ended categories for reopen (chunk 4).
- * The guarded reset (chunk 5) is the remaining shell. Reading the ended-category
- * list makes this route server-rendered on demand rather than static.
+ * (chunk 3), Categories lists ended categories for reopen (chunk 4), and the
+ * Danger zone hosts the confirmation-gated reset (chunk 5). Reading the
+ * ended-category list makes this route server-rendered on demand, not static.
  */
 export default async function SettingsPage() {
   // Most-recently-ended first: a mis-retirement is the usual reason to open
@@ -72,7 +73,9 @@ export default async function SettingsPage() {
           title="Danger zone"
           description="Reset or clear your data — kept apart on purpose, and gated behind a confirmation."
           tone="danger"
-        />
+        >
+          <ResetDataControl />
+        </SettingsSection>
       </div>
     </div>
   );

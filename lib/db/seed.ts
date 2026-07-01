@@ -13,9 +13,32 @@ import { COLLECTIONS } from "./collections";
 import type {
   CategoryDocument,
   CategoryTargetDocument,
+  MetaDocument,
   TransactionDocument,
 } from "./documents";
 import { ensureIndexes } from "./indexes";
+
+/**
+ * `meta` doc id recording that the database was explicitly cleared (danger-zone
+ * reset, #81 story 9). While present, auto-seed never runs again, so a
+ * deliberately-emptied budget stays empty across cold starts / new serverless
+ * instances. Written by `resetAllData`.
+ */
+export const AUTO_SEED_DISABLED_ID = "autoSeedDisabled";
+
+/**
+ * Pure decision for {@link doSeed}: seed a fresh DB, backfill a populated one
+ * with any newly-shipped seed categories, or skip entirely once the user has
+ * explicitly cleared their data. Extracted so the "cleared stays cleared"
+ * invariant is unit-testable without a database.
+ */
+export function resolveSeedAction(input: {
+  autoSeedDisabled: boolean;
+  hasCategories: boolean;
+}): "seed" | "backfill" | "skip" {
+  if (input.autoSeedDisabled) return "skip";
+  return input.hasCategories ? "backfill" : "seed";
+}
 
 const ACTIVE_FROM = "2026-01";
 
@@ -120,21 +143,34 @@ async function doSeed(): Promise<void> {
   await ensureIndexes(db);
 
   const now = new Date();
-  const categoryCount = await db
-    .collection(COLLECTIONS.categories)
-    .countDocuments({}, { limit: 1 });
+  const [disabledCount, categoryCount] = await Promise.all([
+    db
+      .collection<MetaDocument>(COLLECTIONS.meta)
+      .countDocuments({ _id: AUTO_SEED_DISABLED_ID }, { limit: 1 }),
+    db.collection(COLLECTIONS.categories).countDocuments({}, { limit: 1 }),
+  ]);
 
-  if (categoryCount === 0) {
-    await seedCategories(db, now);
-    await seedTargets(db, now);
-    await seedTransactions(db, now);
-    return;
+  const action = resolveSeedAction({
+    autoSeedDisabled: disabledCount > 0,
+    hasCategories: categoryCount > 0,
+  });
+
+  switch (action) {
+    case "seed":
+      await seedCategories(db, now);
+      await seedTargets(db, now);
+      await seedTransactions(db, now);
+      return;
+    case "backfill":
+      // DB already populated — backfill any categories added since this DB was
+      // first seeded (e.g. the income source introduced in chunk 6). Keyed on
+      // `_id`, so a user-renamed seed category isn't re-inserted.
+      await backfillMissingCategories(db, now);
+      return;
+    case "skip":
+      // Explicitly cleared via the danger zone — respect the empty slate.
+      return;
   }
-
-  // DB already populated — backfill any categories added since this DB was
-  // first seeded (e.g. the income source introduced in chunk 6). Keyed on
-  // `_id`, so a user-renamed seed category isn't re-inserted.
-  await backfillMissingCategories(db, now);
 }
 
 // Omit optional fields when absent so Mongo doesn't persist `null` (mirrors
