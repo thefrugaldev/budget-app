@@ -143,3 +143,25 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * react-day-picker theming. The library ships light-mode defaults — a blue
+ * accent and a near-white (#f0f0ff) range background with inherited text — that
+ * are unreadable on the app's dark card: range-middle days render light text on
+ * a near-white fill. Map every rdp color variable to the app's paired semantic
+ * tokens so the calendar (date-range export, transaction filters, single-date
+ * fields) tracks the active theme with proper contrast in both modes. Loaded
+ * after `react-day-picker/style.css`, so these overrides win.
+ */
+.rdp-root {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--accent);
+  --rdp-today-color: var(--primary);
+  --rdp-selected-border: 2px solid var(--primary);
+  --rdp-range_start-color: var(--primary-foreground);
+  --rdp-range_start-date-background-color: var(--primary);
+  --rdp-range_middle-background-color: var(--accent);
+  --rdp-range_middle-color: var(--accent-foreground);
+  --rdp-range_end-color: var(--primary-foreground);
+  --rdp-range_end-date-background-color: var(--primary);
+}
