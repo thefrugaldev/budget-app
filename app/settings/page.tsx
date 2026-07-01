@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { ExportControl } from "@/components/settings/ExportControl";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { ThemeControl } from "@/components/settings/ThemeControl";
 import { SoonBadge } from "@/components/shell/SoonBadge";
@@ -45,7 +46,9 @@ export default function SettingsPage() {
         <SettingsSection
           title="Data"
           description="Export your transactions to CSV — a portable copy of everything you've entered."
-        />
+        >
+          <ExportControl />
+        </SettingsSection>
 
         <SettingsSection
           title="Categories"
