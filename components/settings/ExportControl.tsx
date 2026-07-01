@@ -1,28 +1,58 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { exportTransactionsCsvAction } from "@/app/actions/export";
+import { DateRangeField } from "@/components/ui/DateRangeField";
 import { Button } from "@/components/ui/button";
 import { useNotify } from "@/hooks/useNotify";
+import {
+  RANGE_PRESETS,
+  monthEndDate,
+  monthStartDate,
+  rangeLabel,
+  resolveRange,
+} from "@/lib/budget";
+import type { RangePreset } from "@/types/range";
 
 /**
- * Settings → Data export control (#81 story 5/6). Asks the server for the CSV
- * of **every** transaction — not the current Pulse range — then hands it to the
- * browser as a download. The serialization is pure and server-side
- * ({@link exportTransactionsCsvAction}); this component only owns the click,
- * the pending state, and the blob-download plumbing (which needs the DOM, so it
- * can't live in `lib/`).
+ * Settings → Data export control (#81 stories 5/6/11). A range select sits
+ * beside the button — "All time" (the full-copy default) plus the shared range
+ * presets, and a "Custom range…" option that reveals a `DateRangeField` only
+ * when chosen, so the section stays calm. The chosen scope resolves to an
+ * inclusive ISO date window the server action filters on; the download itself
+ * is client-only DOM plumbing (which can't live in `lib/`).
  */
+type RangeChoice = "all" | RangePreset | "custom";
+
 export function ExportControl() {
   const [pending, setPending] = useState(false);
+  const [choice, setChoice] = useState<RangeChoice>("all");
+  const [custom, setCustom] = useState<{ from: string; to: string }>({
+    from: "",
+    to: "",
+  });
   const notify = useNotify();
+  const rangeId = useId();
+  const customId = useId();
+
+  function selectedBounds(): { dateFrom?: string; dateTo?: string } {
+    if (choice === "all") return {};
+    if (choice === "custom") {
+      return {
+        dateFrom: custom.from || undefined,
+        dateTo: custom.to || undefined,
+      };
+    }
+    const { ymStart, ymEnd } = resolveRange(choice);
+    return { dateFrom: monthStartDate(ymStart), dateTo: monthEndDate(ymEnd) };
+  }
 
   async function handleExport() {
     setPending(true);
     try {
-      const csv = await exportTransactionsCsvAction();
+      const csv = await exportTransactionsCsvAction(selectedBounds());
       downloadCsv(csv, `transactions-${today()}.csv`);
     } catch (err) {
       notify.error(
@@ -35,15 +65,52 @@ export function ExportControl() {
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      onClick={handleExport}
-      disabled={pending}
-    >
-      <Download data-icon="inline-start" aria-hidden />
-      {pending ? "Exporting…" : "Export transactions (CSV)"}
-    </Button>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <label htmlFor={rangeId} className="sr-only">
+          Date range to export
+        </label>
+        <select
+          id={rangeId}
+          value={choice}
+          onChange={(event) => setChoice(event.target.value as RangeChoice)}
+          className="rounded-md bg-background px-2 py-1.5 text-sm text-foreground ring-1 ring-border outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="all">All time</option>
+          {RANGE_PRESETS.map((preset) => (
+            <option key={preset} value={preset}>
+              {rangeLabel(preset)}
+            </option>
+          ))}
+          <option value="custom">Custom range…</option>
+        </select>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleExport}
+          disabled={pending}
+        >
+          <Download data-icon="inline-start" aria-hidden />
+          {pending ? "Exporting…" : "Export CSV"}
+        </Button>
+      </div>
+
+      {choice === "custom" ? (
+        <div>
+          <label htmlFor={customId} className="sr-only">
+            Custom date range
+          </label>
+          <DateRangeField
+            id={customId}
+            from={custom.from}
+            to={custom.to}
+            onChange={setCustom}
+            placeholder="Any date"
+            className="sm:max-w-xs"
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 

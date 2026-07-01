@@ -11,6 +11,8 @@ import {
   isRangePreset,
   longDateLabel,
   matchesTransactionFilter,
+  monthEndDate,
+  monthStartDate,
   monthTotalsByCategory,
   monthlyTotalsLastN,
   monthsInRange,
@@ -862,6 +864,30 @@ describe("rangeLabel", () => {
     expect(rangeLabel("last-3-months")).toBe("Last 3 months");
     expect(rangeLabel("ytd")).toBe("YTD");
     expect(rangeLabel("last-12-months")).toBe("Last 12 months");
+  });
+});
+
+describe("monthStartDate / monthEndDate", () => {
+  it("starts a month on the first, as ISO YYYY-MM-DD", () => {
+    expect(monthStartDate("2026-06")).toBe("2026-06-01");
+    expect(monthStartDate("2026-01")).toBe("2026-01-01");
+  });
+
+  it("ends a 31- and 30-day month on the right day", () => {
+    expect(monthEndDate("2026-01")).toBe("2026-01-31");
+    expect(monthEndDate("2026-04")).toBe("2026-04-30");
+  });
+
+  it("ends February on 28, and 29 in a leap year", () => {
+    expect(monthEndDate("2026-02")).toBe("2026-02-28");
+    expect(monthEndDate("2024-02")).toBe("2024-02-29");
+  });
+
+  it("turns a resolved preset into an inclusive ISO export window", () => {
+    // The export selector resolves a preset to ym bounds, then to ISO dates.
+    const { ymStart, ymEnd } = resolveRange("ytd", new Date("2026-06-08T00:00:00Z"));
+    expect(monthStartDate(ymStart)).toBe("2026-01-01");
+    expect(monthEndDate(ymEnd)).toBe("2026-06-30");
   });
 });
 

@@ -92,3 +92,24 @@ export function* monthsInRange(start: string, end: string): Generator<string> {
     }
   }
 }
+
+/**
+ * First calendar day of a "YYYY-MM" month, as ISO "YYYY-MM-DD". Bridges the
+ * month-key range language (`RangeSelection`) to the ISO date bounds that the
+ * transaction filter compares against — used to turn a range preset into an
+ * inclusive export window.
+ */
+export function monthStartDate(ym: string): string {
+  return `${ym}-01`;
+}
+
+/**
+ * Last calendar day of a "YYYY-MM" month, as ISO "YYYY-MM-DD" — the inclusive
+ * upper bound for that month. Day 0 of the next month resolves to the last day
+ * of this one (28–31), so February and leap years are handled correctly.
+ */
+export function monthEndDate(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${ym}-${String(lastDay).padStart(2, "0")}`;
+}
