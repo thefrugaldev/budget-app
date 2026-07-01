@@ -16,6 +16,11 @@ import type { Transaction } from "@/types/budget";
  * An empty transaction list produces a header-only file (a valid CSV, and a
  * clear "nothing yet" rather than an error).
  *
+ * The user-authored text columns (Category, Vendor, Note) are defused against
+ * spreadsheet formula injection — see {@link defuseFormula}. Amount is left
+ * alone (a leading `-` is a legitimate signed value) as is the format-fixed
+ * Date.
+ *
  * Rows are emitted in the order given — the caller decides the sort (the
  * repository already returns newest-first).
  */
@@ -31,10 +36,10 @@ export function transactionsToCsv(
     lines.push(
       [
         t.date,
-        categoryNameById.get(t.categoryId) ?? "Unknown",
-        t.vendor ?? "",
+        defuseFormula(categoryNameById.get(t.categoryId) ?? "Unknown"),
+        defuseFormula(t.vendor ?? ""),
         t.amount.toFixed(2),
-        t.note ?? "",
+        defuseFormula(t.note ?? ""),
       ]
         .map(csvField)
         .join(","),
@@ -55,4 +60,19 @@ function csvField(value: string): string {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
+}
+
+/**
+ * Neutralizes CSV/formula injection: a spreadsheet (Excel, Sheets, Numbers)
+ * evaluates any cell whose text starts with `=`, `+`, `-`, or `@` as a formula
+ * on open. Prefixing a single quote forces the cell to be read as literal text.
+ *
+ * Applied only to the user-authored free-text columns (Category, Vendor, Note)
+ * — never to Amount, whose leading `-` is a legitimate signed value, nor to the
+ * format-fixed Date. Low risk for a single-user self-export, but the file is
+ * portable and may be opened in a spreadsheet or shared. Runs before
+ * {@link csvField} so the added quote is inside any RFC 4180 wrapping.
+ */
+function defuseFormula(value: string): string {
+  return /^[=+\-@]/.test(value) ? `'${value}` : value;
 }

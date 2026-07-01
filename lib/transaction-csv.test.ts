@@ -74,6 +74,36 @@ describe("transactionsToCsv", () => {
     expect(csv).toBe(`${HEADER}\r\n2026-06-05,Unknown,,42.50,`);
   });
 
+  it("formats a zero amount as 0.00", () => {
+    const csv = transactionsToCsv([tx({ amount: 0 })], CATEGORIES);
+    expect(csv).toBe(`${HEADER}\r\n2026-06-05,Groceries,,0.00,`);
+  });
+
+  it("renders a real category named Unknown identically to the orphan fallback", () => {
+    // Documents the sentinel collision: a genuine "Unknown" category and a
+    // hard-deleted one both surface as `Unknown` — indistinguishable by design.
+    const cats = new Map([["cat-real-unknown", "Unknown"]]);
+    const csv = transactionsToCsv([tx({ categoryId: "cat-real-unknown" })], cats);
+    expect(csv).toBe(`${HEADER}\r\n2026-06-05,Unknown,,42.50,`);
+  });
+
+  it("quote-wraps a field containing a bare carriage return", () => {
+    const csv = transactionsToCsv([tx({ note: "line\rbreak" })], CATEGORIES);
+    expect(csv).toBe(`${HEADER}\r\n2026-06-05,Groceries,,42.50,"line\rbreak"`);
+  });
+
+  it("defuses formula injection in Category/Vendor/Note, leaving Amount's sign intact", () => {
+    // Leading =, +, -, @ in a text field would be evaluated as a formula by a
+    // spreadsheet on open; each gets a `'` prefix. The negative Amount is a
+    // real signed value, not a formula, so it stays bare.
+    const cats = new Map([["c", "=danger"]]);
+    const csv = transactionsToCsv(
+      [tx({ categoryId: "c", vendor: "+49ers", note: "-note", amount: -5 })],
+      cats,
+    );
+    expect(csv).toBe(`${HEADER}\r\n2026-06-05,'=danger,'+49ers,-5.00,'-note`);
+  });
+
   it("preserves input order across multiple rows", () => {
     const csv = transactionsToCsv(
       [
