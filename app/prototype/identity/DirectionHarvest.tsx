@@ -26,10 +26,13 @@ type Cat = (typeof EXPENSES)[number];
 const css = `
 .hv { font-family: var(--proto-font-soft-body), system-ui, sans-serif; background: var(--hv-bg); color: var(--hv-ink); min-height:100%;
   --hv-bg:#f5efe3; --hv-surface:#fffdf7; --hv-ink:#23201a; --hv-muted:#726a5b; --hv-line:#e0d6c3;
-  --hv-gold:#9a7b3f; --hv-good:#3f6f4e; --hv-warn:#a9791f; --hv-bad:#8f3b3b;
+  /* Signal colors lifted together (~+6-7% lightness, a touch more saturation):
+     warn=Moderate gold, good/bad brightened by the same step so the palette
+     stays balanced rather than a lone bright yellow over muddy red/green. */
+  --hv-gold:#9a7b3f; --hv-good:#48895c; --hv-warn:#c68f22; --hv-bad:#a8443f;
   --hv-gold-soft:#f0e6d0; --hv-good-soft:#e3ecdd; --hv-bad-soft:#f1ddd6; }
 .dark .hv { --hv-bg:#16140e; --hv-surface:#201d15; --hv-ink:#ece5d6; --hv-muted:#a89e8b; --hv-line:#39342a;
-  --hv-gold:#cba965; --hv-good:#77a281; --hv-warn:#d3a552; --hv-bad:#cd6f6f;
+  --hv-gold:#cba965; --hv-good:#86b590; --hv-warn:#e0b84e; --hv-bad:#db7d75;
   --hv-gold-soft:#2c2416; --hv-good-soft:#232e24; --hv-bad-soft:#33211d; }
 .hv__display { font-family: var(--proto-font-soft-display), system-ui, sans-serif; }
 .hv__wrap { max-width:64rem; margin:0 auto; padding:2.25rem 1.5rem 9rem; }
