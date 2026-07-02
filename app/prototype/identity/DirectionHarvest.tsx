@@ -142,7 +142,7 @@ function GrowthColumns() {
           const last = i === MONTHLY.length - 1;
           return (
             <g key={m.label}>
-              <rect x={x} y={spendY} width={barW} height={spendH} rx="9" fill="var(--hv-gold)" opacity={last ? 1 : 0.85} />
+              <rect x={x} y={spendY} width={barW} height={spendH} rx="9" fill="var(--hv-warn)" opacity={last ? 1 : 0.85} />
               <rect x={x} y={savedY} width={barW} height={savedH + 10} rx="9" fill="var(--hv-good)" opacity={last ? 1 : 0.85} />
               {last && <circle cx={cx} cy={savedY - 4} r="5" fill="var(--hv-good)" />}
               <text x={cx} y={H - 8} textAnchor="middle" fontSize="12" fill="var(--hv-muted)">
@@ -153,7 +153,7 @@ function GrowthColumns() {
         })}
       </svg>
       <div style={{ display: "flex", gap: "1.2rem", fontSize: ".76rem", color: "var(--hv-muted)", marginTop: ".4rem" }}>
-        <span><span style={{ color: "var(--hv-gold)" }}>■</span> Spent</span>
+        <span><span style={{ color: "var(--hv-warn)" }}>■</span> Spent</span>
         <span><span style={{ color: "var(--hv-good)" }}>■</span> Saved</span>
       </div>
     </div>
