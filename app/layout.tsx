@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist_Mono, Nunito } from "next/font/google";
 
 import { NotifyRoot } from "@/components/notify";
 import { AppShell } from "@/components/shell/AppShell";
@@ -7,8 +7,16 @@ import { ThemeScript } from "@/components/shell/ThemeScript";
 import "react-day-picker/style.css";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Identity type roles (#80 chunk 2). Bricolage Grotesque is the display face
+// (hero figures + headings, via --font-heading); Nunito is the body face
+// (--font-sans). Geist Mono is retained for the rare monospace need.
+const displayFont = Bricolage_Grotesque({
+  variable: "--font-display",
+  subsets: ["latin"],
+});
+
+const bodyFont = Nunito({
+  variable: "--font-body",
   subsets: ["latin"],
 });
 
@@ -26,13 +34,12 @@ export const metadata: Metadata = {
 };
 
 // Theme colors match the app background tokens (--background) in globals.css:
-// light is oklch(1 0 0) = #ffffff, dark is oklch(0.145 0 0) = #0a0a0a. Mobile
-// browser chrome follows the user's system color scheme until the in-app theme
-// toggle lands (chunk 2 of #79).
+// the warm Harvest palette (#80 chunk 2) — light #f1e8d7, dark #141109 — so the
+// mobile browser chrome tracks the app background in both schemes.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#f1e8d7" },
+    { media: "(prefers-color-scheme: dark)", color: "#141109" },
   ],
 };
 
@@ -47,7 +54,7 @@ export default function RootLayout({
       // The before-paint ThemeScript toggles `.dark` on <html> before React
       // hydrates, so the class differs from the server-rendered markup by design.
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${displayFont.variable} ${bodyFont.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ThemeScript />
