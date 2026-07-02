@@ -104,7 +104,10 @@ export default async function Home({
         <RangeSelector active={preset} basePath="/" />
       </div>
 
-      <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* 3-up only at md+ : the enlarged text-hero KPI value (chunk 3) needs a
+          wider column than the sm 3-col band gave it, where a 6-figure total
+          would overflow the card. Below md the strip stacks full-width. */}
+      <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-3">
         <HeroKpi emoji="💸" label="Spent" value={fmt(expenseTotal)} sub={rangeText} />
         <HeroKpi emoji="🌱" label="Saved" value={fmt(savingsTotal)} sub={rangeText} positive />
         <HeroKpi
