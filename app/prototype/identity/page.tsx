@@ -18,6 +18,7 @@ import { Suspense } from "react";
 import { DirectionLedger } from "./DirectionLedger";
 import { DirectionSignal } from "./DirectionSignal";
 import { DirectionGrove } from "./DirectionGrove";
+import { DirectionHarvest } from "./DirectionHarvest";
 import { PrototypeSwitcher } from "./PrototypeSwitcher";
 
 export const metadata: Metadata = {
@@ -29,9 +30,10 @@ const VARIANTS: Record<string, { meta: { key: string; name: string }; Component:
   a: { meta: { key: "a", name: "Ledger · editorial serif" }, Component: DirectionLedger },
   b: { meta: { key: "b", name: "Signal · dark terminal" }, Component: DirectionSignal },
   c: { meta: { key: "c", name: "Grove · warm organic" }, Component: DirectionGrove },
+  d: { meta: { key: "d", name: "Harvest · A's palette + C's type/icons" }, Component: DirectionHarvest },
 };
 
-const ORDER = [VARIANTS.a.meta, VARIANTS.b.meta, VARIANTS.c.meta];
+const ORDER = [VARIANTS.a.meta, VARIANTS.b.meta, VARIANTS.c.meta, VARIANTS.d.meta];
 
 export default async function IdentityPrototypePage({
   searchParams,

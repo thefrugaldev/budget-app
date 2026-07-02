@@ -30,6 +30,7 @@ and dark** (the app theme toggle in Settings → Appearance drives both).
 | A | **Ledger** — editorial, warm paper | High-contrast serif on money figures; ruled ledger rows, not cards | Fraunces (display) + Inter | The Ledger Line — spend-vs-cap timeline area chart |
 | B | **Signal** — dark-first instrument panel | Near-black canvas in both themes + one electric accent; mono numerals | Space Grotesk + JetBrains Mono | The Pulse Ring — twin radial gauge over an ECG rate trace |
 | C | **Grove** — warm, human, organic | Clay + sage palette (no gray), rounded display face, generous radius | Bricolage Grotesque + Nunito | Growth Columns — monthly spend+savings climbing to the plan line |
+| D | **Harvest** — convergence from feedback | A's warm palette (gold / oxblood / greens + dark-brown ground) on C's rounded structure, type, and icons | Bricolage Grotesque + Nunito | Growth Columns (same as C), recolored to the Ledger palette |
 
 Data is a realistic snapshot mirroring `lib/db/seed.ts` (in `data.ts`) so the
 directions are judged at true density, not in a vacuum. Read-only; no mutations.
