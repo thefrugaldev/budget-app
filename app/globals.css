@@ -10,6 +10,20 @@
   --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-display);
+  /* Display type scale (#80 chunk 3). Bricolage Grotesque is a display
+     grotesque — it wants near-solid leading and tight tracking at large
+     sizes. Two deliberate tiers bake in line-height + letter-spacing so the
+     hero money figures outrank page titles without repeating utilities:
+       text-hero    — the marquee figures (Pulse KPI values, Category total)
+       text-display — page titles (Pulse, Transactions, Income, Settings h1)
+     Smaller headings (card totals, dialog/section titles) stay on the stock
+     text-* scale — the display face is applied with restraint. */
+  --text-hero: 2.5rem;
+  --text-hero--line-height: 1.05;
+  --text-hero--letter-spacing: -0.02em;
+  --text-display: 1.875rem;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.02em;
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);

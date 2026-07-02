@@ -54,7 +54,7 @@ export default async function TransactionsPage({
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-8 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
       <header className="mb-6">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">
+        <h1 className="font-heading text-display font-semibold">
           Transactions
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -92,7 +92,7 @@ export default async function Home({
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28">
       <header className="mb-6 flex items-start justify-between gap-4">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Pulse</h1>
+        <h1 className="font-heading text-display font-semibold">Pulse</h1>
         <HeaderIncome
           incomeCategories={incomeCategories}
           targets={targets}
@@ -185,7 +185,7 @@ function HeroKpi({
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p
         className={
-          "mt-1 font-heading text-3xl font-semibold tabular-nums " +
+          "mt-1 font-heading text-hero font-semibold tabular-nums " +
           (positive ? "text-emerald-700 dark:text-emerald-400" : "")
         }
       >
