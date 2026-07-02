@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { NavItem } from "@/types/nav";
 
 export function TabLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon;
   return (
     <Link
       href={item.href}
@@ -18,9 +19,7 @@ export function TabLink({ item, active }: { item: NavItem; active: boolean }) {
       )}
     >
       <ActiveIndicator active={active} />
-      <span aria-hidden="true" className="text-lg leading-none">
-        {item.icon}
-      </span>
+      <Icon aria-hidden="true" className="size-5" />
       <span>{item.label}</span>
       {item.placeholder && <SoonBadge className="px-1 py-0 text-[9px]" />}
     </Link>

@@ -5,7 +5,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { createCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { AmountInput } from "@/components/budget/amount/AmountInput";
-import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
+import { CategoryIconPicker } from "@/components/budget/category/CategoryIconPicker";
 import { useNotify } from "@/hooks/useNotify";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
@@ -122,11 +122,11 @@ export function CategoryForm({
       )}
 
       <div className="grid grid-cols-[64px_1fr] gap-2">
-        <EmojiPickerButton
+        <CategoryIconPicker
           value={emoji}
           onChange={setEmoji}
           nameHint={name}
-          ariaLabel="Choose category emoji"
+          ariaLabel="Choose category icon"
         />
         <input
           name="name"

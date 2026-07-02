@@ -3,12 +3,15 @@
  * logic live in `@/lib/nav`; the list is annotated `readonly NavItem[]`.
  */
 
+import type { LucideIcon } from "lucide-react";
+
 export type MobileTab = "primary" | "more";
 
 export type NavItem = {
   label: string;
   href: string;
-  icon: string;
+  /** Palette-tintable lucide icon (#80 chunk 4) — replaced the emoji glyph. */
+  icon: LucideIcon;
   mobileTab: MobileTab;
   /**
    * A destination that isn't built yet (lands on a "Coming soon" page). The

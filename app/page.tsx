@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CreditCard, type LucideIcon, Percent, Sprout } from "lucide-react";
 
 import { AddCategoryTile } from "@/components/budget/category/AddCategoryTile";
 import { AddMenu } from "@/components/budget/shared/AddMenu";
@@ -108,10 +109,10 @@ export default async function Home({
           wider column than the sm 3-col band gave it, where a 6-figure total
           would overflow the card. Below md the strip stacks full-width. */}
       <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <HeroKpi emoji="💸" label="Spent" value={fmt(expenseTotal)} sub={rangeText} />
-        <HeroKpi emoji="🌱" label="Saved" value={fmt(savingsTotal)} sub={rangeText} positive />
+        <HeroKpi Icon={CreditCard} label="Spent" value={fmt(expenseTotal)} sub={rangeText} />
+        <HeroKpi Icon={Sprout} label="Saved" value={fmt(savingsTotal)} sub={rangeText} positive />
         <HeroKpi
-          emoji="📊"
+          Icon={Percent}
           label="Savings rate"
           value={savingsRate === null ? "n/a" : `${Math.round(savingsRate * 100)}%`}
           sub={rangeText}
@@ -170,13 +171,13 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 function HeroKpi({
-  emoji,
+  Icon,
   label,
   value,
   sub,
   positive,
 }: {
-  emoji: string;
+  Icon: LucideIcon;
   label: string;
   value: string;
   sub?: string;
@@ -184,7 +185,7 @@ function HeroKpi({
 }) {
   return (
     <div className="rounded-2xl bg-card p-5 ring-1 ring-border">
-      <div className="mb-2 text-2xl">{emoji}</div>
+      <Icon aria-hidden className="mb-2 size-6 text-muted-foreground" />
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p
         className={

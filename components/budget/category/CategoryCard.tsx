@@ -4,6 +4,7 @@ import { fmt, targetLabel, thresholdColor, thresholdDescriptor } from "@/lib/bud
 import { cn } from "@/lib/utils";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/charts/ThresholdMeter";
+import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { Sparkline } from "@/components/budget/category/Sparkline";
 
@@ -51,9 +52,7 @@ export function CategoryCard({
       )}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-3">
-          <div className="grid size-11 place-items-center rounded-xl bg-muted text-2xl">
-            {category.emoji}
-          </div>
+          <CategoryIcon category={category} />
           <div className="min-w-0">
             <p className="font-medium leading-tight">{category.name}</p>
             <p className="text-xs text-muted-foreground">

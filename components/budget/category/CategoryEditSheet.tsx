@@ -13,7 +13,7 @@ import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { CategoryLifecycleActions } from "@/components/budget/category/CategoryLifecycleActions";
 import { CategoryTargetHistory } from "@/components/budget/category/CategoryTargetHistory";
 import { SectionHeader } from "@/components/budget/category/SectionHeader";
-import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
+import { CategoryIconPicker } from "@/components/budget/category/CategoryIconPicker";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import {
@@ -218,11 +218,11 @@ export function CategoryEditSheet({
               <section className="space-y-3">
                 <SectionHeader title="Details" dirty={detailsDirty} />
                 <div className="grid grid-cols-[64px_1fr] gap-2">
-                  <EmojiPickerButton
+                  <CategoryIconPicker
                     value={emoji}
                     onChange={setEmoji}
                     nameHint={name}
-                    ariaLabel="Choose category emoji"
+                    ariaLabel="Choose category icon"
                   />
                   <input
                     value={name}
