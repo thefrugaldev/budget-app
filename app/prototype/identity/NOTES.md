@@ -38,8 +38,34 @@ directions are judged at true density, not in a vacuum. Read-only; no mutations.
 
 ## Verdict
 
-_TBD — awaiting owner selection._
+**Chosen direction: E — "Harvest+"** (owner selection, 2026-07-02).
 
-- Chosen direction:
-- Grafts from the runners-up (e.g. "B's ring with A's palette"):
-- Rationale:
+- **Chosen direction:** E (Harvest+). E is itself the end of an iteration chain:
+  D grafted **A's warm palette** (gold / oxblood / greens + dark-brown ground)
+  onto **C's rounded type & icons** (Bricolage Grotesque + Nunito, tinted-circle
+  lucide icons); the gold was tuned to "Moderate" (`#c68f22` / `#e0b84e`) and the
+  green/red lifted to match; then E refined the layout.
+- **Grafts from runners-up:** none outstanding — the palette/type/icon decisions
+  from A and C are already baked into D→E.
+- **Rationale:** leads with a thesis hero instead of a date label; drops the
+  templated KPI strip; makes savings the *visible* growth via the canopy trend
+  line over the grove columns (with a grow-in load animation); and the columns
+  are explorable per month via an accessible hover/focus tooltip (aria-labelled,
+  Escape-dismissable). Warm background wash + card hover/focus polish. Reads as a
+  considered, warm, "live-in-it" identity — not the shadcn default.
+
+### For chunk 2 (encode as tokens)
+
+- **Palette** (from `DirectionHarvestPlus` / `DirectionHarvest`): bg `#f1e8d7`
+  light / `#141109` dark (with a subtle top wash); surface `#fffdf7` / `#211d15`;
+  ink `#221e17` / `#efe7d8`; gold(warn) `#c68f22` / `#e0b84e`; good `#48895c` /
+  `#86b590`; bad `#a8443f` / `#db7d75`; muted-gold accent `#9a7b3f` / `#cba965`.
+- **Type:** `--font-heading` → Bricolage Grotesque (display, hero figures +
+  headings); body → Nunito. Keep `tabular-nums` on figures.
+- **Icons:** lucide, tinted via tokens, in soft circles (see the seed-category
+  mapping in `data.ts`).
+- **Signature:** the grove columns — savings as a canopy trend line climbing over
+  spend toward the plan line — is the element to build on Pulse (issue #80
+  chunk 5).
+- Re-check `--hp-muted` text contrast against the warm ground for 4.5:1 when
+  finalizing, and promote cards to semantic `<a>` with real focus states.
