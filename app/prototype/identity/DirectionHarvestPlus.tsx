@@ -18,7 +18,6 @@ import {
   SAVINGS,
   INCOME,
   KPIS,
-  MONTHLY,
   fmt,
   pct,
   descriptorFor,
@@ -26,6 +25,7 @@ import {
   toneFor,
 } from "./data";
 import { fontVars } from "./fonts";
+import { HarvestPlusChart } from "./HarvestPlusChart";
 
 type Cat = (typeof EXPENSES)[number];
 
@@ -62,6 +62,17 @@ const css = `
 .hp__legend { display:flex; gap:1.3rem; font-size:.78rem; color:var(--hp-muted); margin-top:.5rem; }
 .hp__col { transform-box:fill-box; transform-origin:50% 100%; animation:hp-grow .7s cubic-bezier(.2,.7,.2,1) backwards; }
 @keyframes hp-grow { from { transform:scaleY(0); } to { transform:scaleY(1); } }
+.hp__chartwrap { position:relative; }
+.hp__hit { cursor:default; outline:none; }
+.hp__hit:focus-visible { outline:2px solid var(--hp-accent); outline-offset:-3px; }
+.hp__hint { margin-left:auto; font-size:.72rem; opacity:.75; }
+.hp__tip { position:absolute; transform:translate(-50%, calc(-100% - 12px)); pointer-events:none; z-index:5;
+  background:var(--hp-surface); color:var(--hp-ink); border:1px solid var(--hp-line); border-radius:12px;
+  padding:.6rem .75rem; min-width:9.5rem; box-shadow:0 12px 28px -10px rgba(50,35,10,.4); }
+.hp__tiptitle { font-family:var(--proto-font-soft-display); font-weight:800; font-size:.82rem; margin-bottom:.35rem; }
+.hp__tiprow { display:flex; justify-content:space-between; gap:1.2rem; font-size:.76rem; padding:.1rem 0; }
+.hp__tiprow b { font-variant-numeric:tabular-nums; }
+.hp__tiprate { margin-top:.25rem; padding-top:.35rem; border-top:1px solid var(--hp-line); color:var(--hp-muted); }
 
 .hp__sec { margin-top:2.4rem; }
 .hp__sech { font-family:var(--proto-font-soft-display); font-size:1.2rem; font-weight:800; margin-bottom:1rem; display:flex; align-items:baseline; gap:.6rem; }
@@ -124,84 +135,6 @@ function HarvestCard({ c }: { c: Cat }) {
   );
 }
 
-function GrowthColumns() {
-  const W = 760;
-  const H = 250;
-  const padX = 26;
-  const baseline = 202;
-  const plotH = 168;
-  const domain = 6200;
-  const budgetLine = KPIS.spentTarget + KPIS.savedTarget;
-  const innerW = W - padX * 2;
-  const step = innerW / MONTHLY.length;
-  const barW = Math.min(46, step * 0.5);
-  const h = (v: number) => (v / domain) * plotH;
-  const targetY = baseline - h(budgetLine);
-
-  const cols = MONTHLY.map((m, i) => {
-    const cx = padX + step * (i + 0.5);
-    const spendH = h(m.spend);
-    const savedH = h(m.saved);
-    const spendY = baseline - spendH;
-    const savedY = spendY - savedH;
-    return { m, i, cx, spendH, savedH, spendY, savedY };
-  });
-  const canopy = cols.map((c) => `${c.cx.toFixed(1)},${c.savedY.toFixed(1)}`).join(" ");
-  const last = cols[cols.length - 1];
-
-  return (
-    <div className="hp__panel">
-      <div className="hp__panelhead">
-        <div>
-          <h2 className="hp__panelh2">Your grove, month by month</h2>
-          <p className="hp__panelsub">Savings (the canopy) climbing over spending, toward your {fmt(budgetLine)} plan</p>
-        </div>
-        <span className="hp__badge">
-          <Leaf size={12} strokeWidth={2.4} /> Saving steadily
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Spending and savings per month, January to June, against the monthly plan">
-        {/* soil */}
-        <rect x={padX - 6} y={baseline} width={innerW + 12} height="6" rx="3" fill="var(--hp-soil)" opacity="0.5" />
-        <line x1={padX - 6} y1={baseline} x2={W - padX + 6} y2={baseline} stroke="var(--hp-soil)" strokeWidth="2" />
-        {/* plan line */}
-        <line x1={padX} y1={targetY} x2={W - padX} y2={targetY} stroke="var(--hp-muted)" strokeWidth="1.5" strokeDasharray="6 5" opacity="0.55" />
-        {/* Left-anchored so it never collides with the latest column's value label on the right. */}
-        <text x={padX} y={targetY - 7} textAnchor="start" fontSize="11" fill="var(--hp-muted)" fontWeight="700">
-          plan {fmt(budgetLine)}
-        </text>
-        {/* columns grow up from the soil */}
-        {cols.map((c) => (
-          <g key={c.m.label} className="hp__col" style={{ animationDelay: `${c.i * 70}ms` }}>
-            <rect x={c.cx - barW / 2} y={c.spendY} width={barW} height={c.spendH} rx="8" fill="var(--hp-gold)" opacity={c.i === cols.length - 1 ? 1 : 0.82} />
-            <rect x={c.cx - barW / 2} y={c.savedY} width={barW} height={c.savedH + 8} rx="8" fill="var(--hp-good)" opacity={c.i === cols.length - 1 ? 1 : 0.82} />
-          </g>
-        ))}
-        {/* canopy trend line — savings is the thing that grows */}
-        <polyline points={canopy} fill="none" stroke="var(--hp-good)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
-        {cols.map((c) => (
-          <circle key={c.m.label} cx={c.cx} cy={c.savedY} r="3" fill="var(--hp-good)" />
-        ))}
-        {/* latest bud + value */}
-        <circle cx={last.cx} cy={last.savedY - 9} r="4.5" fill="var(--hp-good)" />
-        <text x={last.cx} y={last.savedY - 18} textAnchor="middle" fontSize="12" fontWeight="800" fill="var(--hp-good)" fontFamily="var(--proto-font-soft-display)">
-          {fmt(last.m.saved)}
-        </text>
-        {/* month labels (outside the animated groups so they don't scale) */}
-        {cols.map((c) => (
-          <text key={c.m.label} x={c.cx} y={H - 8} textAnchor="middle" fontSize="12" fill="var(--hp-muted)">
-            {c.m.label}
-          </text>
-        ))}
-      </svg>
-      <div className="hp__legend">
-        <span><span style={{ color: "var(--hp-gold)" }}>■</span> Spent</span>
-        <span><span style={{ color: "var(--hp-good)" }}>■</span> Saved (canopy)</span>
-      </div>
-    </div>
-  );
-}
-
 export function DirectionHarvestPlus() {
   return (
     <div className={`hp ${fontVars}`}>
@@ -233,7 +166,7 @@ export function DirectionHarvestPlus() {
           </div>
         </header>
 
-        <GrowthColumns />
+        <HarvestPlusChart />
 
         <section className="hp__sec">
           <h2 className="hp__sech">
