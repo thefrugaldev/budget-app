@@ -61,7 +61,7 @@
   --secondary: #efe3cf;
   --secondary-foreground: #2a2318;
   --muted: #ece0cb;
-  --muted-foreground: #6f6656;
+  --muted-foreground: #635a48;
   --accent: #f0e6cf;
   --accent-foreground: #2a2318;
   --destructive: #a8443f;
@@ -99,8 +99,11 @@
   --accent: #322b1b;
   --accent-foreground: #efe7d8;
   --destructive: #db7d75;
-  --border: #39342a;
-  --input: #443d30;
+  /* Lifted to ~3:1 on the dark ground (WCAG 1.4.11) so card edges and the
+     borderless day-group / header dividers stay legible. --input matches
+     --border (as in light mode) and still reads against --card. */
+  --border: #6b6252;
+  --input: #6b6252;
   --ring: #cba965;
   --chart-1: #e0b84e;
   --chart-2: #86b590;
