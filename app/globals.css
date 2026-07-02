@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-display);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -48,63 +48,68 @@
 
 :root {
   color-scheme: light;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Harvest identity — warm palette (#80 chunk 2). No gray. --signal-* stay put
+     until chunk 5 reconciles them within this palette. */
+  --background: #f1e8d7;
+  --foreground: #221e17;
+  --card: #fffdf7;
+  --card-foreground: #221e17;
+  --popover: #fffdf7;
+  --popover-foreground: #221e17;
+  --primary: #2a2318;
+  --primary-foreground: #fbf6ed;
+  --secondary: #efe3cf;
+  --secondary-foreground: #2a2318;
+  --muted: #ece0cb;
+  --muted-foreground: #635a48;
+  --accent: #f0e6cf;
+  --accent-foreground: #2a2318;
+  --destructive: #a8443f;
+  --border: #e3d8c4;
+  --input: #e3d8c4;
+  --ring: #9a7b3f;
+  --chart-1: #c68f22;
+  --chart-2: #48895c;
+  --chart-3: #a8443f;
+  --chart-4: #9a7b3f;
+  --chart-5: #6f5a34;
   --signal-good: oklch(0.696 0.17 162.48);
   --signal-good-foreground: oklch(0.508 0.118 165.612);
   --signal-warn: oklch(0.769 0.188 70.08);
   --signal-warn-foreground: oklch(0.555 0.163 48.998);
   --signal-bad: oklch(0.645 0.246 16.439);
   --signal-bad-foreground: oklch(0.514 0.222 16.935);
-  --radius: 0.625rem;
+  --radius: 0.8rem;
 }
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: #141109;
+  --foreground: #efe7d8;
+  --card: #211d15;
+  --card-foreground: #efe7d8;
+  --popover: #211d15;
+  --popover-foreground: #efe7d8;
+  --primary: #efe7d8;
+  --primary-foreground: #211d15;
+  --secondary: #2c2618;
+  --secondary-foreground: #efe7d8;
+  --muted: #2a2418;
+  --muted-foreground: #a89e8b;
+  --accent: #322b1b;
+  --accent-foreground: #efe7d8;
+  --destructive: #db7d75;
+  /* Lifted to ~3:1 on the dark ground (WCAG 1.4.11) so card edges and the
+     borderless day-group / header dividers stay legible. --input matches
+     --border (as in light mode) and still reads against --card. */
+  --border: #6b6252;
+  --input: #6b6252;
+  --ring: #cba965;
+  --chart-1: #e0b84e;
+  --chart-2: #86b590;
+  --chart-3: #db7d75;
+  --chart-4: #cba965;
+  --chart-5: #a8905a;
   --signal-good: oklch(0.696 0.17 162.48);
   --signal-good-foreground: oklch(0.765 0.177 163.223);
   --signal-warn: oklch(0.769 0.188 70.08);
