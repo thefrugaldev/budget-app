@@ -92,7 +92,7 @@ export default async function Home({
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28">
       <header className="mb-6 flex items-start justify-between gap-4">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Pulse</h1>
+        <h1 className="font-heading text-display font-semibold">Pulse</h1>
         <HeaderIncome
           incomeCategories={incomeCategories}
           targets={targets}
@@ -104,7 +104,10 @@ export default async function Home({
         <RangeSelector active={preset} basePath="/" />
       </div>
 
-      <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* 3-up only at md+ : the enlarged text-hero KPI value (chunk 3) needs a
+          wider column than the sm 3-col band gave it, where a 6-figure total
+          would overflow the card. Below md the strip stacks full-width. */}
+      <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-3">
         <HeroKpi emoji="💸" label="Spent" value={fmt(expenseTotal)} sub={rangeText} />
         <HeroKpi emoji="🌱" label="Saved" value={fmt(savingsTotal)} sub={rangeText} positive />
         <HeroKpi
@@ -185,7 +188,7 @@ function HeroKpi({
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p
         className={
-          "mt-1 font-heading text-3xl font-semibold tabular-nums " +
+          "mt-1 font-heading text-hero font-semibold tabular-nums " +
           (positive ? "text-emerald-700 dark:text-emerald-400" : "")
         }
       >

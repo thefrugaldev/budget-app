@@ -162,7 +162,7 @@ export function CategoryDetailBody({
               onEdit={() => setEditOpen(true)}
             />
           </div>
-          <p className={cn("font-heading text-3xl font-semibold tabular-nums", col.text)}>
+          <p className={cn("font-heading text-hero font-semibold tabular-nums", col.text)}>
             <SignedAmount kind={category.kind} amount={total} />
           </p>
           <p className="text-xs text-muted-foreground">
