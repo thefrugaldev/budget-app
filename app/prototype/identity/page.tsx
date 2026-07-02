@@ -19,6 +19,7 @@ import { DirectionLedger } from "./DirectionLedger";
 import { DirectionSignal } from "./DirectionSignal";
 import { DirectionGrove } from "./DirectionGrove";
 import { DirectionHarvest } from "./DirectionHarvest";
+import { DirectionHarvestPlus } from "./DirectionHarvestPlus";
 import { PrototypeSwitcher } from "./PrototypeSwitcher";
 
 export const metadata: Metadata = {
@@ -31,9 +32,10 @@ const VARIANTS: Record<string, { meta: { key: string; name: string }; Component:
   b: { meta: { key: "b", name: "Signal · dark terminal" }, Component: DirectionSignal },
   c: { meta: { key: "c", name: "Grove · warm organic" }, Component: DirectionGrove },
   d: { meta: { key: "d", name: "Harvest · A's palette + C's type/icons" }, Component: DirectionHarvest },
+  e: { meta: { key: "e", name: "Harvest+ · design-lead refinement of D" }, Component: DirectionHarvestPlus },
 };
 
-const ORDER = [VARIANTS.a.meta, VARIANTS.b.meta, VARIANTS.c.meta, VARIANTS.d.meta];
+const ORDER = [VARIANTS.a.meta, VARIANTS.b.meta, VARIANTS.c.meta, VARIANTS.d.meta, VARIANTS.e.meta];
 
 export default async function IdentityPrototypePage({
   searchParams,

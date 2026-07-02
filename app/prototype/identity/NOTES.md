@@ -31,6 +31,7 @@ and dark** (the app theme toggle in Settings → Appearance drives both).
 | B | **Signal** — dark-first instrument panel | Near-black canvas in both themes + one electric accent; mono numerals | Space Grotesk + JetBrains Mono | The Pulse Ring — twin radial gauge over an ECG rate trace |
 | C | **Grove** — warm, human, organic | Clay + sage palette (no gray), rounded display face, generous radius | Bricolage Grotesque + Nunito | Growth Columns — monthly spend+savings climbing to the plan line |
 | D | **Harvest** — convergence from feedback | A's warm palette (gold / oxblood / greens + dark-brown ground) on C's rounded structure, type, and icons | Bricolage Grotesque + Nunito | Growth Columns (same as C), recolored to the Ledger palette |
+| E | **Harvest+** — design-lead refinement of D | Same DNA as D; leads with a thesis hero, drops the templated KPI strip, makes savings the visible growth (canopy line), warm bg wash, grow-in motion, hover/focus polish | Bricolage Grotesque + Nunito | Growth Columns as hero: soil baseline + savings **canopy** trend line, columns grow up on load |
 
 Data is a realistic snapshot mirroring `lib/db/seed.ts` (in `data.ts`) so the
 directions are judged at true density, not in a vacuum. Read-only; no mutations.
