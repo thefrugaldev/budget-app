@@ -3,13 +3,11 @@ import { randomUUID } from "crypto";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { CategoryTargetDocument } from "@/lib/db/documents";
-import { ensureIndexes } from "@/lib/db/indexes";
 import { toCategoryTarget } from "@/lib/db/mappers";
 import type { CategoryTarget } from "@/types/budget";
 
 export async function listCategoryTargets(): Promise<CategoryTarget[]> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const docs = await db
     .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
@@ -24,7 +22,6 @@ export async function listCategoryTargetsFor(
   categoryId: string,
 ): Promise<CategoryTarget[]> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const docs = await db
     .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
@@ -41,7 +38,6 @@ export async function createCategoryTarget(input: {
   effectiveFrom: string;
 }): Promise<CategoryTarget> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc: CategoryTargetDocument = {
     _id: randomUUID(),
@@ -71,7 +67,6 @@ export async function upsertCategoryTarget(input: {
   effectiveFrom: string;
 }): Promise<void> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   await db
     .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
