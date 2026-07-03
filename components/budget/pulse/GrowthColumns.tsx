@@ -71,7 +71,6 @@ export function GrowthColumns({
   // month (the tip of the climb), which may not be the last column.
   const savedCols = cols.filter((c) => c.savedH > 0.5);
   const canopy = savedCols.map((c) => `${c.cx.toFixed(1)},${c.savedY.toFixed(1)}`).join(" ");
-  const bud = savedCols[savedCols.length - 1];
   const clear = (i: number) => setActive((a) => (a === i ? null : a));
   const latest = cols[cols.length - 1];
 
@@ -192,21 +191,6 @@ export function GrowthColumns({
           {savedCols.map((c) => (
             <circle key={c.d.ym} cx={c.cx} cy={c.savedY} r={2.5} className="fill-chart-2" />
           ))}
-
-          {/* "bud" + saved value at the tip of the climb (latest saved month) */}
-          {bud && (
-            <>
-              <circle cx={bud.cx} cy={bud.savedY - 9} r={4} className="fill-chart-2" />
-              <text
-                x={bud.cx}
-                y={bud.savedY - 18}
-                textAnchor="middle"
-                className="fill-chart-2 font-heading text-[12px] font-semibold"
-              >
-                {fmt(bud.d.saved)}
-              </text>
-            </>
-          )}
 
           {/* month labels (outside the animated groups so they don't scale) */}
           {cols.map((c) => {

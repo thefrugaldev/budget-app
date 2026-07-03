@@ -40,7 +40,7 @@ export function CategoryCard({
     <Link
       href={`/categories/${category.id}`}
       className={cn(
-        "group relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 ring-1 transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
+        "group relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 ring-1 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring",
         isInflow ? "ring-signal-good/30" : "ring-border",
       )}
     >
