@@ -47,7 +47,7 @@ export function CategoryCard({
       {isNegative && (
         <span
           aria-hidden
-          className="absolute inset-y-0 left-0 w-1 bg-rose-500"
+          className="absolute inset-y-0 left-0 w-1 bg-signal-bad"
         />
       )}
       <div className="flex items-start justify-between gap-2">

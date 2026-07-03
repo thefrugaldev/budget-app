@@ -4,6 +4,7 @@ import { CreditCard, type LucideIcon, Percent, Sprout } from "lucide-react";
 import { AddCategoryTile } from "@/components/budget/category/AddCategoryTile";
 import { AddMenu } from "@/components/budget/shared/AddMenu";
 import { CategoryCard } from "@/components/budget/category/CategoryCard";
+import { GrowthColumns } from "@/components/budget/pulse/GrowthColumns";
 import { HeaderIncome } from "@/components/budget/income/HeaderIncome";
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
 import {
@@ -14,6 +15,8 @@ import {
   fmt,
   isCategoryActiveInRange,
   isRangePreset,
+  monthlyTrend,
+  planTargetForMonth,
   rangeLabel,
   resolveRange,
   resolveTargetForMonth,
@@ -90,6 +93,12 @@ export default async function Home({
   const savingsRate = computeSavingsRate(incomeForRange, savingsTotal);
   const rangeText = rangeLabel(preset);
 
+  // The signature reads a fixed trailing window, independent of the range
+  // selector, so it always tells the "over time" story. The plan line is the
+  // current month's total caps + goals.
+  const trend = monthlyTrend(transactions, categories, 6, now);
+  const plan = planTargetForMonth(categories, targets, thisMonth);
+
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28">
       <header className="mb-6 flex items-start justify-between gap-4">
@@ -100,6 +109,10 @@ export default async function Home({
           currentMonth={thisMonth}
         />
       </header>
+
+      <div className="mb-8">
+        <GrowthColumns data={trend} plan={plan} />
+      </div>
 
       <div className="mb-8">
         <RangeSelector active={preset} basePath="/" />
@@ -190,7 +203,7 @@ function HeroKpi({
       <p
         className={
           "mt-1 font-heading text-hero font-semibold tabular-nums " +
-          (positive ? "text-emerald-700 dark:text-emerald-400" : "")
+          (positive ? "text-signal-good-foreground" : "")
         }
       >
         {value}

@@ -108,6 +108,18 @@ export type MonthBarDatum = {
   target: number;
 };
 
+/**
+ * Per-month spend/save totals for the Pulse "Growth Columns" signature
+ * (#80 chunk 5). `spent` and `saved` are signed sums across all expense /
+ * savings categories that month, so a refund- or withdrawal-heavy month can be
+ * negative; the chart clamps bar heights at zero.
+ */
+export type MonthlyTrendPoint = {
+  ym: string;
+  spent: number;
+  saved: number;
+};
+
 /** YTD summary for a one-time income source: total received + last receipt. */
 export type OneTimeReceiptSummary = {
   received: number;

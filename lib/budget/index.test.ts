@@ -15,11 +15,13 @@ import {
   monthStartDate,
   monthTotalsByCategory,
   monthlyTotalsLastN,
+  monthlyTrend,
   monthsInRange,
   mostRecentTransactionInCategory,
   nextMonth,
   rangeLabel,
   resolveRange,
+  planTargetForMonth,
   resolveTargetForMonth,
   signLabelsFor,
   targetLabel,
@@ -394,6 +396,86 @@ describe("currentMonthlyBaseline", () => {
 
   it("returns 0 when no income categories are passed", () => {
     expect(currentMonthlyBaseline([], history, "2026-06")).toBe(0);
+  });
+});
+
+describe("monthlyTrend", () => {
+  const groceries = expenseCat({ id: "groc", kind: "expense" });
+  const rent = expenseCat({ id: "rent", kind: "expense" });
+  const hysa = savingsCat({ id: "hysa", kind: "savings" });
+  const salary = incomeCat({ id: "salary", kind: "income" });
+  const cats = [groceries, rent, hysa, salary];
+  // Anchor "today" to June so the 3-month window is Apr, May, Jun.
+  const now = new Date(Date.UTC(2026, 5, 15));
+
+  it("returns oldest-first with the current month last", () => {
+    const trend = monthlyTrend([], cats, 3, now);
+    expect(trend.map((p) => p.ym)).toEqual(["2026-04", "2026-05", "2026-06"]);
+  });
+
+  it("sums expense amounts into spent and savings into saved, per month", () => {
+    const txns: Transaction[] = [
+      tx({ id: "a", categoryId: "groc", amount: 100, date: "2026-06-02" }),
+      tx({ id: "b", categoryId: "rent", amount: 1500, date: "2026-06-01" }),
+      tx({ id: "c", categoryId: "hysa", amount: 400, date: "2026-06-05" }),
+      tx({ id: "d", categoryId: "groc", amount: 80, date: "2026-05-20" }),
+    ];
+    const trend = monthlyTrend(txns, cats, 3, now);
+    const june = trend[2];
+    const may = trend[1];
+    expect(june).toEqual({ ym: "2026-06", spent: 1600, saved: 400 });
+    expect(may).toEqual({ ym: "2026-05", spent: 80, saved: 0 });
+  });
+
+  it("excludes income transactions from both series", () => {
+    const txns: Transaction[] = [
+      tx({ id: "pay", categoryId: "salary", amount: 5000, date: "2026-06-01" }),
+    ];
+    const trend = monthlyTrend(txns, cats, 3, now);
+    expect(trend[2]).toEqual({ ym: "2026-06", spent: 0, saved: 0 });
+  });
+
+  it("keeps signed sums negative when refunds/withdrawals dominate", () => {
+    const txns: Transaction[] = [
+      tx({ id: "refund", categoryId: "groc", amount: -50, date: "2026-06-10" }),
+      tx({ id: "wd", categoryId: "hysa", amount: -200, date: "2026-06-11" }),
+    ];
+    const trend = monthlyTrend(txns, cats, 1, now);
+    expect(trend[0]).toEqual({ ym: "2026-06", spent: -50, saved: -200 });
+  });
+});
+
+describe("planTargetForMonth", () => {
+  const groceries = expenseCat({ id: "groc", kind: "expense" });
+  const hysa = savingsCat({ id: "hysa", kind: "savings" });
+  const salary = incomeCat({ id: "salary", kind: "income" });
+  const laterCat = expenseCat({ id: "car", kind: "expense", activeFrom: "2026-07" });
+
+  const history: CategoryTarget[] = [
+    { categoryId: "groc", monthly: 600, effectiveFrom: "2026-01" },
+    { categoryId: "groc", monthly: 700, effectiveFrom: "2026-06" },
+    { categoryId: "hysa", monthly: 1000, effectiveFrom: "2026-01" },
+    { categoryId: "car", monthly: 400, effectiveFrom: "2026-07" },
+    { categoryId: "salary", monthly: 8000, effectiveFrom: "2026-01" },
+  ];
+
+  it("sums expense caps and savings goals, excluding income", () => {
+    // June: groceries raised to 700 + hysa 1000; salary is ignored.
+    expect(planTargetForMonth([groceries, hysa, salary], history, "2026-06")).toBe(1700);
+  });
+
+  it("honors effective-dated raises at the queried month", () => {
+    expect(planTargetForMonth([groceries, hysa], history, "2026-05")).toBe(1600);
+  });
+
+  it("excludes categories not yet active in the month", () => {
+    // car phases in 2026-07, so it doesn't count toward the June plan.
+    expect(planTargetForMonth([groceries, hysa, laterCat], history, "2026-06")).toBe(1700);
+    expect(planTargetForMonth([groceries, hysa, laterCat], history, "2026-07")).toBe(2100);
+  });
+
+  it("returns 0 when nothing is targeted", () => {
+    expect(planTargetForMonth([], history, "2026-06")).toBe(0);
   });
 });
 
