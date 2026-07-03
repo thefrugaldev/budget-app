@@ -1,6 +1,7 @@
 import { createElement } from "react";
 
-import { resolveCategoryIcon } from "@/lib/category/icon";
+import { LazyLucideIcon } from "@/components/budget/category/LazyLucideIcon";
+import { DEFAULT_CATEGORY_ICON, staticIconFor } from "@/lib/category/icon";
 import { cn } from "@/lib/utils";
 
 /**
@@ -9,20 +10,22 @@ import { cn } from "@/lib/utils";
  * `className` (e.g. `size-11` on the Pulse card, `size-12` on the detail
  * sidebar) and the glyph scales via `iconClassName`. Decorative — the category
  * name always sits alongside it, so the icon is `aria-hidden`.
+ *
+ * Curated icons render statically (instant, server-rendered). A category whose
+ * chosen icon lives outside the curated set falls back to `LazyLucideIcon`,
+ * which loads it from the full catalogue on demand.
  */
 export function CategoryIcon({
   category,
   className,
   iconClassName,
 }: {
-  category: { emoji: string };
+  category: { icon?: string; emoji?: string };
   className?: string;
   iconClassName?: string;
 }) {
-  // createElement (not `<Icon/>`): the resolver returns a stable module-level
-  // component, but binding it to a capitalized const trips the compiler's
-  // static-components lint. Rendering it directly keeps the reference dynamic
-  // without the false positive.
+  const Static = staticIconFor(category);
+  const glyphClass = cn("size-5", iconClassName);
   return (
     <span
       className={cn(
@@ -30,10 +33,14 @@ export function CategoryIcon({
         className,
       )}
     >
-      {createElement(resolveCategoryIcon(category), {
-        "aria-hidden": true,
-        className: cn("size-5", iconClassName),
-      })}
+      {Static
+        ? createElement(Static, { "aria-hidden": true, className: glyphClass })
+        : category.icon
+          ? <LazyLucideIcon name={category.icon} className={glyphClass} />
+          : createElement(DEFAULT_CATEGORY_ICON, {
+              "aria-hidden": true,
+              className: glyphClass,
+            })}
     </span>
   );
 }

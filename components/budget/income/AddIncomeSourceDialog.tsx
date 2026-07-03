@@ -66,7 +66,7 @@ export function AddIncomeSourceDialog({
 
   const [step, setStep] = useState<1 | 2>(1);
   const [frequency, setFrequency] = useState<IncomeFrequency | null>(null);
-  const [emoji, setEmoji] = useState("💰");
+  const [icon, setIcon] = useState("Wallet");
   const [name, setName] = useState("");
   const [cadence, setCadence] = useState<PayCadence>("bi-weekly");
   // Amount entry defaults to yearly with a per-paycheck toggle (RecurringAmountField).
@@ -83,7 +83,7 @@ export function AddIncomeSourceDialog({
   function resetForm() {
     setStep(1);
     setFrequency(null);
-    setEmoji("💰");
+    setIcon("Wallet");
     setName("");
     setCadence("bi-weekly");
     setAmountUnit("yearly");
@@ -186,7 +186,7 @@ export function AddIncomeSourceDialog({
           ) : (
             <form action={formAction} className="mt-4 space-y-3">
               <input type="hidden" name="frequency" value={frequency ?? ""} />
-              <input type="hidden" name="emoji" value={emoji} />
+              {/* icon carried by CategoryIconPicker's own hidden input below */}
 
               {isRecurring && (
                 <>
@@ -225,8 +225,8 @@ export function AddIncomeSourceDialog({
 
               <div className="grid grid-cols-[64px_1fr] gap-2">
                 <CategoryIconPicker
-                  value={emoji}
-                  onChange={setEmoji}
+                  value={icon}
+                  onChange={setIcon}
                   nameHint={name}
                   ariaLabel="Choose income source icon"
                 />

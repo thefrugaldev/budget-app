@@ -28,7 +28,18 @@ export type IncomeSourceStatus = "active" | "scheduled-change" | "ended";
 export type Category = {
   id: string;
   name: string;
+  /**
+   * Legacy display glyph. Still set for seed data and categories created before
+   * the icon system (#80 chunk 4); new categories store `icon` instead. Kept as
+   * the resolver's fallback so nothing renders blank — see `resolveCategoryIcon`.
+   */
   emoji: string;
+  /**
+   * The chosen lucide icon's PascalCase name (e.g. `"ShoppingCart"`), when set.
+   * Preferred over `emoji` for rendering. Optional: legacy/seed categories only
+   * carry an `emoji`.
+   */
+  icon?: string;
   kind: CategoryKind;
   /** Inclusive lower bound, "YYYY-MM". */
   activeFrom: string;

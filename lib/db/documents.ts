@@ -7,6 +7,9 @@ export type CategoryDocument = {
   _id: string;
   name: string;
   emoji: string;
+  // Chosen lucide icon name (#80 chunk 4). Absent on seed/legacy docs, which
+  // fall back to `emoji` on read via `resolveCategoryIcon`.
+  icon?: string;
   kind: CategoryKind;
   activeFrom: string; // "YYYY-MM"
   activeUntil?: string; // "YYYY-MM"

@@ -29,10 +29,10 @@ const KIND_HINTS = {
 } as const satisfies Record<CategoryKind, string>;
 
 const KIND_PLACEHOLDERS = {
-  expense: { name: "Streaming", emoji: "📺" },
-  savings: { name: "Vacation", emoji: "🌴" },
-  income: { name: "Side gig", emoji: "💼" },
-} as const satisfies Record<CategoryKind, { name: string; emoji: string }>;
+  expense: { name: "Streaming", icon: "Tv" },
+  savings: { name: "Vacation", icon: "Umbrella" },
+  income: { name: "Side gig", icon: "Briefcase" },
+} as const satisfies Record<CategoryKind, { name: string; icon: string }>;
 
 export type CategoryFormProps = {
   /** When set, locks the kind picker and bakes the value into the submitted form. */
@@ -84,8 +84,8 @@ export function CategoryForm({
   const effectiveKind = presetKind ?? kind;
   const placeholders = KIND_PLACEHOLDERS[effectiveKind];
   const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState<string>(
-    KIND_PLACEHOLDERS[presetKind ?? pickerKinds[0]].emoji,
+  const [icon, setIcon] = useState<string>(
+    KIND_PLACEHOLDERS[presetKind ?? pickerKinds[0]].icon,
   );
   const [activeFrom, setActiveFrom] = useState<string>(currentMonthKey());
   const [monthly, setMonthly] = useState("");
@@ -123,8 +123,8 @@ export function CategoryForm({
 
       <div className="grid grid-cols-[64px_1fr] gap-2">
         <CategoryIconPicker
-          value={emoji}
-          onChange={setEmoji}
+          value={icon}
+          onChange={setIcon}
           nameHint={name}
           ariaLabel="Choose category icon"
         />

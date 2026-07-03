@@ -10,6 +10,8 @@ export function toCategory(doc: CategoryDocument): Category {
     id: doc._id,
     name: doc.name,
     emoji: doc.emoji,
+    // `?? undefined` normalises a leaked Mongo null on legacy docs.
+    icon: doc.icon ?? undefined,
     kind: doc.kind,
     activeFrom: doc.activeFrom,
     // Mongo writes a missing optional as `null` (not omitted) when the

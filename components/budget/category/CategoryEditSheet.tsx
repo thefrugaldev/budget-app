@@ -86,7 +86,7 @@ export function CategoryEditSheet({
   // persisted category. The defaults reset whenever the persisted shape
   // changes (after a save lands) — see the resync effect below.
   const [name, setName] = useState(category.name);
-  const [emoji, setEmoji] = useState(category.emoji);
+  const [icon, setIcon] = useState(category.icon ?? "");
   const [kind, setKind] = useState<CategoryKind>(category.kind);
   const [activeFrom, setActiveFrom] = useState(category.activeFrom);
   const [activeUntil, setActiveUntil] = useState(category.activeUntil ?? "");
@@ -108,7 +108,7 @@ export function CategoryEditSheet({
   if (persistedChanged || justOpened) {
     setPrev({ category, currentTarget, open });
     setName(category.name);
-    setEmoji(category.emoji);
+    setIcon(category.icon ?? "");
     setKind(category.kind);
     setActiveFrom(category.activeFrom);
     setActiveUntil(category.activeUntil ?? "");
@@ -145,7 +145,7 @@ export function CategoryEditSheet({
 
   const detailsDirty =
     name !== category.name ||
-    emoji !== category.emoji ||
+    icon !== (category.icon ?? "") ||
     kind !== category.kind ||
     activeFrom !== category.activeFrom ||
     (showEndDate
@@ -161,7 +161,7 @@ export function CategoryEditSheet({
       if (detailsDirty) {
         const fd = new FormData();
         fd.set("id", category.id);
-        fd.set("emoji", emoji);
+        fd.set("icon", icon);
         fd.set("name", name);
         fd.set("kind", kind);
         fd.set("activeFrom", activeFrom);
@@ -219,8 +219,9 @@ export function CategoryEditSheet({
                 <SectionHeader title="Details" dirty={detailsDirty} />
                 <div className="grid grid-cols-[64px_1fr] gap-2">
                   <CategoryIconPicker
-                    value={emoji}
-                    onChange={setEmoji}
+                    value={icon}
+                    onChange={setIcon}
+                    fallbackEmoji={category.emoji}
                     nameHint={name}
                     ariaLabel="Choose category icon"
                   />

@@ -178,7 +178,7 @@ export async function createIncomeSourceAction(
 ): Promise<IncomeActionState> {
   try {
     const name = requireString(formData.get("name"), "name");
-    const emoji = (formData.get("emoji") as string | null)?.trim() || "💰";
+    const icon = (formData.get("icon") as string | null)?.trim() || undefined;
     const frequency = parseIncomeFrequency(formData.get("frequency"));
     const activeFrom = currentMonthKey();
 
@@ -190,7 +190,7 @@ export async function createIncomeSourceAction(
       );
       const category = await createCategory({
         name,
-        emoji,
+        icon,
         kind: "income",
         activeFrom,
         incomeFrequency: "recurring",
@@ -205,7 +205,7 @@ export async function createIncomeSourceAction(
     } else {
       await createCategory({
         name,
-        emoji,
+        icon,
         kind: "income",
         activeFrom,
         incomeFrequency: "one-time",
