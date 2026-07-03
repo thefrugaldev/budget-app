@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { CreditCard, type LucideIcon, Percent, Sprout } from "lucide-react";
 
 import { AddCategoryTile } from "@/components/budget/category/AddCategoryTile";
 import { AddMenu } from "@/components/budget/shared/AddMenu";
@@ -92,6 +91,8 @@ export default async function Home({
   );
   const savingsRate = computeSavingsRate(incomeForRange, savingsTotal);
   const rangeText = rangeLabel(preset);
+  const rangeLower = rangeText.toLowerCase();
+  const ratePct = savingsRate === null ? null : Math.round(savingsRate * 100);
 
   // The signature reads a fixed trailing window, independent of the range
   // selector, so it always tells the "over time" story. The plan line is the
@@ -101,13 +102,72 @@ export default async function Home({
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28">
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <h1 className="font-heading text-display font-semibold">Pulse</h1>
-        <HeaderIncome
-          incomeCategories={incomeCategories}
-          targets={targets}
-          currentMonth={thisMonth}
-        />
+      {/* Thesis hero (#80 "Harvest+"): lead with the money and the momentum —
+          the amount kept and the savings rate — instead of a bare page title
+          and the templated 3-up KPI strip. Spent/Saved subtotals fold into the
+          section headings below; the rate lives in the aside. */}
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Pulse · {rangeText}
+          </p>
+          <h1 className="mt-3 font-heading text-hero font-semibold tracking-tight">
+            {savingsTotal > 0 ? (
+              <>
+                You kept{" "}
+                <span className="text-signal-good-foreground tabular-nums">
+                  {fmt(savingsTotal)}
+                </span>{" "}
+                {rangeLower}.
+              </>
+            ) : savingsTotal < 0 ? (
+              <>
+                You drew{" "}
+                <span className="text-signal-bad-foreground tabular-nums">
+                  {fmt(Math.abs(savingsTotal))}
+                </span>{" "}
+                from savings {rangeLower}.
+              </>
+            ) : (
+              <>Nothing set aside yet {rangeLower}.</>
+            )}
+          </h1>
+          <p className="mt-3 text-base text-muted-foreground">
+            {ratePct === null ? (
+              <>Add an income source to see your savings rate.</>
+            ) : (
+              <>
+                That&rsquo;s {ratePct}% of the{" "}
+                <span className="tabular-nums">{fmt(incomeForRange)}</span> you brought in
+                {expenseTotal > 0 ? (
+                  <>
+                    , with{" "}
+                    <span className="tabular-nums">{fmt(expenseTotal)}</span> spent.
+                  </>
+                ) : (
+                  "."
+                )}
+              </>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+          {ratePct !== null && (
+            <div className="sm:text-right">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Savings rate
+              </p>
+              <p className="mt-1 font-heading text-display font-semibold tabular-nums text-signal-good-foreground">
+                {ratePct}%
+              </p>
+            </div>
+          )}
+          <HeaderIncome
+            incomeCategories={incomeCategories}
+            targets={targets}
+            currentMonth={thisMonth}
+          />
+        </div>
       </header>
 
       <div className="mb-8">
@@ -118,21 +178,7 @@ export default async function Home({
         <RangeSelector active={preset} basePath="/" />
       </div>
 
-      {/* 3-up only at md+ : the enlarged text-hero KPI value (chunk 3) needs a
-          wider column than the sm 3-col band gave it, where a 6-figure total
-          would overflow the card. Below md the strip stacks full-width. */}
-      <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <HeroKpi Icon={CreditCard} label="Spent" value={fmt(expenseTotal)} sub={rangeText} />
-        <HeroKpi Icon={Sprout} label="Saved" value={fmt(savingsTotal)} sub={rangeText} positive />
-        <HeroKpi
-          Icon={Percent}
-          label="Savings rate"
-          value={savingsRate === null ? "n/a" : `${Math.round(savingsRate * 100)}%`}
-          sub={rangeText}
-        />
-      </div>
-
-      <SectionHeading>Expenses · {rangeText.toLowerCase()}</SectionHeading>
+      <SectionHeading amount={fmt(expenseTotal)}>Expenses · {rangeLower}</SectionHeading>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {expenses.map((c) => {
           const agg = aggregateById.get(c.id);
@@ -151,7 +197,7 @@ export default async function Home({
       </div>
 
       <div className="mt-8">
-        <SectionHeading>Savings · {rangeText.toLowerCase()}</SectionHeading>
+        <SectionHeading amount={fmt(savingsTotal)}>Savings · {rangeLower}</SectionHeading>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {savings.map((c) => {
             const agg = aggregateById.get(c.id);
@@ -175,40 +221,23 @@ export default async function Home({
   );
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-      {children}
-    </h2>
-  );
-}
-
-function HeroKpi({
-  Icon,
-  label,
-  value,
-  sub,
-  positive,
+function SectionHeading({
+  children,
+  amount,
 }: {
-  Icon: LucideIcon;
-  label: string;
-  value: string;
-  sub?: string;
-  positive?: boolean;
+  children: React.ReactNode;
+  amount?: string;
 }) {
   return (
-    <div className="rounded-2xl bg-card p-5 ring-1 ring-border">
-      <Icon aria-hidden className="mb-2 size-6 text-muted-foreground" />
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p
-        className={
-          "mt-1 font-heading text-hero font-semibold tabular-nums " +
-          (positive ? "text-signal-good-foreground" : "")
-        }
-      >
-        {value}
-      </p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
+    <div className="mb-3 flex items-baseline justify-between gap-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {children}
+      </h2>
+      {amount && (
+        <span className="font-heading text-sm font-semibold tabular-nums text-muted-foreground">
+          {amount}
+        </span>
+      )}
     </div>
   );
 }
