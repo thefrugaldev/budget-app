@@ -43,3 +43,6 @@ jobs:
 
       - name: Type placement
         run: pnpm lint:types
+
+      - name: Design tokens
+        run: pnpm lint:design

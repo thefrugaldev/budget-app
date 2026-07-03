@@ -16,8 +16,8 @@ describe("check-design-tokens scanSource", () => {
     }
   });
 
-  it("flags CSS color functions", () => {
-    for (const fn of ["rgb(0,0,0)", "rgba(0,0,0,.5)", "hsl(0 0% 0%)", "oklch(0.5 0 0)"]) {
+  it("flags CSS color functions incl. the modern color() form", () => {
+    for (const fn of ["rgb(0,0,0)", "rgba(0,0,0,.5)", "hsl(0 0% 0%)", "oklch(0.5 0 0)", "color(display-p3 1 0 0)"]) {
       expect(scanSource(`background: ${fn};`)[0]?.rule).toBe("color-literal");
     }
   });
@@ -62,6 +62,21 @@ describe("check-design-tokens scanSource", () => {
     const v = scanSource(src);
     expect(v).toHaveLength(1);
     expect(v[0].line).toBe(1);
+  });
+
+  it("still flags a literal sharing a line with a block comment", () => {
+    const v = scanSource(`/* neutralized */ const c = "#ff0000";`);
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe("color-literal");
+    expect(v[0].match).toBe("#ff0000");
+  });
+
+  it("does not misread a URL's protocol slashes as a comment", () => {
+    // The `//` in https:// is protected by the [^:] guard, so a real literal
+    // after the URL on the same line is still scanned.
+    const v = scanSource(`const u = "https://x.test"; const c = "#abcdef";`);
+    expect(v).toHaveLength(1);
+    expect(v[0].match).toBe("#abcdef");
   });
 
   it("blankComments preserves line count and newlines", () => {

@@ -29,6 +29,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
 
+// The rendered/source surfaces the identity must hold. `scripts/` is
+// deliberately out — it's tooling (this guard lives there), not product UI, so
+// it neither needs nor should trip the token rule.
 const ROOTS = ["app", "components", "hooks", "lib", "types"];
 
 // The single authorized home for raw color literals — the palette itself.
@@ -38,7 +41,7 @@ const TOKEN_FILES = new Set(["app/globals.css"]);
 const ALLOW = /design-lint-allow/;
 
 const HEX = /#[0-9a-fA-F]{3,8}\b/;
-const COLOR_FN = /\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(/;
+const COLOR_FN = /\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(/;
 const TRANSITION_ALL = /\btransition-all\b/;
 
 /**
