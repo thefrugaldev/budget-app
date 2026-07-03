@@ -58,6 +58,8 @@ export async function createInvite(input: {
  */
 export async function consumeInvite(id: string): Promise<boolean> {
   const db = await getDb();
+  await ensureIndexes(db);
+
   const result = await db
     .collection<InviteDocument>(COLLECTIONS.invites)
     .updateOne(

@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { HouseholdDocument } from "@/lib/db/documents";
+import { ensureIndexes } from "@/lib/db/indexes";
 import { toHousehold } from "@/lib/db/mappers";
 import type { Household } from "@/types/auth";
 
@@ -14,6 +15,8 @@ import type { Household } from "@/types/auth";
  */
 export async function getHousehold(): Promise<Household | undefined> {
   const db = await getDb();
+  await ensureIndexes(db);
+
   const doc = await db
     .collection<HouseholdDocument>(COLLECTIONS.households)
     .findOne({});
@@ -27,6 +30,8 @@ export async function getHousehold(): Promise<Household | undefined> {
  */
 export async function createHousehold(): Promise<Household> {
   const db = await getDb();
+  await ensureIndexes(db);
+
   const doc: HouseholdDocument = {
     _id: randomUUID(),
     createdAt: new Date(),

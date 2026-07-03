@@ -5,9 +5,17 @@ import type {
   HouseholdDocument,
   InviteDocument,
   MemberDocument,
+  TransactionDocument,
   UserDocument,
 } from "./documents";
-import { toCategory, toHousehold, toInvite, toMember, toUser } from "./mappers";
+import {
+  toCategory,
+  toHousehold,
+  toInvite,
+  toMember,
+  toTransaction,
+  toUser,
+} from "./mappers";
 
 describe("toCategory", () => {
   const baseDoc: CategoryDocument = {
@@ -93,6 +101,22 @@ describe("toCategory", () => {
     // domain Category must not carry it.
     const owned = { ...baseDoc, householdId: "h1" };
     expect(toCategory(owned)).not.toHaveProperty("householdId");
+  });
+});
+
+describe("toTransaction", () => {
+  it("does not leak the tenancy householdId onto the budget domain type", () => {
+    // Parity with the toCategory guard: the persistence layer carries
+    // householdId, the budget domain Transaction must not.
+    const doc: TransactionDocument = {
+      _id: "t1",
+      categoryId: "c1",
+      amount: 12.5,
+      date: "2026-06-08",
+      householdId: "h1",
+      createdAt: new Date("2026-06-08T00:00:00Z"),
+    };
+    expect(toTransaction(doc)).not.toHaveProperty("householdId");
   });
 });
 
