@@ -60,21 +60,15 @@ export function MonthBarChart({
         const isCurrent = d.ym === highlightYm;
         const tone = d.target > 0 ? thresholdDescriptor(kind, d.target, d.total).tone : null;
         const color = tone ? TONE_FILL[tone] : "fill-muted-foreground";
-        // Keep the concerning bar (over cap / net-negative) at full strength so
-        // the exceedance reads as loud as it does on the card; only quiet the
-        // ordinary non-highlighted months.
-        const emphasized = isCurrent || tone === "bad";
+        // Every month renders at full strength: a trend reads by its shape
+        // across equally-weighted bars, and signal fills (over cap / net-
+        // negative) must not be dimmed. The current month is called out by its
+        // bold label, not by fading the rest — dimming would spotlight the one
+        // in-progress (partial, often-empty) bar over the complete history.
         const targetY = baseline - yScale.length(d.target);
         return (
           <g key={d.ym}>
-            <rect
-              x={x}
-              y={y}
-              width={barW}
-              height={h}
-              rx={3}
-              className={`${color} ${emphasized ? "opacity-100" : "opacity-70"}`}
-            />
+            <rect x={x} y={y} width={barW} height={h} rx={3} className={color} />
             {d.target > 0 && (
               <line
                 x1={x - 2}

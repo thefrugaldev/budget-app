@@ -118,30 +118,16 @@ export function GrowthColumns({
           const savedBase = spentH > 0.5 ? spentY - GAP : baseline;
           const savedY = savedBase - savedH;
           const last = i === data.length - 1;
-          const op = last ? 1 : 0.82;
+          // All months render at full strength — the trend reads by its shape,
+          // and the current month is called out by its bold label, not by
+          // fading the completed history behind an in-progress bar.
           return (
             <g key={d.ym}>
               {spentH > 0.5 && (
-                <rect
-                  x={x}
-                  y={spentY}
-                  width={barW}
-                  height={spentH}
-                  rx={6}
-                  className="fill-chart-1"
-                  opacity={op}
-                />
+                <rect x={x} y={spentY} width={barW} height={spentH} rx={6} className="fill-chart-1" />
               )}
               {savedH > 0.5 && (
-                <rect
-                  x={x}
-                  y={savedY}
-                  width={barW}
-                  height={savedH}
-                  rx={6}
-                  className="fill-chart-2"
-                  opacity={op}
-                />
+                <rect x={x} y={savedY} width={barW} height={savedH} rx={6} className="fill-chart-2" />
               )}
               <text
                 x={cx}
