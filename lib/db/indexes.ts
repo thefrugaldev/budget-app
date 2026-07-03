@@ -33,6 +33,16 @@ export function ensureIndexes(db: Db): Promise<void> {
       db
         .collection(COLLECTIONS.transactions)
         .createIndex({ categoryId: 1, date: 1 }),
+      // Auth collections (#111 chunk 2). A user has exactly one identity record
+      // and at most one membership in v1, so both lookups are unique. Invites
+      // are listed per household (matching is in-app via `matchInvite`).
+      db
+        .collection(COLLECTIONS.users)
+        .createIndex({ providerSubjectId: 1 }, { unique: true }),
+      db
+        .collection(COLLECTIONS.members)
+        .createIndex({ userId: 1 }, { unique: true }),
+      db.collection(COLLECTIONS.invites).createIndex({ householdId: 1 }),
     ]).then(() => undefined);
   }
 

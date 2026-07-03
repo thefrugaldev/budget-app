@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import type { CategoryDocument } from "./documents";
-import { toCategory } from "./mappers";
+import type {
+  CategoryDocument,
+  HouseholdDocument,
+  InviteDocument,
+  MemberDocument,
+  TransactionDocument,
+  UserDocument,
+} from "./documents";
+import {
+  toCategory,
+  toHousehold,
+  toInvite,
+  toMember,
+  toTransaction,
+  toUser,
+} from "./mappers";
 
 describe("toCategory", () => {
   const baseDoc: CategoryDocument = {
@@ -80,5 +94,93 @@ describe("toCategory", () => {
       firstPaycheckDate: null as unknown as undefined,
     };
     expect(toCategory(leaked).firstPaycheckDate).toBeUndefined();
+  });
+
+  it("does not leak the tenancy householdId onto the budget domain type", () => {
+    // householdId is a persistence/tenancy concern (chunk 2) — the budget
+    // domain Category must not carry it.
+    const owned = { ...baseDoc, householdId: "h1" };
+    expect(toCategory(owned)).not.toHaveProperty("householdId");
+  });
+});
+
+describe("toTransaction", () => {
+  it("does not leak the tenancy householdId onto the budget domain type", () => {
+    // Parity with the toCategory guard: the persistence layer carries
+    // householdId, the budget domain Transaction must not.
+    const doc: TransactionDocument = {
+      _id: "t1",
+      categoryId: "c1",
+      amount: 12.5,
+      date: "2026-06-08",
+      householdId: "h1",
+      createdAt: new Date("2026-06-08T00:00:00Z"),
+    };
+    expect(toTransaction(doc)).not.toHaveProperty("householdId");
+  });
+});
+
+describe("toUser", () => {
+  it("reassembles the Clerk-agnostic provider link from flat document fields", () => {
+    const doc: UserDocument = {
+      _id: "u1",
+      email: "owner@example.com",
+      provider: "clerk",
+      providerSubjectId: "user_clerk_123",
+      createdAt: new Date("2026-07-03T00:00:00Z"),
+    };
+    expect(toUser(doc)).toEqual({
+      id: "u1",
+      email: "owner@example.com",
+      provider: { provider: "clerk", subjectId: "user_clerk_123" },
+    });
+  });
+});
+
+describe("toHousehold", () => {
+  it("projects the id and drops persistence-only fields", () => {
+    const doc: HouseholdDocument = {
+      _id: "h1",
+      createdAt: new Date("2026-07-03T00:00:00Z"),
+    };
+    expect(toHousehold(doc)).toEqual({ id: "h1" });
+  });
+});
+
+describe("toMember", () => {
+  it("passes through the tenancy association", () => {
+    const doc: MemberDocument = {
+      _id: "m1",
+      householdId: "h1",
+      userId: "u1",
+      role: "editor",
+      createdAt: new Date("2026-07-03T00:00:00Z"),
+    };
+    expect(toMember(doc)).toEqual({
+      userId: "u1",
+      householdId: "h1",
+      role: "editor",
+    });
+  });
+});
+
+describe("toInvite", () => {
+  it("passes through the grant without the createdAt/acceptedAt persistence fields", () => {
+    const doc: InviteDocument = {
+      _id: "i1",
+      householdId: "h1",
+      email: "Spouse@Example.com",
+      role: "viewer",
+      status: "pending",
+      createdAt: new Date("2026-07-03T00:00:00Z"),
+    };
+    expect(toInvite(doc)).toEqual({
+      id: "i1",
+      householdId: "h1",
+      // Email is passed through verbatim — normalization happens at match time.
+      email: "Spouse@Example.com",
+      role: "viewer",
+      status: "pending",
+    });
   });
 });

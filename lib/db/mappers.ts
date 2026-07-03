@@ -1,8 +1,13 @@
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+import type { Household, Invite, Member, User } from "@/types/auth";
 import type {
   CategoryDocument,
   CategoryTargetDocument,
+  HouseholdDocument,
+  InviteDocument,
+  MemberDocument,
   TransactionDocument,
+  UserDocument,
 } from "./documents";
 
 export function toCategory(doc: CategoryDocument): Category {
@@ -51,5 +56,40 @@ export function toTransaction(doc: TransactionDocument): Transaction {
     date: doc.date,
     vendor: doc.vendor,
     note: doc.note,
+  };
+}
+
+// --- Auth mappers (#111 chunk 2). The domain shapes are Clerk-agnostic; the
+// provider link is reassembled from the flat document fields. `householdId`
+// is a persistence/tenancy concern and stays off the budget domain types, so
+// `toCategory`/`toTransaction` above deliberately don't read it. ---
+
+export function toUser(doc: UserDocument): User {
+  return {
+    id: doc._id,
+    email: doc.email,
+    provider: { provider: doc.provider, subjectId: doc.providerSubjectId },
+  };
+}
+
+export function toHousehold(doc: HouseholdDocument): Household {
+  return { id: doc._id };
+}
+
+export function toMember(doc: MemberDocument): Member {
+  return {
+    userId: doc.userId,
+    householdId: doc.householdId,
+    role: doc.role,
+  };
+}
+
+export function toInvite(doc: InviteDocument): Invite {
+  return {
+    id: doc._id,
+    householdId: doc.householdId,
+    email: doc.email,
+    role: doc.role,
+    status: doc.status,
   };
 }
