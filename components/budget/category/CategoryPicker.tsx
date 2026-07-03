@@ -52,9 +52,7 @@ export function CategoryPicker({
       kind,
       label: KIND_LABELS[kind],
       items: categories.filter(
-        (c) =>
-          c.kind === kind &&
-          (q === "" || c.name.toLowerCase().includes(q) || c.emoji.includes(q)),
+        (c) => c.kind === kind && (q === "" || c.name.toLowerCase().includes(q)),
       ),
     })).filter((g) => g.items.length > 0);
   }, [categories, query]);

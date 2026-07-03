@@ -21,6 +21,81 @@ const COLS = 6;
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
+// Budget vocabulary → lucide icon names, so the name field suggests useful
+// icons for words that aren't lucide-native (e.g. "salary", "rent"). Substring
+// match on the typed name; merged with lucide's own name matches below.
+const NAME_HINTS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ["grocer", ["ShoppingCart", "Carrot"]],
+  ["dining", ["Utensils"]],
+  ["restaurant", ["Utensils"]],
+  ["food", ["Utensils"]],
+  ["rent", ["House", "KeyRound"]],
+  ["mortgage", ["House"]],
+  ["util", ["Lightbulb", "Zap"]],
+  ["electric", ["Zap"]],
+  ["water", ["Droplet"]],
+  ["internet", ["Wifi"]],
+  ["phone", ["Smartphone"]],
+  ["gas", ["Fuel"]],
+  ["fuel", ["Fuel"]],
+  ["transit", ["TrainFront", "Bus"]],
+  ["travel", ["Plane"]],
+  ["flight", ["Plane"]],
+  ["vacation", ["Umbrella", "Plane"]],
+  ["hotel", ["BedDouble"]],
+  ["clothing", ["Shirt"]],
+  ["clothes", ["Shirt"]],
+  ["health", ["Stethoscope", "HeartPulse"]],
+  ["medical", ["Stethoscope"]],
+  ["doctor", ["Stethoscope"]],
+  ["pharmacy", ["Pill"]],
+  ["gym", ["Dumbbell"]],
+  ["fitness", ["Dumbbell"]],
+  ["entertain", ["Clapperboard"]],
+  ["movie", ["Clapperboard"]],
+  ["stream", ["Tv"]],
+  ["subscription", ["Tv"]],
+  ["music", ["Music"]],
+  ["gaming", ["Gamepad2"]],
+  ["education", ["GraduationCap"]],
+  ["school", ["GraduationCap"]],
+  ["tuition", ["GraduationCap"]],
+  ["gift", ["Gift"]],
+  ["pet", ["PawPrint"]],
+  ["salary", ["Banknote", "Briefcase"]],
+  ["paycheck", ["Banknote"]],
+  ["income", ["Banknote"]],
+  ["gig", ["Briefcase"]],
+  ["freelance", ["Briefcase"]],
+  ["saving", ["PiggyBank"]],
+  ["invest", ["TrendingUp", "ChartLine"]],
+  ["brokerage", ["TrendingUp"]],
+  ["dividend", ["TrendingUp"]],
+  ["retirement", ["PiggyBank", "Landmark"]],
+  ["crypto", ["Bitcoin"]],
+  ["bitcoin", ["Bitcoin"]],
+  ["bank", ["Landmark"]],
+  ["tax", ["Receipt"]],
+  ["insurance", ["ShieldCheck"]],
+  ["charity", ["HandHeart"]],
+  ["donation", ["HandHeart"]],
+  ["emergency", ["Siren"]],
+  ["baby", ["Baby"]],
+  ["kids", ["Baby"]],
+  ["salon", ["Scissors"]],
+  ["beauty", ["Sparkles"]],
+  ["furniture", ["Sofa"]],
+];
+
+function hintNamesFor(nameHint: string): string[] {
+  const q = nameHint.toLowerCase();
+  const out: string[] = [];
+  for (const [term, names] of NAME_HINTS) {
+    if (q.includes(term)) out.push(...names);
+  }
+  return out;
+}
+
 export default function IconGrid({
   current,
   onSelect,
@@ -34,7 +109,9 @@ export default function IconGrid({
   const [active, setActive] = useState(0);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const results = useMemo(() => {
+  const byName = useMemo(() => new Map(ALL_ICONS.map((e) => [e.name, e])), []);
+
+  const rawResults = useMemo(() => {
     const q = query.trim();
     if (q) return searchIcons(q).slice(0, RESULT_CAP);
     return ALL_ICONS.slice(0, RESULT_CAP);
@@ -42,8 +119,22 @@ export default function IconGrid({
 
   const suggestions = useMemo(() => {
     if (query.trim() || !nameHint?.trim()) return [];
-    return searchIcons(nameHint).slice(0, 6);
-  }, [query, nameHint]);
+    // Budget-vocabulary hints first, then lucide's own name matches.
+    const names = new Set<string>([
+      ...hintNamesFor(nameHint),
+      ...searchIcons(nameHint).map((e) => e.name),
+    ]);
+    return [...names]
+      .map((n) => byName.get(n))
+      .filter((e): e is (typeof ALL_ICONS)[number] => Boolean(e))
+      .slice(0, 6);
+  }, [query, nameHint, byName]);
+
+  // Don't repeat the suggested icons in the main grid below.
+  const suggestedNames = new Set(suggestions.map((s) => s.name));
+  const results = suggestions.length
+    ? rawResults.filter((e) => !suggestedNames.has(e.name))
+    : rawResults;
 
   const total = ALL_ICONS.length;
   const truncated = !query.trim() && total > RESULT_CAP;

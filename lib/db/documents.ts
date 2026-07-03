@@ -6,9 +6,10 @@ import type { CategoryKind, IncomeFrequency, PayCadence } from "@/types/budget";
 export type CategoryDocument = {
   _id: string;
   name: string;
-  emoji: string;
+  // Legacy display glyph. Absent on new icon-based docs (#80 chunk 4).
+  emoji?: string;
   // Chosen lucide icon name (#80 chunk 4). Absent on seed/legacy docs, which
-  // fall back to `emoji` on read via `resolveCategoryIcon`.
+  // fall back to `emoji` on read via `staticIconFor`.
   icon?: string;
   kind: CategoryKind;
   activeFrom: string; // "YYYY-MM"

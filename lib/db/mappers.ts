@@ -9,8 +9,9 @@ export function toCategory(doc: CategoryDocument): Category {
   return {
     id: doc._id,
     name: doc.name,
-    emoji: doc.emoji,
-    // `?? undefined` normalises a leaked Mongo null on legacy docs.
+    // `?? undefined` normalises both an absent field (new icon-based docs) and
+    // a leaked Mongo null.
+    emoji: doc.emoji ?? undefined,
     icon: doc.icon ?? undefined,
     kind: doc.kind,
     activeFrom: doc.activeFrom,
