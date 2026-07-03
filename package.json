@@ -11,6 +11,7 @@
     "lint": "eslint",
     "lint:cycles": "madge --circular --extensions ts,tsx --ts-config tsconfig.json app components hooks lib types",
     "lint:types": "node scripts/check-type-placement.mjs",
+    "lint:design": "node scripts/check-design-tokens.mjs",
     "test": "vitest",
     "seed:perf": "node --env-file=.env.local scripts/seed-perf-fixture.mjs"
   },
