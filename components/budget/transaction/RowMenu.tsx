@@ -32,7 +32,7 @@ export function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: ()
             </Menu.Item>
             <Menu.Item
               onClick={onDelete}
-              className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-rose-700 outline-none data-[highlighted]:bg-rose-50 dark:text-rose-400 dark:data-[highlighted]:bg-rose-950"
+              className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-destructive outline-none data-[highlighted]:bg-destructive/10"
             >
               <Trash2 className="size-4" aria-hidden />
               Delete

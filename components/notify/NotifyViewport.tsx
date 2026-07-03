@@ -34,7 +34,7 @@ export function NotifyViewport() {
                 // the viewport scrolls past the visible cap.
                 "data-[limited]:pointer-events-none data-[limited]:opacity-0",
                 type === "error"
-                  ? "ring-rose-200 dark:ring-rose-900"
+                  ? "ring-signal-bad/40"
                   : "ring-border",
               )}
             >

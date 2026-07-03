@@ -50,14 +50,14 @@ export function MonthBarChart({
         const meetsTarget =
           d.target > 0 &&
           (kind === "expense" ? d.total > d.target : d.total >= d.target);
-        const color =
-          kind === "expense"
-            ? meetsTarget
-              ? "fill-rose-500"
-              : "fill-zinc-400 dark:fill-zinc-500"
-            : meetsTarget
-              ? "fill-emerald-500"
-              : "fill-zinc-400 dark:fill-zinc-500";
+        // Palette signals: an expense over its cap reads bad, a savings month
+        // meeting its goal reads good, everything else stays neutral. The
+        // signal/muted tokens already flip for light vs dark.
+        const color = !meetsTarget
+          ? "fill-muted-foreground"
+          : kind === "expense"
+            ? "fill-signal-bad"
+            : "fill-signal-good";
         const targetY = baseline - yScale.length(d.target);
         return (
           <g key={d.ym}>

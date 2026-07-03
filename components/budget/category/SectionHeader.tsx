@@ -12,7 +12,7 @@ export function SectionHeader({ title, dirty }: { title: string; dirty: boolean 
         <span
           aria-label="Unsaved changes"
           title="Unsaved changes"
-          className="inline-block size-1.5 rounded-full bg-amber-500"
+          className="inline-block size-1.5 rounded-full bg-signal-warn"
         />
       )}
     </div>

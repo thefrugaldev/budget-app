@@ -135,7 +135,7 @@ export function Row({
           <span
             className={cn(
               "shrink-0 tabular-nums text-muted-foreground",
-              isInflow && t.amount > 0 && "text-emerald-700 dark:text-emerald-400",
+              isInflow && t.amount > 0 && "text-signal-good-foreground",
             )}
           >
             <SignedAmount kind={kind} amount={t.amount} marker={false} />

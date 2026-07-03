@@ -18,7 +18,7 @@ export function EndedBadge({
   return (
     <span
       className={cn(
-        "inline-block rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400",
+        "inline-block rounded-full bg-signal-bad/15 px-2 py-0.5 text-[11px] font-medium text-signal-bad-foreground",
         className,
       )}
       title={`Ended after ${ym}`}

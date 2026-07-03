@@ -133,11 +133,11 @@ export function CategoryDetailBody({
         <div
           className={cn(
             "relative overflow-hidden rounded-2xl bg-card p-5 ring-1",
-            isInflow ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border",
+            isInflow ? "ring-signal-good/30" : "ring-border",
           )}
         >
           {isNegative && (
-            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-rose-500" />
+            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-signal-bad" />
           )}
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">

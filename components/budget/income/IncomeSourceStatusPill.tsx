@@ -16,9 +16,8 @@ export function IncomeSourceStatusPill({
 }) {
   const palette = {
     "scheduled-change":
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
-    ended:
-      "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
+      "bg-signal-good/15 text-signal-good-foreground",
+    ended: "bg-signal-bad/15 text-signal-bad-foreground",
   } satisfies Record<Exclude<IncomeSourceStatus, "active">, string>;
   return (
     <span

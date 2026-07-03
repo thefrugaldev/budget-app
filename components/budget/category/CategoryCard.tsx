@@ -41,7 +41,7 @@ export function CategoryCard({
       href={`/categories/${category.id}`}
       className={cn(
         "group relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 ring-1 transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
-        isInflow ? "ring-emerald-200 dark:ring-emerald-900" : "ring-border",
+        isInflow ? "ring-signal-good/30" : "ring-border",
       )}
     >
       {isNegative && (
