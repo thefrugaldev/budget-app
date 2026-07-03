@@ -76,7 +76,7 @@ export function DaySection({
         <span
           className={cn(
             "ml-auto tabular-nums text-foreground",
-            subtotalPositive && "text-emerald-700 dark:text-emerald-400",
+            subtotalPositive && "text-signal-good-foreground",
           )}
         >
           <SignedAmount kind={subtotalKind} amount={group.subtotal} />

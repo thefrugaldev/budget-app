@@ -24,7 +24,7 @@ export function BarButton({
       className={
         "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
         (destructive
-          ? "text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950"
+          ? "text-destructive hover:bg-destructive/10"
           : "text-foreground hover:bg-muted")
       }
     >

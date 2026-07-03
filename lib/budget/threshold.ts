@@ -106,3 +106,20 @@ export function thresholdDescriptor(
   }
   return { state, label: EXPENSE_LABELS[state], tone: EXPENSE_TONES[state] };
 }
+
+/**
+ * Tone for a single month's trend-chart bar. Delegates to
+ * {@link thresholdDescriptor} so the trend reads in the same good/warn/bad
+ * language as the card meter and Pulse (they can't disagree), and returns
+ * `null` when no cap applied that month — there's nothing to signal against, so
+ * the caller renders a neutral bar. Extracted from `MonthBarChart` so the
+ * tone-selection and the no-cap gate are unit-tested, not buried in the SVG.
+ */
+export function barTone(
+  kind: CategoryKind,
+  target: number,
+  amount: number,
+): ThresholdTone | null {
+  if (target <= 0) return null;
+  return thresholdDescriptor(kind, target, amount).tone;
+}

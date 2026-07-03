@@ -59,7 +59,7 @@ export function RenameDialog({
           {merging && (
             <div
               role="alert"
-              className="mt-3 flex gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900"
+              className="mt-3 flex gap-2 rounded-lg bg-signal-warn/15 p-3 text-xs text-signal-warn-foreground ring-1 ring-signal-warn/30"
             >
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
               <p>

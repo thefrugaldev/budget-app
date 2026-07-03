@@ -123,7 +123,7 @@ export function StreakRow({
           <span
             className={cn(
               "shrink-0 tabular-nums text-foreground",
-              pageIsInflow && total > 0 && "text-emerald-700 dark:text-emerald-400",
+              pageIsInflow && total > 0 && "text-signal-good-foreground",
             )}
           >
             <SignedAmount kind={streakKind} amount={total} marker={false} />

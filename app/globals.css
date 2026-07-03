@@ -39,6 +39,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -83,6 +84,7 @@
   --accent: #f0e6cf;
   --accent-foreground: #2a2318;
   --destructive: #a8443f;
+  --destructive-foreground: #fbf6ed;
   --border: #e3d8c4;
   --input: #e3d8c4;
   --ring: #9a7b3f;
@@ -120,6 +122,8 @@
   --accent: #322b1b;
   --accent-foreground: #efe7d8;
   --destructive: #db7d75;
+  /* Dark ink on the lighter dark-mode oxblood (white would drop below AA). */
+  --destructive-foreground: #2a1512;
   /* Lifted to ~3:1 on the dark ground (WCAG 1.4.11) so card edges and the
      borderless day-group / header dividers stay legible. --input matches
      --border (as in light mode) and still reads against --card. */

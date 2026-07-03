@@ -23,9 +23,9 @@ export function ToastDefaultBody({
     <>
       <span aria-hidden className="mt-0.5 shrink-0">
         {type === "error" ? (
-          <AlertCircle className="size-4 text-rose-600 dark:text-rose-400" />
+          <AlertCircle className="size-4 text-signal-bad-foreground" />
         ) : (
-          <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+          <CheckCircle2 className="size-4 text-signal-good-foreground" />
         )}
       </span>
       <div className="min-w-0 flex-1">
