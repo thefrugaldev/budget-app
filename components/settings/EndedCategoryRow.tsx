@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { reopenCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
@@ -32,9 +33,11 @@ export function EndedCategoryRow({
   return (
     <li className="flex items-center justify-between gap-3 rounded-lg bg-background px-3 py-2 ring-1 ring-border">
       <div className="flex min-w-0 items-center gap-2">
-        <span aria-hidden className="text-lg">
-          {category.emoji}
-        </span>
+        <CategoryIcon
+          category={category}
+          className="size-4 rounded-none bg-transparent text-current"
+          iconClassName="size-4"
+        />
         <span className="truncate font-medium">{category.name}</span>
         <EndedBadge ym={category.activeUntil} className="shrink-0" />
       </div>

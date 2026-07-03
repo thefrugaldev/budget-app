@@ -12,7 +12,7 @@ import {
   type AmountUnit,
   RecurringAmountField,
 } from "@/components/budget/income/RecurringAmountField";
-import { EmojiPickerButton } from "@/components/budget/shared/EmojiPickerButton";
+import { CategoryIconPicker } from "@/components/budget/category/CategoryIconPicker";
 import { useNotify } from "@/hooks/useNotify";
 import { paycheckFromYearly } from "@/lib/income";
 import { cn } from "@/lib/utils";
@@ -224,11 +224,11 @@ export function AddIncomeSourceDialog({
               )}
 
               <div className="grid grid-cols-[64px_1fr] gap-2">
-                <EmojiPickerButton
+                <CategoryIconPicker
                   value={emoji}
                   onChange={setEmoji}
                   nameHint={name}
-                  ariaLabel="Choose income source emoji"
+                  ariaLabel="Choose income source icon"
                 />
                 <input
                   name="name"
