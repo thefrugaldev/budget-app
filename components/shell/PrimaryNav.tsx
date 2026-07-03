@@ -13,6 +13,7 @@ export function PrimaryNav() {
     <nav aria-label="Primary" className="flex items-center gap-1">
       {NAV_ITEMS.map((item) => {
         const active = isActive(pathname, item.href);
+        const Icon = item.icon;
         return (
           <Link
             key={item.href}
@@ -25,7 +26,7 @@ export function PrimaryNav() {
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            <span aria-hidden="true">{item.icon}</span>
+            <Icon aria-hidden="true" className="size-4" />
             {item.label}
             {item.placeholder && <SoonBadge />}
           </Link>

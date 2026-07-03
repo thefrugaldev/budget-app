@@ -22,7 +22,10 @@ export async function listCategories(): Promise<Category[]> {
 
 export async function createCategory(input: {
   name: string;
-  emoji: string;
+  // Legacy display glyph. New categories store `icon` and pass "" here; kept
+  // for back-compat with the resolver's emoji fallback.
+  emoji?: string;
+  icon?: string;
   kind: Category["kind"];
   activeFrom: string;
   activeUntil?: string;
@@ -36,13 +39,16 @@ export async function createCategory(input: {
   const doc: CategoryDocument = {
     _id: randomUUID(),
     name: input.name,
-    emoji: input.emoji,
     kind: input.kind,
     activeFrom: input.activeFrom,
     createdAt: new Date(),
     // Only set optional fields when actually provided. Writing `undefined`
     // makes Mongo persist `null`, which then leaks through readers as
     // truthy-undefined and trips checks like `activeUntil !== undefined`.
+    // New categories are icon-based and omit `emoji` entirely (rather than
+    // storing ""), so `if (category.emoji)` stays honest for consumers.
+    ...(input.emoji !== undefined ? { emoji: input.emoji } : {}),
+    ...(input.icon !== undefined ? { icon: input.icon } : {}),
     ...(input.activeUntil !== undefined ? { activeUntil: input.activeUntil } : {}),
     ...(input.incomeFrequency !== undefined
       ? { incomeFrequency: input.incomeFrequency }
@@ -60,6 +66,7 @@ export async function createCategory(input: {
 type CategoryPatch = {
   name?: string;
   emoji?: string;
+  icon?: string;
   kind?: Category["kind"];
   activeFrom?: string;
   activeUntil?: string;

@@ -3,6 +3,7 @@
 import { Pencil } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { IncomeSourceCardActions } from "@/components/budget/income/IncomeSourceCardActions";
 import { IncomeSourceEditor } from "@/components/budget/income/IncomeSourceEditor";
 import { IncomeSourceStatusPill } from "@/components/budget/income/IncomeSourceStatusPill";
@@ -111,12 +112,8 @@ export function IncomeSourceCard({
       )}
     >
       <div className="flex items-center gap-3">
-        <span
-          aria-hidden
-          className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-2xl"
-        >
-          {source.emoji}
-        </span>
+        <CategoryIcon category={source} />
+
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-medium leading-tight">{label}</span>

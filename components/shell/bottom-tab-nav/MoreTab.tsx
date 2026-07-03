@@ -43,6 +43,7 @@ export function MoreTab({
           <Menu.Popup className="min-w-44 rounded-xl bg-card p-1 text-sm shadow-xl ring-1 ring-border outline-none">
             {overflow.map((item) => {
               const itemActive = isActive(pathname, item.href);
+              const Icon = item.icon;
               return (
                 <Menu.Item
                   key={item.href}
@@ -57,7 +58,7 @@ export function MoreTab({
                     itemActive && "font-medium text-foreground",
                   )}
                 >
-                  <span aria-hidden="true">{item.icon}</span>
+                  <Icon aria-hidden="true" className="size-4" />
                   <span>{item.label}</span>
                   {item.placeholder && <SoonBadge className="ml-auto" />}
                 </Menu.Item>

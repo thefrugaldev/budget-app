@@ -3,6 +3,7 @@
 import { Check, ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind } from "@/types/budget";
 
@@ -51,9 +52,7 @@ export function CategoryPicker({
       kind,
       label: KIND_LABELS[kind],
       items: categories.filter(
-        (c) =>
-          c.kind === kind &&
-          (q === "" || c.name.toLowerCase().includes(q) || c.emoji.includes(q)),
+        (c) => c.kind === kind && (q === "" || c.name.toLowerCase().includes(q)),
       ),
     })).filter((g) => g.items.length > 0);
   }, [categories, query]);
@@ -71,7 +70,11 @@ export function CategoryPicker({
       >
         {selected ? (
           <span className="flex items-center gap-2">
-            <span className="text-base leading-none">{selected.emoji}</span>
+            <CategoryIcon
+              category={selected}
+              className="size-4 rounded-none bg-transparent text-current"
+              iconClassName="size-4"
+            />
             <span>{selected.name}</span>
             <span className="text-xs text-muted-foreground">· {KIND_LABELS[selected.kind]}</span>
           </span>
@@ -120,7 +123,11 @@ export function CategoryPicker({
                         )}
                       >
                         <span className="flex items-center gap-2">
-                          <span className="text-base leading-none">{c.emoji}</span>
+                          <CategoryIcon
+                            category={c}
+                            className="size-4 rounded-none bg-transparent text-current"
+                            iconClassName="size-4"
+                          />
                           <span>{c.name}</span>
                         </span>
                         {selectedId === c.id && <Check className="size-4" aria-hidden />}

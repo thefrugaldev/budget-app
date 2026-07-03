@@ -4,6 +4,7 @@ import { Popover } from "@base-ui/react/popover";
 import { ChevronDown } from "lucide-react";
 import { useMemo } from "react";
 
+import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind } from "@/types/budget";
@@ -103,7 +104,11 @@ export function CategoryMultiSelect({
                       checked={selectedSet.has(c.id)}
                       onCheckedChange={(on) => toggle(c.id, on)}
                     />
-                    <span aria-hidden>{c.emoji}</span>
+                    <CategoryIcon
+                      category={c}
+                      className="size-4 rounded-none bg-transparent text-current"
+                      iconClassName="size-4"
+                    />
                     <span className="truncate">{c.name}</span>
                   </label>
                 ))}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { cn } from "@/lib/utils";
 import type { Category } from "@/types/budget";
 
@@ -26,7 +27,11 @@ export function CategoryPill({
   );
   const content = (
     <>
-      <span aria-hidden>{category.emoji}</span>
+      <CategoryIcon
+        category={category}
+        className="size-3.5 rounded-none bg-transparent text-current"
+        iconClassName="size-3.5"
+      />
       <span className="truncate">{category.name}</span>
     </>
   );

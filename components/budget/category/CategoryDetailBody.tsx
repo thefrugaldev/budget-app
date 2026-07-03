@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { CategoryEditSheet } from "@/components/budget/category/CategoryEditSheet";
+import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { CategorySummaryActions } from "@/components/budget/category/CategorySummaryActions";
 import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { MonthBarChart } from "@/components/budget/charts/MonthBarChart";
@@ -140,9 +141,7 @@ export function CategoryDetailBody({
           )}
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className="grid size-12 place-items-center rounded-xl bg-muted text-3xl">
-                {category.emoji}
-              </div>
+              <CategoryIcon category={category} className="size-12" iconClassName="size-6" />
               <div className="min-w-0">
                 <h1 className="font-heading text-lg font-semibold leading-tight">
                   {category.name}

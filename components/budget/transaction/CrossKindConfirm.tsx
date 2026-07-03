@@ -35,9 +35,7 @@ export function CrossKindConfirm({
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={`Move into ${
-        target ? `${target.emoji} ${target.name}` : "another category"
-      }?`}
+      title={`Move into ${target ? target.name : "another category"}?`}
       description={
         target
           ? `${target.name} is ${target.kind === "income" ? "an" : "a"} ` +

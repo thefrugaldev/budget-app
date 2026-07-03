@@ -17,10 +17,12 @@ describe("NAV_ITEMS", () => {
     }
   });
 
-  it("every label and icon is non-empty", () => {
+  it("every label is non-empty and every icon is a component", () => {
     for (const item of NAV_ITEMS) {
       expect(item.label.length).toBeGreaterThan(0);
-      expect(item.icon.length).toBeGreaterThan(0);
+      // icon is a lucide component (#80 chunk 4), no longer an emoji string.
+      expect(item.icon).toBeTruthy();
+      expect(["function", "object"]).toContain(typeof item.icon);
     }
   });
 

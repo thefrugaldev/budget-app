@@ -64,14 +64,16 @@ export async function createCategoryAction(
 ): Promise<CategoryActionState> {
   try {
     const name = requireString(formData.get("name"), "name");
-    const emoji = (formData.get("emoji") as string | null)?.trim() || "🪣";
+    const icon = (formData.get("icon") as string | null)?.trim() || undefined;
     const kind = parseCategoryKind(formData.get("kind"));
     const monthly = parseMonthlyTarget(formData.get("monthly"));
     const activeFrom =
       parseOptionalMonthKey(formData.get("activeFrom"), "Active from") ??
       currentMonthKey();
 
-    const category = await createCategory({ name, emoji, kind, activeFrom });
+    // New categories are icon-based (#80 chunk 4); `emoji` defaults to "" in the
+    // repository and stays empty for the resolver's icon-first path.
+    const category = await createCategory({ name, icon, kind, activeFrom });
     await createCategoryTarget({
       categoryId: category.id,
       monthly,
@@ -103,7 +105,7 @@ export async function updateCategoryAction(
     if (!cat) throw new Error("Category not found");
 
     const name = requireString(formData.get("name"), "name");
-    const emoji = (formData.get("emoji") as string | null)?.trim() || cat.emoji;
+    const icon = (formData.get("icon") as string | null)?.trim() || cat.icon;
     const kind = parseCategoryKind(formData.get("kind"));
     const activeFrom = parseMonthKey(formData.get("activeFrom"), "Active from");
     const activeUntil = parseOptionalMonthKey(
@@ -130,7 +132,7 @@ export async function updateCategoryAction(
 
     await updateCategory(id, {
       name,
-      emoji,
+      icon,
       kind,
       activeFrom,
       ...(activeUntil !== undefined
