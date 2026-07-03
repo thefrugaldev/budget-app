@@ -38,8 +38,8 @@ export const metadata: Metadata = {
 // mobile browser chrome tracks the app background in both schemes.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f1e8d7" },
-    { media: "(prefers-color-scheme: dark)", color: "#141109" },
+    { media: "(prefers-color-scheme: light)", color: "#f1e8d7" }, // design-lint-allow: mirrors --background (light) for browser chrome
+    { media: "(prefers-color-scheme: dark)", color: "#141109" }, // design-lint-allow: mirrors --background (dark) for browser chrome
   ],
 };
 
