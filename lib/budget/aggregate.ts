@@ -1,4 +1,9 @@
-import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+import type {
+  Category,
+  CategoryTarget,
+  MonthlyTrendPoint,
+  Transaction,
+} from "@/types/budget";
 // Imported from the cycle-free cadence module (not the `@/lib/income` barrel) so
 // this primitive layer doesn't take a dependency on the budget-using income
 // helpers — see `lib/income/cadence.ts` for why.
@@ -56,6 +61,64 @@ export function monthlyTotalsLastN(
     out.push({ ym, total });
   }
   return out;
+}
+
+/**
+ * Trailing spend/save trend for the Pulse "Growth Columns" signature: the last
+ * `monthsBack` months (oldest first, current month last), each carrying the
+ * signed sum of expense-category amounts (`spent`) and savings-category amounts
+ * (`saved`) that month. Income is excluded — the columns express outflow and
+ * contributions against the plan, not earnings. Kept independent of the page's
+ * range selector so the signature always shows the same "over time" lens.
+ */
+export function monthlyTrend(
+  transactions: Transaction[],
+  categories: Category[],
+  monthsBack: number,
+  today = new Date(),
+): MonthlyTrendPoint[] {
+  const expenseIds = new Set(
+    categories.filter((c) => c.kind === "expense").map((c) => c.id),
+  );
+  const savingsIds = new Set(
+    categories.filter((c) => c.kind === "savings").map((c) => c.id),
+  );
+
+  const out: MonthlyTrendPoint[] = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1));
+    const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    let spent = 0;
+    let saved = 0;
+    for (const t of transactions) {
+      if (!t.date.startsWith(ym)) continue;
+      if (expenseIds.has(t.categoryId)) spent += t.amount;
+      else if (savingsIds.has(t.categoryId)) saved += t.amount;
+    }
+    out.push({ ym, spent, saved });
+  }
+  return out;
+}
+
+/**
+ * The month's "plan" — the sum of resolved monthly targets across expense caps
+ * and savings goals active that month. Drawn as the reference line the Growth
+ * Columns climb toward. Income baselines are deliberately excluded: the plan is
+ * total intended outflow (spending + saving), matching the two stacked series.
+ * Returns 0 when nothing is targeted, which the signature reads as "no line".
+ */
+export function planTargetForMonth(
+  categories: Category[],
+  targetHistory: CategoryTarget[],
+  ym: string,
+): number {
+  let sum = 0;
+  for (const c of categories) {
+    if (c.kind !== "expense" && c.kind !== "savings") continue;
+    if (!isCategoryActiveForMonth(c, ym)) continue;
+    sum += resolveTargetForMonth(c.id, ym, targetHistory);
+  }
+  return sum;
 }
 
 /**

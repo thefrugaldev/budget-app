@@ -62,8 +62,12 @@
 
 :root {
   color-scheme: light;
-  /* Harvest identity — warm palette (#80 chunk 2). No gray. --signal-* stay put
-     until chunk 5 reconciles them within this palette. */
+  /* Harvest identity — warm palette (#80 chunk 2). No gray. --signal-* are
+     reconciled into the palette in chunk 5: forest/amber/oxblood rather than
+     the stock shadcn green/amber/red, so good/warn/over reads within the
+     scheme. Each `-foreground` is the text tone (contrast-safe on --card); the
+     bare token is the bar/fill tone (on --muted). Threshold state also carries
+     a text descriptor, so status never rests on color alone (see AGENTS.md). */
   --background: #f1e8d7;
   --foreground: #221e17;
   --card: #fffdf7;
@@ -87,12 +91,15 @@
   --chart-3: #a8443f;
   --chart-4: #9a7b3f;
   --chart-5: #6f5a34;
-  --signal-good: oklch(0.696 0.17 162.48);
-  --signal-good-foreground: oklch(0.508 0.118 165.612);
-  --signal-warn: oklch(0.769 0.188 70.08);
-  --signal-warn-foreground: oklch(0.555 0.163 48.998);
-  --signal-bad: oklch(0.645 0.246 16.439);
-  --signal-bad-foreground: oklch(0.514 0.222 16.935);
+  --signal-good: #48895c;
+  --signal-good-foreground: #2f5b3f;
+  --signal-warn: #a9791f;
+  --signal-warn-foreground: #7a5410;
+  /* --signal-bad intentionally matches --destructive here (over-cap and
+     destructive are the same oxblood by design). They're distinct roles,
+     though — keep them separate tokens so one can drift without the other. */
+  --signal-bad: #a8443f;
+  --signal-bad-foreground: #8f3b3b;
   --radius: 0.8rem;
 }
 
@@ -124,12 +131,12 @@
   --chart-3: #db7d75;
   --chart-4: #cba965;
   --chart-5: #a8905a;
-  --signal-good: oklch(0.696 0.17 162.48);
-  --signal-good-foreground: oklch(0.765 0.177 163.223);
-  --signal-warn: oklch(0.769 0.188 70.08);
-  --signal-warn-foreground: oklch(0.828 0.189 84.429);
-  --signal-bad: oklch(0.645 0.246 16.439);
-  --signal-bad-foreground: oklch(0.712 0.194 13.428);
+  --signal-good: #86b590;
+  --signal-good-foreground: #8fbf9b;
+  --signal-warn: #d3a552;
+  --signal-warn-foreground: #e0b972;
+  --signal-bad: #db7d75;
+  --signal-bad-foreground: #e0928c;
 }
 
 @layer base {
