@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
 import {
   aggregateRange,
+  barTone,
   computeIncomeForRange,
   computeSavingsRate,
   currentMonthlyBaseline,
@@ -1215,5 +1216,28 @@ describe("matchesTransactionFilter", () => {
         dateTo: "2026-06-30",
       }),
     ).toBe(false);
+  });
+});
+
+describe("barTone", () => {
+  it("returns null when no cap applied that month (neutral bar)", () => {
+    expect(barTone("expense", 0, 500)).toBeNull();
+    expect(barTone("savings", 0, 500)).toBeNull();
+  });
+
+  it("maps expense pressure to good/warn/bad across the bands", () => {
+    expect(barTone("expense", 1000, 500)).toBe("good"); // 50% — under
+    expect(barTone("expense", 1000, 800)).toBe("good"); // 80% — near, still good
+    expect(barTone("expense", 1000, 950)).toBe("warn"); // 95% — at cap
+    expect(barTone("expense", 1000, 1200)).toBe("bad"); // over cap
+  });
+
+  it("treats a 92%-of-cap month as warn (the Feb case from the trend)", () => {
+    expect(barTone("expense", 825, 760)).toBe("warn");
+  });
+
+  it("reads savings as good for any contribution, bad for a net withdrawal", () => {
+    expect(barTone("savings", 1000, 200)).toBe("good");
+    expect(barTone("savings", 1000, -50)).toBe("bad");
   });
 });

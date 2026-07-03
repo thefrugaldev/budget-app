@@ -1,5 +1,5 @@
 import type { CategoryKind, MonthBarDatum } from "@/types/budget";
-import { monthLabelShort, thresholdDescriptor } from "@/lib/budget";
+import { barTone, monthLabelShort } from "@/lib/budget";
 import { bandScale, domainMax, linearScale } from "@/lib/charts/scale";
 import type { ThresholdTone } from "@/types/threshold";
 
@@ -58,7 +58,7 @@ export function MonthBarChart({
         const h = yScale.length(d.total);
         const y = baseline - h;
         const isCurrent = d.ym === highlightYm;
-        const tone = d.target > 0 ? thresholdDescriptor(kind, d.target, d.total).tone : null;
+        const tone = barTone(kind, d.target, d.total);
         const color = tone ? TONE_FILL[tone] : "fill-muted-foreground";
         // Every month renders at full strength: a trend reads by its shape
         // across equally-weighted bars, and signal fills (over cap / net-
