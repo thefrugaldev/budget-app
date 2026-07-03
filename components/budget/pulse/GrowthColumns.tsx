@@ -147,9 +147,11 @@ export function GrowthColumns({
                 x={cx}
                 y={H - 8}
                 textAnchor="middle"
+                // Full-opacity muted-foreground clears WCAG AA on the card in
+                // both themes (dimming to 70% dropped it to ~3.3:1); the current
+                // month is emphasized by weight, not by fading the others.
                 className={
-                  "fill-muted-foreground text-[11px] " +
-                  (last ? "font-semibold opacity-100" : "opacity-70")
+                  "fill-muted-foreground text-[11px] " + (last ? "font-semibold" : "")
                 }
               >
                 {monthLabelShort(d.ym)}

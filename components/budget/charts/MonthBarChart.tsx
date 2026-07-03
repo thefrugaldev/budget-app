@@ -1,6 +1,17 @@
 import type { CategoryKind, MonthBarDatum } from "@/types/budget";
-import { monthLabelShort } from "@/lib/budget";
+import { monthLabelShort, thresholdDescriptor } from "@/lib/budget";
 import { bandScale, domainMax, linearScale } from "@/lib/charts/scale";
+import type { ThresholdTone } from "@/types/threshold";
+
+// The bar fill reuses the same threshold model as the card meter and Pulse so
+// the trend can never disagree with them: green under/near cap, amber at cap
+// (90–100%), red over. A month with no cap that period has nothing to signal
+// against, so it stays neutral.
+const TONE_FILL: Record<ThresholdTone, string> = {
+  good: "fill-signal-good",
+  warn: "fill-signal-warn",
+  bad: "fill-signal-bad",
+};
 
 export function MonthBarChart({
   data,
@@ -37,7 +48,7 @@ export function MonthBarChart({
         x={pad.l - 4}
         y={labelY + 3}
         textAnchor="end"
-        className="fill-current text-[9px] opacity-60"
+        className="fill-current text-[9px]"
       >
         {labelTarget.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
       </text>
@@ -47,17 +58,12 @@ export function MonthBarChart({
         const h = yScale.length(d.total);
         const y = baseline - h;
         const isCurrent = d.ym === highlightYm;
-        const meetsTarget =
-          d.target > 0 &&
-          (kind === "expense" ? d.total > d.target : d.total >= d.target);
-        // Palette signals: an expense over its cap reads bad, a savings month
-        // meeting its goal reads good, everything else stays neutral. The
-        // signal/muted tokens already flip for light vs dark.
-        const color = !meetsTarget
-          ? "fill-muted-foreground"
-          : kind === "expense"
-            ? "fill-signal-bad"
-            : "fill-signal-good";
+        const tone = d.target > 0 ? thresholdDescriptor(kind, d.target, d.total).tone : null;
+        const color = tone ? TONE_FILL[tone] : "fill-muted-foreground";
+        // Keep the concerning bar (over cap / net-negative) at full strength so
+        // the exceedance reads as loud as it does on the card; only quiet the
+        // ordinary non-highlighted months.
+        const emphasized = isCurrent || tone === "bad";
         const targetY = baseline - yScale.length(d.target);
         return (
           <g key={d.ym}>
@@ -67,7 +73,7 @@ export function MonthBarChart({
               width={barW}
               height={h}
               rx={3}
-              className={`${color} ${isCurrent ? "opacity-100" : "opacity-70"}`}
+              className={`${color} ${emphasized ? "opacity-100" : "opacity-70"}`}
             />
             {d.target > 0 && (
               <line
@@ -84,7 +90,7 @@ export function MonthBarChart({
               x={x + barW / 2}
               y={height - 6}
               textAnchor="middle"
-              className={`fill-current text-[9px] ${isCurrent ? "font-semibold opacity-100" : "opacity-60"}`}
+              className={`fill-current text-[9px] ${isCurrent ? "font-semibold" : ""}`}
             >
               {monthLabelShort(d.ym)}
             </text>
