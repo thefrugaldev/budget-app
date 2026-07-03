@@ -443,6 +443,17 @@ describe("monthlyTrend", () => {
     const trend = monthlyTrend(txns, cats, 1, now);
     expect(trend[0]).toEqual({ ym: "2026-06", spent: -50, saved: -200 });
   });
+
+  it("reports a month with no transactions as a zero point", () => {
+    // Activity only in June; May must still appear, at spent/saved 0 — the
+    // signature draws an empty column rather than dropping the month.
+    const txns: Transaction[] = [
+      tx({ id: "a", categoryId: "groc", amount: 100, date: "2026-06-02" }),
+    ];
+    const trend = monthlyTrend(txns, cats, 3, now);
+    expect(trend[0]).toEqual({ ym: "2026-04", spent: 0, saved: 0 });
+    expect(trend[1]).toEqual({ ym: "2026-05", spent: 0, saved: 0 });
+  });
 });
 
 describe("planTargetForMonth", () => {
@@ -472,6 +483,13 @@ describe("planTargetForMonth", () => {
     // car phases in 2026-07, so it doesn't count toward the June plan.
     expect(planTargetForMonth([groceries, hysa, laterCat], history, "2026-06")).toBe(1700);
     expect(planTargetForMonth([groceries, hysa, laterCat], history, "2026-07")).toBe(2100);
+  });
+
+  it("excludes categories ended before the queried month", () => {
+    // hysa retired in May, so by June only the groceries cap counts. Parallels
+    // the not-yet-active case from the other side of the lifecycle window.
+    const endedHysa = savingsCat({ id: "hysa", activeUntil: "2026-05" });
+    expect(planTargetForMonth([groceries, endedHysa], history, "2026-06")).toBe(700);
   });
 
   it("returns 0 when nothing is targeted", () => {

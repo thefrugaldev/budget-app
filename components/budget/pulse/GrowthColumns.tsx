@@ -62,6 +62,8 @@ export function GrowthColumns({
             {plan > 0 ? ` · ${fmt(plan)}/mo plan` : ""}
           </p>
         </div>
+        {/* Swatches use the identity chart tokens (chart-1/chart-2), not the
+            status signal tokens — these columns encode series, not good/bad. */}
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span aria-hidden className="size-2.5 rounded-[3px] bg-chart-1" />
@@ -79,7 +81,6 @@ export function GrowthColumns({
         width="100%"
         role="img"
         aria-label={ariaLabel}
-        className="overflow-visible"
       >
         {plan > 0 && (
           <>

@@ -95,6 +95,9 @@
   --signal-good-foreground: #2f5b3f;
   --signal-warn: #a9791f;
   --signal-warn-foreground: #7a5410;
+  /* --signal-bad intentionally matches --destructive here (over-cap and
+     destructive are the same oxblood by design). They're distinct roles,
+     though — keep them separate tokens so one can drift without the other. */
   --signal-bad: #a8443f;
   --signal-bad-foreground: #8f3b3b;
   --radius: 0.8rem;
