@@ -1,4 +1,5 @@
 import { fmt, monthLabelShort } from "@/lib/budget";
+import { bandScale, domainMax, linearScale } from "@/lib/charts/scale";
 import type { MonthlyTrendPoint } from "@/types/budget";
 
 /**
@@ -29,13 +30,14 @@ export function GrowthColumns({
   const innerW = W - PAD.l - PAD.r;
   const innerH = H - PAD.t - PAD.b;
   const baseline = PAD.t + innerH;
-  const slot = innerW / Math.max(1, data.length);
-  const barW = Math.min(46, slot * 0.5);
 
+  // 15% headroom above the tallest stack (or the plan line) so the dashed plan
+  // never sits flush to the top edge.
   const stacked = data.map((d) => Math.max(0, d.spent) + Math.max(0, d.saved));
-  const domain = Math.max(...stacked, plan, 1) * 1.15;
-  const h = (v: number) => (Math.max(0, v) / domain) * innerH;
-  const planY = baseline - h(plan);
+  const yScale = linearScale(domainMax([...stacked, plan], { headroom: 0.15 }), innerH);
+  const xBand = bandScale(data.length, innerW, PAD.l);
+  const barW = Math.min(46, xBand.slot * 0.5);
+  const planY = baseline - yScale.length(plan);
 
   const latest = data[data.length - 1];
   const ariaLabel = latest
@@ -106,10 +108,10 @@ export function GrowthColumns({
         )}
 
         {data.map((d, i) => {
-          const cx = PAD.l + slot * i + slot / 2;
+          const cx = xBand.center(i);
           const x = cx - barW / 2;
-          const spentH = h(d.spent);
-          const savedH = h(d.saved);
+          const spentH = yScale.length(d.spent);
+          const savedH = yScale.length(d.saved);
           const spentY = baseline - spentH;
           // Stack saved above spent, with a small gap only when both segments
           // are present so single-segment months sit flat on the baseline.

@@ -25,6 +25,8 @@ Four principles apply across **every** top-level source directory (`components/`
 
 **Shared infrastructure is shared from day one.** A unit that more than one consumer could reasonably use goes to its shared home on first introduction — not co-located with its first caller and lifted later. When in doubt, extract on first use rather than second.
 
+**Charts compose from shared primitives.** Charting recurs across the app (spend/savings today; Net Worth and FIRE later), so build chart components to be shareable wherever it's reasonable rather than one-off per surface. Pure geometry (value→pixel scales, banding) lives in `lib/charts` (`scale.ts` — `domainMax`/`linearScale`/`bandScale`); genuinely reusable presentational pieces belong at an app-level `components/charts/`, not under a feature folder. Prefer composing small primitives over a single configurable mega-chart: a config-driven `<BarChart>` bakes in bar assumptions a future line/area chart can't use, spawning a second abstraction anyway. Prior art: `GrowthColumns` and `MonthBarChart` both draw from `lib/charts/scale.ts`.
+
 **Clarifications (from the #48 audit — these are the traps that recurred):**
 
 - **A React hook never lives inside a component file.** The moment a `useFoo` exists — even a tiny one tucked above the component that uses it — it goes to `hooks/useFoo.ts`. A hook is reusable infrastructure by nature; co-locating it hides it from the next consumer.
