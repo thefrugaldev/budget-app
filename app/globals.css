@@ -175,6 +175,28 @@
 }
 
 /*
+ * Growth Columns "grow-in" (#80 chunk 8). Each column scales up from the soil
+ * line on load — one restrained, on-brief moment expressing the "grove climbing"
+ * idea. `transform-box`/`origin` anchor the scale to the column's own base so it
+ * rises from the baseline, not the SVG origin. The reduced-motion layer above
+ * collapses the duration to ~0 automatically, so no per-component opt-out is
+ * needed: motion-sensitive users just see the final state.
+ */
+.growth-column {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: growth-column-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+@keyframes growth-column-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/*
  * react-day-picker theming. The library ships light-mode defaults — a blue
  * accent and a near-white (#f0f0ff) range background with inherited text — that
  * are unreadable on the app's dark card: range-middle days render light text on
