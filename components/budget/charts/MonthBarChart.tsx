@@ -1,5 +1,6 @@
 import type { CategoryKind, MonthBarDatum } from "@/types/budget";
 import { monthLabelShort } from "@/lib/budget";
+import { bandScale, domainMax, linearScale } from "@/lib/charts/scale";
 
 export function MonthBarChart({
   data,
@@ -15,21 +16,20 @@ export function MonthBarChart({
   width?: number;
   height?: number;
 }) {
-  const max = Math.max(
-    ...data.map((d) => d.target),
-    ...data.map((d) => d.total),
-    1,
-  );
   const pad = { l: 32, r: 8, t: 12, b: 22 };
   const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
-  const slot = innerW / data.length;
-  const barW = Math.max(4, slot - 8);
+  const baseline = pad.t + innerH;
+  const domain = domainMax([...data.map((d) => d.target), ...data.map((d) => d.total)]);
+  const yScale = linearScale(domain, innerH);
+  const xBand = bandScale(data.length, innerW, pad.l);
+  const barW = Math.max(4, xBand.slot - 8);
   // Pick the latest non-zero target as the y-axis label so a quick visual scan
-  // anchors against the current cap. Falls back to max if every target is 0.
+  // anchors against the current cap. Falls back to the domain max if every
+  // target is 0.
   const labelTarget =
-    [...data].reverse().find((d) => d.target > 0)?.target ?? max;
-  const labelY = pad.t + (1 - labelTarget / max) * innerH;
+    [...data].reverse().find((d) => d.target > 0)?.target ?? domain;
+  const labelY = baseline - yScale.length(labelTarget);
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="text-muted-foreground">
@@ -43,9 +43,9 @@ export function MonthBarChart({
       </text>
 
       {data.map((d, i) => {
-        const x = pad.l + i * slot + (slot - barW) / 2;
-        const h = (Math.max(0, d.total) / max) * innerH;
-        const y = pad.t + innerH - h;
+        const x = xBand.center(i) - barW / 2;
+        const h = yScale.length(d.total);
+        const y = baseline - h;
         const isCurrent = d.ym === highlightYm;
         const meetsTarget =
           d.target > 0 &&
@@ -58,7 +58,7 @@ export function MonthBarChart({
             : meetsTarget
               ? "fill-emerald-500"
               : "fill-zinc-400 dark:fill-zinc-500";
-        const targetY = pad.t + (1 - d.target / max) * innerH;
+        const targetY = baseline - yScale.length(d.target);
         return (
           <g key={d.ym}>
             <rect
