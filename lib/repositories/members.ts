@@ -3,7 +3,6 @@ import { randomUUID } from "crypto";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { MemberDocument } from "@/lib/db/documents";
-import { ensureIndexes } from "@/lib/db/indexes";
 import { toMember } from "@/lib/db/mappers";
 import type { Member, Role } from "@/types/auth";
 
@@ -16,7 +15,6 @@ export async function findMemberByUserId(
   userId: string,
 ): Promise<Member | undefined> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc = await db
     .collection<MemberDocument>(COLLECTIONS.members)
@@ -35,7 +33,6 @@ export async function createMember(input: {
   role: Role;
 }): Promise<Member> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc: MemberDocument = {
     _id: randomUUID(),

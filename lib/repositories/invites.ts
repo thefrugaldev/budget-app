@@ -3,7 +3,6 @@ import { randomUUID } from "crypto";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { InviteDocument } from "@/lib/db/documents";
-import { ensureIndexes } from "@/lib/db/indexes";
 import { toInvite } from "@/lib/db/mappers";
 import type { Invite, InvitableRole } from "@/types/auth";
 
@@ -16,7 +15,6 @@ export async function listInvitesByHousehold(
   householdId: string,
 ): Promise<Invite[]> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const docs = await db
     .collection<InviteDocument>(COLLECTIONS.invites)
@@ -35,7 +33,6 @@ export async function createInvite(input: {
   role: InvitableRole;
 }): Promise<Invite> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc: InviteDocument = {
     _id: randomUUID(),
@@ -58,7 +55,6 @@ export async function createInvite(input: {
  */
 export async function consumeInvite(id: string): Promise<boolean> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const result = await db
     .collection<InviteDocument>(COLLECTIONS.invites)

@@ -3,7 +3,6 @@ import { randomUUID } from "crypto";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { UserDocument } from "@/lib/db/documents";
-import { ensureIndexes } from "@/lib/db/indexes";
 import { toUser } from "@/lib/db/mappers";
 import type { User } from "@/types/auth";
 
@@ -16,7 +15,6 @@ export async function findUserByProviderSubject(
   providerSubjectId: string,
 ): Promise<User | undefined> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc = await db
     .collection<UserDocument>(COLLECTIONS.users)
@@ -34,7 +32,6 @@ export async function createUser(input: {
   providerSubjectId: string;
 }): Promise<User> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc: UserDocument = {
     _id: randomUUID(),

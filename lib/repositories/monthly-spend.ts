@@ -1,7 +1,6 @@
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import { monthDateRange } from "@/lib/db/dates";
-import { ensureIndexes } from "@/lib/db/indexes";
 import { getCategoriesByIds } from "@/lib/repositories/categories";
 import type { MonthlySpendByCategory } from "@/types/budget";
 
@@ -17,7 +16,6 @@ export async function getMonthlySpendByCategory(
   month: number,
 ): Promise<MonthlySpendByCategory[]> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const { start, end } = monthDateRange(year, month);
   const rows = await db

@@ -3,13 +3,11 @@ import { randomUUID } from "crypto";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { CategoryDocument } from "@/lib/db/documents";
-import { ensureIndexes } from "@/lib/db/indexes";
 import { toCategory } from "@/lib/db/mappers";
 import type { Category } from "@/types/budget";
 
 export async function listCategories(): Promise<Category[]> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const docs = await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
@@ -34,7 +32,6 @@ export async function createCategory(input: {
   firstPaycheckDate?: string;
 }): Promise<Category> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc: CategoryDocument = {
     _id: randomUUID(),

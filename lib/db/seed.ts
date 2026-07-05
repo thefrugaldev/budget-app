@@ -16,7 +16,6 @@ import type {
   MetaDocument,
   TransactionDocument,
 } from "./documents";
-import { ensureIndexes } from "./indexes";
 
 /**
  * `meta` doc id recording that the database was explicitly cleared (danger-zone
@@ -140,7 +139,6 @@ export function ensureSeeded(): Promise<void> {
 
 async function doSeed(): Promise<void> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const now = new Date();
   const [disabledCount, categoryCount] = await Promise.all([

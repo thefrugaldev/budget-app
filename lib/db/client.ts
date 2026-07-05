@@ -1,6 +1,8 @@
 import { connection } from "next/server";
 import { MongoClient, type Db } from "mongodb";
 
+import { ensureIndexes } from "./indexes";
+
 const dbName = process.env.MONGODB_DB_NAME ?? "budget";
 
 const clientOptions = {
@@ -49,5 +51,11 @@ function getClientPromise(): Promise<MongoClient> {
 export async function getDb(): Promise<Db> {
   await connection();
   const client = await getClientPromise();
-  return client.db(dbName);
+  const db = client.db(dbName);
+  // Index bootstrapping is a process-level concern, so it lives at the single
+  // connection chokepoint rather than being re-invoked in every repository
+  // function. Memoized in `ensureIndexes` (built once per process, retried on
+  // failure), so this adds only a resolved-promise await after the first call.
+  await ensureIndexes(db);
+  return db;
 }

@@ -4,7 +4,6 @@ import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import { monthDateRange } from "@/lib/db/dates";
 import type { TransactionDocument } from "@/lib/db/documents";
-import { ensureIndexes } from "@/lib/db/indexes";
 import { toTransaction } from "@/lib/db/mappers";
 import type { Transaction } from "@/types/budget";
 
@@ -16,7 +15,6 @@ export async function createTransaction(input: {
   note?: string;
 }): Promise<Transaction> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const doc: TransactionDocument = {
     _id: randomUUID(),
@@ -111,7 +109,6 @@ export async function listTransactionsForMonth(
   month: number,
 ): Promise<Transaction[]> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const { start, end } = monthDateRange(year, month);
   const docs = await db
@@ -134,7 +131,6 @@ export async function countTransactionsForCategory(
 
 export async function listAllTransactions(): Promise<Transaction[]> {
   const db = await getDb();
-  await ensureIndexes(db);
 
   const docs = await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
