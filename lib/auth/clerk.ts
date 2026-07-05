@@ -24,5 +24,11 @@ export async function getClerkSubjectId(): Promise<string | null> {
  */
 export async function getClerkVerifiedEmail(): Promise<string | null> {
   const user = await currentUser();
-  return user?.primaryEmailAddress?.emailAddress ?? null;
+  const primary = user?.primaryEmailAddress;
+  // Only trust a *verified* email. The invite-matching + bootstrap model
+  // depends on the email being provably the user's — Google OAuth always
+  // returns verified, but the guard keeps the function's name honest if a
+  // provider config or a manual-user flow ever surfaces an unverified primary.
+  if (primary?.verification?.status !== "verified") return null;
+  return primary.emailAddress;
 }

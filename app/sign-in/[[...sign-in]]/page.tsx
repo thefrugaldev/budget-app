@@ -31,6 +31,14 @@ export default async function SignInPage({
   searchParams: Promise<{ redirect_url?: string }>;
 }) {
   const { redirect_url } = await searchParams;
+  // Only honor a same-origin path. The proxy always sets this to a same-origin
+  // pathname, but a hand-crafted link could carry anything — reject absolute and
+  // protocol-relative (`//evil.example`) URLs so this can't become an open
+  // redirect after sign-in.
+  const safeRedirect =
+    redirect_url?.startsWith("/") && !redirect_url.startsWith("//")
+      ? redirect_url
+      : "/";
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-6 py-16">
@@ -46,7 +54,7 @@ export default async function SignInPage({
         appearance={appearance}
         // Return the user to where the proxy bounced them from (story 15),
         // falling back to Pulse.
-        fallbackRedirectUrl={redirect_url ?? "/"}
+        fallbackRedirectUrl={safeRedirect}
       />
     </main>
   );
