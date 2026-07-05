@@ -107,6 +107,17 @@ export type BackfillableDoc = {
 };
 
 /**
+ * The outcome of resolving the current request's session at the auth boundary
+ * (`@/lib/auth/session`): signed out, authenticated-but-uninvited (the
+ * private-app screen), or an active member carrying their user + membership.
+ * Consumed by the authenticated layout and (chunk 5) the action guards.
+ */
+export type ResolvedSession =
+  | { status: "signed-out" }
+  | { status: "denied" }
+  | { status: "active"; user: User; membership: Member };
+
+/**
  * Which documents, grouped by collection, need `householdId` stamped during the
  * bootstrap backfill. Produced by `planBackfill`; the write is a thin repo call.
  */

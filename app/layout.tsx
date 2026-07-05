@@ -1,8 +1,8 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist_Mono, Nunito } from "next/font/google";
 
 import { NotifyRoot } from "@/components/notify";
-import { AppShell } from "@/components/shell/AppShell";
 import { ThemeScript } from "@/components/shell/ThemeScript";
 import "react-day-picker/style.css";
 import "./globals.css";
@@ -49,19 +49,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      // The before-paint ThemeScript toggles `.dark` on <html> before React
-      // hydrates, so the class differs from the server-rendered markup by design.
-      suppressHydrationWarning
-      className={`${displayFont.variable} ${bodyFont.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        <ThemeScript />
-        <NotifyRoot>
-          <AppShell>{children}</AppShell>
-        </NotifyRoot>
-      </body>
-    </html>
+    // ClerkProvider is the app-wide auth context (ADR 0004). The app shell and
+    // the sign-in / private-app screens live below it: the authenticated shell
+    // is the `(app)` route group's layout, while the sign-in screen renders
+    // bare (no nav) so the front door is its own surface (story 18).
+    <ClerkProvider>
+      <html
+        lang="en"
+        // The before-paint ThemeScript toggles `.dark` on <html> before React
+        // hydrates, so the class differs from the server-rendered markup by design.
+        suppressHydrationWarning
+        className={`${displayFont.variable} ${bodyFont.variable} ${geistMono.variable} h-full antialiased`}
+      >
+        <body className="min-h-full flex flex-col">
+          <ThemeScript />
+          <NotifyRoot>{children}</NotifyRoot>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

@@ -1,0 +1,128 @@
+import "server-only";
+
+import { cache } from "react";
+
+import { runBackfill } from "@/lib/db/backfill";
+import { createHousehold, getHousehold } from "@/lib/repositories/households";
+import { consumeInvite, listInvitesByHousehold } from "@/lib/repositories/invites";
+import { createMember, findMemberByUserId } from "@/lib/repositories/members";
+import { createUser, findUserByProviderSubject } from "@/lib/repositories/users";
+import type { AuthzDecision, ResolvedSession, Role } from "@/types/auth";
+
+import { authorize } from "./authorize";
+import { getClerkSubjectId, getClerkVerifiedEmail } from "./clerk";
+import { decideSignIn } from "./sign-in";
+
+/**
+ * Resolve the current request's session to *our* shapes — the real gate that
+ * every loader/action trusts (the proxy redirect is only optimistic). Wrapped
+ * in React `cache()` so the layout, pages, and actions share one resolution —
+ * and one lazy bootstrap — per request rather than re-hitting Clerk + Mongo.
+ *
+ * A returning member resolves by subject id (no Clerk API call). A never-seen
+ * authenticated person runs the first-sign-in decision (ADR 0004): bootstrap
+ * the household, join via a matching invite, or land on the private-app screen
+ * with no residue created.
+ */
+export const getSession = cache(async (): Promise<ResolvedSession> => {
+  const subjectId = await getClerkSubjectId();
+  if (!subjectId) return { status: "signed-out" };
+
+  const existing = await findUserByProviderSubject(subjectId);
+  if (existing) {
+    const membership = await findMemberByUserId(existing.id);
+    // A user record without a membership means their access was removed — deny
+    // rather than trust a dangling identity.
+    if (!membership) return { status: "denied" };
+    return { status: "active", user: existing, membership };
+  }
+
+  return firstSignIn(subjectId);
+});
+
+async function firstSignIn(subjectId: string): Promise<ResolvedSession> {
+  const email = await getClerkVerifiedEmail();
+  // No verified email means we can neither match an invite nor own a household.
+  if (!email) return { status: "denied" };
+
+  const household = await getHousehold();
+  const invites = household ? await listInvitesByHousehold(household.id) : [];
+  const outcome = decideSignIn({
+    email,
+    householdExists: household != null,
+    membership: null,
+    invites,
+  });
+
+  try {
+    switch (outcome.kind) {
+      case "deny":
+        // Deny by default: no user record is created for an uninvited sign-in.
+        return { status: "denied" };
+      case "bootstrap": {
+        const user = await createUser({ email, providerSubjectId: subjectId });
+        const created = await createHousehold();
+        const membership = await createMember({
+          householdId: created.id,
+          userId: user.id,
+          role: "owner",
+        });
+        // Adopt all pre-auth documents into the new household (story 3).
+        await runBackfill(created.id);
+        return { status: "active", user, membership };
+      }
+      case "join": {
+        const user = await createUser({ email, providerSubjectId: subjectId });
+        const membership = await createMember({
+          householdId: outcome.invite.householdId,
+          userId: user.id,
+          role: outcome.invite.role,
+        });
+        await consumeInvite(outcome.invite.id);
+        return { status: "active", user, membership };
+      }
+      case "enter":
+        // Unreachable: `enter` requires an existing membership, handled by the
+        // returning-member branch in getSession before we ever get here.
+        return { status: "denied" };
+    }
+  } catch (err) {
+    // A concurrent first sign-in for the same person (two tabs, an SSR retry)
+    // can lose the race on the unique providerSubjectId/userId indexes. Adopt
+    // the records the winner created rather than surfacing a duplicate-key 500.
+    // (The narrower two-different-users double-bootstrap is a v1 edge — the
+    // owner is a single known person; a households singleton index can harden
+    // it later if it ever bites.)
+    if (!isDuplicateKeyError(err)) throw err;
+    const user = await findUserByProviderSubject(subjectId);
+    const membership = user ? await findMemberByUserId(user.id) : null;
+    if (user && membership) return { status: "active", user, membership };
+    return { status: "denied" };
+  }
+}
+
+function isDuplicateKeyError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: number }).code === 11000
+  );
+}
+
+/** The current user for an active session, else null. */
+export async function getCurrentUser() {
+  const session = await getSession();
+  return session.status === "active" ? session.user : null;
+}
+
+/**
+ * Server-side role guard for actions and loaders (wired in chunk 5): the
+ * authorization decision for the current session against a required role.
+ * Hiding a button is never the boundary — mutations call this.
+ */
+export async function authorizeCurrent(required: Role): Promise<AuthzDecision> {
+  const session = await getSession();
+  const user = session.status === "active" ? session.user : null;
+  const membership = session.status === "active" ? session.membership : null;
+  return authorize(user, membership, required);
+}
