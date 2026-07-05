@@ -12,14 +12,43 @@ import type { NextConfig } from "next";
 // would otherwise block (a noisy console error on every page). Production never
 // uses eval(), so the deployed CSP stays strict.
 //
-// Clerk sources (#111 chunk 3, ADR 0004): the Frontend API + hosted assets on
-// `*.clerk.accounts.dev` (script/connect/img), avatar images from Google +
-// img.clerk.com, telemetry on clerk-telemetry.com, and the Cloudflare Turnstile
-// bot-check iframe. A production Clerk instance on a custom domain serves its
-// FAPI from `clerk.<your-domain>` — add that host here when prod is set up.
+// Clerk sources (#111 chunk 3, ADR 0004): the Frontend API + hosted assets
+// (script/connect/img), avatar images from Google + img.clerk.com, telemetry on
+// clerk-telemetry.com, and the Cloudflare Turnstile bot-check iframe. The Clerk
+// host is derived per-deployment from the publishable key (see below), so the
+// dev host covers localhost/preview and a prod instance's host is picked up
+// automatically — no manual CSP edit when production lands.
 const isDev = process.env.NODE_ENV === "development";
 
-const CLERK_HOSTS = "https://*.clerk.accounts.dev";
+// Derive the Clerk Frontend API host from the publishable key. The host is
+// base64-encoded inside the key (after the `pk_test_`/`pk_live_` prefix, with a
+// trailing `$`), so decoding it makes the CSP match whichever Clerk instance a
+// deployment's keys point at — the dev host on localhost/preview, the prod host
+// on a production instance — with nothing to keep in sync by hand. Falls back to
+// the dev wildcard if the key is unset (a keyless build, which otherwise can't
+// happen since ClerkProvider needs the key).
+function clerkFrontendApiHost(): string | null {
+  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (!key) return null;
+  try {
+    const decoded = Buffer.from(
+      key.replace(/^pk_(test|live)_/, ""),
+      "base64",
+    ).toString("utf8");
+    const host = decoded.replace(/\$+$/, "").trim();
+    return /^[a-z0-9.-]+$/i.test(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+const clerkHost = clerkFrontendApiHost();
+// The instance host serves Clerk's browser JS + Frontend API; shared assets come
+// from *.clerk.com. Both go in script-src/connect-src (and the host in img-src).
+const CLERK_HOSTS = [
+  clerkHost ? `https://${clerkHost}` : "https://*.clerk.accounts.dev",
+  "https://*.clerk.com",
+].join(" ");
 const CLERK_TURNSTILE = "https://challenges.cloudflare.com";
 
 const securityHeaders = [
