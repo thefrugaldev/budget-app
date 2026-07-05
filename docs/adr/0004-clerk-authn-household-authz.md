@@ -32,3 +32,12 @@ Migration away from Clerk (e.g. to Better Auth) is therefore: reimplement `lib/a
 - **Hand-rolled OAuth + sessions.** Small for one provider, but session hardening, CSRF, and token rotation are exactly the wheels not worth reinventing for a finance app.
 - **Clerk Organizations as the household.** Rejected — moves the tenancy model into the vendor, the single worst lock-in surface. Households are domain data, not auth data.
 - **Invite links / self-serve households.** Rejected — a tokened link is a leakable bearer credential needing expiry machinery, and self-serve tenancy invites strangers to store data in our Mongo; deny-by-default fits a private family app.
+
+## Operational notes (Clerk instance)
+
+Recorded during the chunk-3 rollout (#111):
+
+- **Google is the sole sign-in method.** Email/password strategy and email-as-identifier are disabled in the dashboard; only the Google SSO connection is enabled.
+- **Sign-ups are locked down.** The Clerk instance runs in **Restricted** sign-up mode, so no one can self-register. On the free (Hobby) plan the **Allowlist is Pro-gated**, so approved people are added either by **manually creating the user** in the dashboard (Users → Create user, by email) or via a **Clerk invitation**; **account linking on verified email** links their Google login to the pre-created user. This is authentication-layer gating only — it is *not* the lock-in this ADR guards against (that rule is about not modeling households/roles in Clerk).
+- **Two independent gates today.** Clerk decides *who may authenticate*; our deny-by-default boundary decides *who may enter* (an authenticated user with no membership/invite gets the private-app screen, no residue). Until the in-app Invite UI ships (chunk 6), the only member is the owner via first-sign-in bootstrap — so the app is effectively owner-only regardless of Clerk settings.
+- **Open decision for chunk 6.** When in-app invites land, decide whether the invite action should also provision the invitee in Clerk (create user / sync an allowlist via Clerk's API, keeping Restricted mode) or whether Clerk returns to Public sign-ups and we rely purely on our deny-by-default gate (the original intent here). The first keeps strangers from minting Clerk identities but couples our invite flow to Clerk's API; the second is simpler but tolerates stray Clerk identities that our app denies anyway.

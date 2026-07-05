@@ -55,9 +55,16 @@ export async function runBackfill(householdId: string): Promise<BackfillPlan> {
 
   for (const [name, ids] of Object.entries(plan.byCollection)) {
     if (ids.length === 0) continue;
+    // The `householdId: { $exists: false }` filter closes the plan→write TOCTOU:
+    // if a *different* household bootstrapped concurrently and stamped a shared
+    // pre-auth doc between the read above and this write, we won't overwrite its
+    // stamp (the write only touches docs still unowned). Cheap race-class kill.
     await db
       .collection<OwnedDoc>(name)
-      .updateMany({ _id: { $in: ids } }, { $set: { householdId } });
+      .updateMany(
+        { _id: { $in: ids }, householdId: { $exists: false } },
+        { $set: { householdId } },
+      );
   }
 
   return plan;
