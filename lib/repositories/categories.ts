@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 
+import { requireHouseholdId } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { CategoryDocument } from "@/lib/db/documents";
@@ -7,11 +8,12 @@ import { toCategory } from "@/lib/db/mappers";
 import type { Category } from "@/types/budget";
 
 export async function listCategories(): Promise<Category[]> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
 
   const docs = await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .find()
+    .find({ householdId })
     .sort({ name: 1 })
     .toArray();
 
@@ -31,10 +33,12 @@ export async function createCategory(input: {
   payCadence?: Category["payCadence"];
   firstPaycheckDate?: string;
 }): Promise<Category> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
 
   const doc: CategoryDocument = {
     _id: randomUUID(),
+    householdId,
     name: input.name,
     kind: input.kind,
     activeFrom: input.activeFrom,
@@ -115,10 +119,11 @@ export async function updateCategory(
   if (Object.keys(set).length > 0) update.$set = set;
   if (Object.keys(unset).length > 0) update.$unset = unset;
 
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const result = await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .updateOne({ _id: id }, update);
+    .updateOne({ _id: id, householdId }, update);
   return result.matchedCount > 0;
 }
 
@@ -126,10 +131,11 @@ export async function updateCategory(
 // reference it and target rows are handled separately (the server action
 // composes the full cleanup).
 export async function deleteCategory(id: string): Promise<boolean> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const result = await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .deleteOne({ _id: id });
+    .deleteOne({ _id: id, householdId });
   return result.deletedCount > 0;
 }
 
@@ -140,19 +146,21 @@ export async function getCategoriesByIds(
     return new Map();
   }
 
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const docs = await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .find({ _id: { $in: ids } })
+    .find({ _id: { $in: ids }, householdId })
     .toArray();
 
   return new Map(docs.map((doc) => [doc._id, toCategory(doc)]));
 }
 
 export async function getCategoryById(id: string): Promise<Category | undefined> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const doc = await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .findOne({ _id: id });
+    .findOne({ _id: id, householdId });
   return doc ? toCategory(doc) : undefined;
 }

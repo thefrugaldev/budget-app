@@ -10,6 +10,7 @@ import {
 } from "@/lib/budget";
 import { oneTimeReceiptSummary } from "@/lib/income";
 import type { OneTimeReceiptSummary } from "@/types/budget";
+import { requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
  * pencil still owns editing until chunk 7 retires the modal.
  */
 export default async function IncomePage() {
-  await ensureSeeded();
+  await ensureSeeded(await requireHouseholdId());
   const [categories, targets, transactions] = await Promise.all([
     listCategories(),
     listCategoryTargets(),

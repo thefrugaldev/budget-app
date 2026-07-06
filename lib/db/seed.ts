@@ -18,12 +18,41 @@ import type {
 } from "./documents";
 
 /**
- * `meta` doc id recording that the database was explicitly cleared (danger-zone
- * reset, #81 story 9). While present, auto-seed never runs again, so a
- * deliberately-emptied budget stays empty across cold starts / new serverless
- * instances. Written by `resetAllData`.
+ * Base `meta` doc key recording that a household explicitly cleared its data
+ * (danger-zone reset, #81 story 9). While the marker is present, auto-seed never
+ * runs again for that household, so a deliberately-emptied budget stays empty
+ * across cold starts / new serverless instances. Written by `resetAllData`.
+ *
+ * Retained as the *legacy* key: a pre-auth reset wrote a bare `"autoSeedDisabled"`
+ * marker that the bootstrap backfill later stamped with a `householdId`. New
+ * markers use the per-household id below; both are honored on read (see `doSeed`).
  */
 export const AUTO_SEED_DISABLED_ID = "autoSeedDisabled";
+
+/**
+ * The per-household auto-seed-disabled marker `_id`. Embedding the household in
+ * the `_id` (rather than a bare shared key + a `householdId` field) keeps the
+ * primary key unique across the tenancy boundary, so a second household — or the
+ * same owner re-bootstrapping a new household after a chunk-6 delete-household —
+ * can record its own reset without dup-keying on a shared marker id (#120 review).
+ */
+export function autoSeedDisabledId(householdId: string): string {
+  return `${AUTO_SEED_DISABLED_ID}:${householdId}`;
+}
+
+/**
+ * Seed docs carry stable, human-readable `_id`s (`"groceries"`, `"t1"`, a
+ * target's `` `${categoryId}:${effectiveFrom}` ``) that are shared across the
+ * codebase and, by design, identical for every household. Namespacing them by
+ * household keeps those stable ids unique across the tenancy boundary, so a
+ * second household seeds without colliding on the primary key against another
+ * household's already-stamped docs (#120 review). References between seed docs
+ * (a target/transaction's `categoryId`) are namespaced the same way so they
+ * still resolve within the household.
+ */
+export function seedDocId(householdId: string, id: string): string {
+  return `${householdId}:${id}`;
+}
 
 /**
  * Pure decision for {@link doSeed}: seed a fresh DB, backfill a populated one
@@ -125,27 +154,56 @@ const TRANSACTIONS: SeedTransaction[] = [
   { _id: "t55", categoryId: "rsu", amount: 12500, date: "2026-06-15", vendor: "Morgan Stanley", note: "Q2 vest" },
 ];
 
-let seedPromise: Promise<void> | undefined;
+// Keyed by householdId so each household's demo seed runs at most once per
+// process. In v1 there is exactly one household, but keying (rather than a lone
+// module promise) keeps the "seeded once" invariant correct if a second one
+// ever signs in — and, together with the per-household `_id` namespacing
+// (`seedDocId`) and marker id (`autoSeedDisabledId`), lets a fresh household
+// actually seed rather than dup-keying on another household's docs (#120 review).
+const seedPromises = new Map<string, Promise<void>>();
 
-export function ensureSeeded(): Promise<void> {
-  if (!seedPromise) {
-    seedPromise = doSeed().catch((err) => {
-      seedPromise = undefined;
+/**
+ * Seed the demo data for `householdId`, once per process per household.
+ *
+ * Takes the household id explicitly (rather than resolving the session here)
+ * for two reasons: it mirrors `runBackfill`, the other bootstrap-adjacent write
+ * path, which is also handed its household id; and it keeps this module — whose
+ * pure `resolveSeedAction` is unit-tested — free of the Clerk/`server-only`
+ * import chain the session boundary carries. Callers resolve `requireHouseholdId`
+ * (they run inside the session-gated app shell) and pass it in.
+ */
+export function ensureSeeded(householdId: string): Promise<void> {
+  let promise = seedPromises.get(householdId);
+  if (!promise) {
+    promise = doSeed(householdId).catch((err) => {
+      seedPromises.delete(householdId);
       throw err;
     });
+    seedPromises.set(householdId, promise);
   }
-  return seedPromise;
+  return promise;
 }
 
-async function doSeed(): Promise<void> {
+async function doSeed(householdId: string): Promise<void> {
   const db = await getDb();
 
   const now = new Date();
   const [disabledCount, categoryCount] = await Promise.all([
+    db.collection<MetaDocument>(COLLECTIONS.meta).countDocuments(
+      {
+        $or: [
+          { _id: autoSeedDisabledId(householdId) },
+          // Legacy pre-auth marker (a danger-zone reset before auth existed),
+          // adopted into this household by the bootstrap backfill. Still honored
+          // so a deliberately-cleared DB isn't re-seeded on first sign-in.
+          { _id: AUTO_SEED_DISABLED_ID, householdId },
+        ],
+      },
+      { limit: 1 },
+    ),
     db
-      .collection<MetaDocument>(COLLECTIONS.meta)
-      .countDocuments({ _id: AUTO_SEED_DISABLED_ID }, { limit: 1 }),
-    db.collection(COLLECTIONS.categories).countDocuments({}, { limit: 1 }),
+      .collection(COLLECTIONS.categories)
+      .countDocuments({ householdId }, { limit: 1 }),
   ]);
 
   const action = resolveSeedAction({
@@ -155,15 +213,15 @@ async function doSeed(): Promise<void> {
 
   switch (action) {
     case "seed":
-      await seedCategories(db, now);
-      await seedTargets(db, now);
-      await seedTransactions(db, now);
+      await seedCategories(db, householdId, now);
+      await seedTargets(db, householdId, now);
+      await seedTransactions(db, householdId, now);
       return;
     case "backfill":
       // DB already populated — backfill any categories added since this DB was
       // first seeded (e.g. the income source introduced in chunk 6). Keyed on
       // `_id`, so a user-renamed seed category isn't re-inserted.
-      await backfillMissingCategories(db, now);
+      await backfillMissingCategories(db, householdId, now);
       return;
     case "skip":
       // Explicitly cleared via the danger zone — respect the empty slate.
@@ -173,9 +231,16 @@ async function doSeed(): Promise<void> {
 
 // Omit optional fields when absent so Mongo doesn't persist `null` (mirrors
 // createCategory's null-avoidance, which the readers in mappers.ts rely on).
-function buildCategoryDoc(c: SeedCategory, now: Date): CategoryDocument {
+// Every doc is stamped with the seeding household so chunk 4's household-scoped
+// reads surface the demo data (a fresh install looks unchanged for the owner).
+function buildCategoryDoc(
+  c: SeedCategory,
+  householdId: string,
+  now: Date,
+): CategoryDocument {
   return {
-    _id: c._id,
+    _id: seedDocId(householdId, c._id),
+    householdId,
     name: c.name,
     emoji: c.emoji,
     kind: c.kind,
@@ -192,36 +257,57 @@ function buildCategoryDoc(c: SeedCategory, now: Date): CategoryDocument {
 // One-time income sources have no baseline, so they get no target row.
 function buildTargetDoc(
   c: SeedCategory,
+  householdId: string,
   now: Date,
 ): CategoryTargetDocument | undefined {
   if (c.initialMonthly === undefined) return undefined;
   return {
-    _id: `${c._id}:${c.activeFrom}`,
-    categoryId: c._id,
+    _id: seedDocId(householdId, `${c._id}:${c.activeFrom}`),
+    householdId,
+    categoryId: seedDocId(householdId, c._id),
     monthly: c.initialMonthly,
     effectiveFrom: c.activeFrom,
     createdAt: now,
   };
 }
 
-async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
+async function backfillMissingCategories(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
+  // A seed category counts as already present if this household has it under
+  // either the namespaced id (seeded after per-household namespacing) or the
+  // legacy bare id (a household first seeded before it, e.g. the owner's). We
+  // look for both forms so an already-seeded household is never re-inserted as
+  // duplicates; genuinely-missing categories are then inserted namespaced.
+  const wantedIds = CATEGORIES.flatMap((c) => [
+    c._id,
+    seedDocId(householdId, c._id),
+  ]);
   const existingIds = new Set(
     (
       await db
         .collection<CategoryDocument>(COLLECTIONS.categories)
-        .find({ _id: { $in: CATEGORIES.map((c) => c._id) } }, { projection: { _id: 1 } })
+        .find(
+          { _id: { $in: wantedIds }, householdId },
+          { projection: { _id: 1 } },
+        )
         .toArray()
     ).map((d) => d._id),
   );
-  const missing = CATEGORIES.filter((c) => !existingIds.has(c._id));
+  const missing = CATEGORIES.filter(
+    (c) =>
+      !existingIds.has(c._id) && !existingIds.has(seedDocId(householdId, c._id)),
+  );
   if (missing.length === 0) return;
 
   await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .insertMany(missing.map((c) => buildCategoryDoc(c, now)));
+    .insertMany(missing.map((c) => buildCategoryDoc(c, householdId, now)));
 
   const targetDocs = missing
-    .map((c) => buildTargetDoc(c, now))
+    .map((c) => buildTargetDoc(c, householdId, now))
     .filter((d): d is CategoryTargetDocument => d !== undefined);
   // A backfill of only one-time sources yields no targets — insertMany([]) throws.
   if (targetDocs.length > 0) {
@@ -231,14 +317,22 @@ async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
   }
 }
 
-async function seedCategories(db: Db, now: Date): Promise<void> {
+async function seedCategories(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
   await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .insertMany(CATEGORIES.map((c) => buildCategoryDoc(c, now)));
+    .insertMany(CATEGORIES.map((c) => buildCategoryDoc(c, householdId, now)));
 }
 
-async function seedTargets(db: Db, now: Date): Promise<void> {
-  const docs = CATEGORIES.map((c) => buildTargetDoc(c, now)).filter(
+async function seedTargets(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
+  const docs = CATEGORIES.map((c) => buildTargetDoc(c, householdId, now)).filter(
     (d): d is CategoryTargetDocument => d !== undefined,
   );
   await db
@@ -246,9 +340,18 @@ async function seedTargets(db: Db, now: Date): Promise<void> {
     .insertMany(docs);
 }
 
-async function seedTransactions(db: Db, now: Date): Promise<void> {
+async function seedTransactions(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
   const docs: TransactionDocument[] = TRANSACTIONS.map((t) => ({
     ...t,
+    _id: seedDocId(householdId, t._id),
+    // Reference the namespaced category id so the seed transaction resolves to
+    // its (also namespaced) category within this household.
+    categoryId: seedDocId(householdId, t.categoryId),
+    householdId,
     createdAt: now,
   }));
   await db

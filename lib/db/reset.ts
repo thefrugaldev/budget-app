@@ -1,7 +1,9 @@
+import { requireHouseholdId } from "@/lib/auth/session";
+
 import { getDb } from "./client";
 import { COLLECTIONS } from "./collections";
 import type { MetaDocument } from "./documents";
-import { AUTO_SEED_DISABLED_ID } from "./seed";
+import { autoSeedDisabledId } from "./seed";
 
 /**
  * Danger-zone reset (#81 story 9): permanently clears every user-data
@@ -22,19 +24,24 @@ import { AUTO_SEED_DISABLED_ID } from "./seed";
  * NB: when a new user-data collection is added, clear it here too.
  */
 export async function resetAllData(): Promise<void> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
 
+  // Per-household marker id, so two households (or a re-bootstrap after a
+  // delete-household) never dup-key on a shared `_id`. The `householdId` field
+  // is still stamped for tenancy-consistent reads.
   await db
     .collection<MetaDocument>(COLLECTIONS.meta)
     .updateOne(
-      { _id: AUTO_SEED_DISABLED_ID },
-      { $set: { clearedAt: new Date() } },
+      { _id: autoSeedDisabledId(householdId) },
+      { $set: { clearedAt: new Date(), householdId } },
       { upsert: true },
     );
 
+  // Only this household's data — a reset never reaches another household's docs.
   await Promise.all([
-    db.collection(COLLECTIONS.transactions).deleteMany({}),
-    db.collection(COLLECTIONS.categories).deleteMany({}),
-    db.collection(COLLECTIONS.categoryTargets).deleteMany({}),
+    db.collection(COLLECTIONS.transactions).deleteMany({ householdId }),
+    db.collection(COLLECTIONS.categories).deleteMany({ householdId }),
+    db.collection(COLLECTIONS.categoryTargets).deleteMany({ householdId }),
   ]);
 }
