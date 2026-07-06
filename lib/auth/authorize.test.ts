@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { authorize, roleSatisfies } from "@/lib/auth/authorize";
-import type { Member, Role, User } from "@/types/auth";
+import {
+  authorize,
+  authorizeSession,
+  denialMessage,
+  roleSatisfies,
+} from "@/lib/auth/authorize";
+import type { DenyReason, Member, ResolvedSession, Role, User } from "@/types/auth";
 
 const user: User = {
   id: "u1",
@@ -81,5 +86,65 @@ describe("authorize", () => {
     expect(authorize(null, member({ role: "owner" }), "viewer").allowed).toBe(
       false,
     );
+  });
+});
+
+describe("authorizeSession", () => {
+  it("maps a signed-out session to no-session (a real sign-in fixes it)", () => {
+    const session: ResolvedSession = { status: "signed-out" };
+    expect(authorizeSession(session, "editor")).toEqual({
+      allowed: false,
+      reason: "no-session",
+    });
+  });
+
+  it("maps a denied session to no-membership, NOT no-session (#111 chunk 5)", () => {
+    // The load-bearing fix: an authenticated-but-membership-less person must not
+    // read as "no session" — that would bounce them to sign-in and loop straight
+    // back to denied. They're signed in; they just lack access.
+    const session: ResolvedSession = { status: "denied" };
+    expect(authorizeSession(session, "editor")).toEqual({
+      allowed: false,
+      reason: "no-membership",
+    });
+  });
+
+  it("defers to the role check for an active session", () => {
+    const active = (role: Role): ResolvedSession => ({
+      status: "active",
+      user,
+      membership: member({ role }),
+    });
+    expect(authorizeSession(active("editor"), "editor")).toEqual({
+      allowed: true,
+    });
+    expect(authorizeSession(active("owner"), "editor")).toEqual({
+      allowed: true,
+    });
+    expect(authorizeSession(active("viewer"), "editor")).toEqual({
+      allowed: false,
+      reason: "insufficient-role",
+    });
+    expect(authorizeSession(active("editor"), "owner")).toEqual({
+      allowed: false,
+      reason: "insufficient-role",
+    });
+  });
+});
+
+describe("denialMessage", () => {
+  const reasons: DenyReason[] = [
+    "no-session",
+    "no-membership",
+    "insufficient-role",
+  ];
+
+  it.each(reasons)("returns distinct, non-empty user-facing copy for %s", (reason) => {
+    expect(denialMessage(reason)).toBeTruthy();
+  });
+
+  it("gives each reason its own message", () => {
+    const messages = reasons.map(denialMessage);
+    expect(new Set(messages).size).toBe(reasons.length);
   });
 });

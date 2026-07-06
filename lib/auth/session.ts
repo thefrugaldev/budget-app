@@ -9,7 +9,7 @@ import { createMember, findMemberByUserId } from "@/lib/repositories/members";
 import { createUser, findUserByProviderSubject } from "@/lib/repositories/users";
 import type { AuthzDecision, ResolvedSession, Role } from "@/types/auth";
 
-import { authorize } from "./authorize";
+import { authorizeSession } from "./authorize";
 import { getClerkSubjectId, getClerkVerifiedEmail } from "./clerk";
 import { decideSignIn } from "./sign-in";
 
@@ -139,13 +139,11 @@ export async function requireHouseholdId(): Promise<string> {
 }
 
 /**
- * Server-side role guard for actions and loaders (wired in chunk 5): the
- * authorization decision for the current session against a required role.
- * Hiding a button is never the boundary — mutations call this.
+ * Server-side role guard for actions and loaders: the authorization decision for
+ * the current session against a required role. Hiding a button is never the
+ * boundary — mutations call this (via `requireRole`). The status→decision
+ * mapping (incl. denied→no-membership) lives in the pure `authorizeSession`.
  */
 export async function authorizeCurrent(required: Role): Promise<AuthzDecision> {
-  const session = await getSession();
-  const user = session.status === "active" ? session.user : null;
-  const membership = session.status === "active" ? session.membership : null;
-  return authorize(user, membership, required);
+  return authorizeSession(await getSession(), required);
 }

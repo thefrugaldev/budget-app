@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireRole } from "@/lib/auth/require-role";
 import { resetAllData } from "@/lib/db/reset";
 
 /**
@@ -13,6 +14,8 @@ import { resetAllData } from "@/lib/db/reset";
  */
 export async function resetAllDataAction(): Promise<{ error: string | null }> {
   try {
+    // Danger zone is owner-only (#111 chunk 5); editors and viewers can't reset.
+    await requireRole("owner");
     await resetAllData();
     revalidatePath("/");
     revalidatePath("/transactions");

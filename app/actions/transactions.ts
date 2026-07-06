@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireRole } from "@/lib/auth/require-role";
 import { getCategoryById } from "@/lib/repositories/categories";
 import {
   createTransaction,
@@ -55,6 +56,7 @@ export async function createTransactionAction(
   formData: FormData,
 ): Promise<TransactionActionState> {
   try {
+    await requireRole("editor");
     const categoryId = requireString(formData.get("categoryId"), "categoryId");
     const category = await getCategoryById(categoryId);
     if (!category) throw new Error("Category not found");
@@ -87,6 +89,7 @@ export async function updateTransactionAction(
   formData: FormData,
 ): Promise<TransactionActionState> {
   try {
+    await requireRole("editor");
     const id = requireString(formData.get("id"), "id");
     const categoryId = requireString(formData.get("categoryId"), "categoryId");
     const category = await getCategoryById(categoryId);
@@ -123,6 +126,7 @@ export async function deleteTransactionAction(input: {
   categoryId: string;
 }): Promise<{ error: string | null }> {
   try {
+    await requireRole("editor");
     const hit = await deleteTransaction(input.id);
     if (!hit) throw new Error("Transaction not found");
     revalidatePath("/");
@@ -159,6 +163,7 @@ export async function bulkDeleteTransactionsAction(input: {
   categoryIds: string[];
 }): Promise<{ error: string | null; deleted: number }> {
   try {
+    await requireRole("editor");
     const ids = parseTransactionIds(input.ids);
     const deleted = await deleteManyTransactions(ids);
     revalidateCategories(input.categoryIds);
@@ -184,6 +189,7 @@ export async function bulkUpdateTransactionsAction(input: {
   patch: { categoryId?: string; vendor?: string };
 }): Promise<{ error: string | null; updated: number }> {
   try {
+    await requireRole("editor");
     const ids = parseTransactionIds(input.ids);
 
     const patch: { categoryId?: string; vendor?: string } = {};

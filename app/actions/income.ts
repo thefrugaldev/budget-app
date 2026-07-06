@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireRole } from "@/lib/auth/require-role";
 import { currentMonthKey, nextMonth, resolveTargetForMonth } from "@/lib/budget";
 import {
   createCategory,
@@ -80,6 +81,7 @@ export async function updateIncomeSourceAction(
   formData: FormData,
 ): Promise<IncomeActionState> {
   try {
+    await requireRole("editor");
     const categoryId = requireString(formData.get("categoryId"), "categoryId");
     await assertIncomeCategory(categoryId);
     const frequency = parseIncomeFrequency(formData.get("frequency"));
@@ -177,6 +179,7 @@ export async function createIncomeSourceAction(
   formData: FormData,
 ): Promise<IncomeActionState> {
   try {
+    await requireRole("editor");
     const name = requireString(formData.get("name"), "name");
     const icon = (formData.get("icon") as string | null)?.trim() || undefined;
     const frequency = parseIncomeFrequency(formData.get("frequency"));
@@ -248,6 +251,7 @@ export async function cancelScheduledBaselineAction(
   formData: FormData,
 ): Promise<IncomeActionState> {
   try {
+    await requireRole("editor");
     const { categoryId, effectiveFrom } =
       parseCancelScheduledBaselineInput(formData);
 
@@ -282,6 +286,7 @@ export async function deleteIncomeSourceAction(
   formData: FormData,
 ): Promise<IncomeActionState> {
   try {
+    await requireRole("editor");
     const id = requireString(formData.get("id"), "id");
     await assertIncomeCategory(id);
 
