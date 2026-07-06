@@ -45,3 +45,6 @@ next-env.d.ts
 # local-only notes (private; never committed to the public repo)
 *.local.md
 docs/**/*.local.md
+
+# Claude Code personal settings (also covered by the global git ignore)
+.claude/settings.local.json

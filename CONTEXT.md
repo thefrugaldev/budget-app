@@ -85,3 +85,19 @@ _Avoid_: Setting (reserved for app settings), scenario (implies multiple saved s
 **Vendor**:
 A free-text string identifying the merchant or counterparty on a transaction (e.g., "Whole Foods", "Amazon", "Greystar"). Vendors are not a formal entity — they're whatever the user types, with autocomplete from history to keep the spelling consistent. A vendor may appear across many categories.
 _Avoid_: Merchant, payee (overloaded with finance-domain meaning).
+
+**Archive**:
+The household's 2020–2026 Excel budget workbooks and the recipe (mapping, overrides, manifests) for importing them — kept in a private repo, separate from this public codebase. The historical system of record until cutover.
+_Avoid_: Spreadsheets (ambiguous once imported), backup (it is the source, not a copy).
+
+**Imported**:
+Said of a category, target, transaction, or snapshot that originated from the archive rather than manual entry. An imported document carries provenance back to its exact source cell and is excluded from destructive bulk actions ("Clear all data") unless explicitly opted in.
+_Avoid_: Migrated, seeded (reserved for demo seed data).
+
+**Budget month**:
+The month a payment is *for*, as distinct from the calendar date it was paid — recurring bills are often paid in the last days of the prior month. Imported transactions are dated by budget month, with the true paid date preserved in the note.
+_Avoid_: Statement month, period.
+
+**Cutover**:
+The moment the app replaces the archive as the sole system of record: final workbook save, final import, no further spreadsheet edits, manual entry begins.
+_Avoid_: Launch, go-live (the app is already deployed before cutover).
