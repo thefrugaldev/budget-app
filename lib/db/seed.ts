@@ -18,12 +18,41 @@ import type {
 } from "./documents";
 
 /**
- * `meta` doc id recording that the database was explicitly cleared (danger-zone
- * reset, #81 story 9). While present, auto-seed never runs again, so a
- * deliberately-emptied budget stays empty across cold starts / new serverless
- * instances. Written by `resetAllData`.
+ * Base `meta` doc key recording that a household explicitly cleared its data
+ * (danger-zone reset, #81 story 9). While the marker is present, auto-seed never
+ * runs again for that household, so a deliberately-emptied budget stays empty
+ * across cold starts / new serverless instances. Written by `resetAllData`.
+ *
+ * Retained as the *legacy* key: a pre-auth reset wrote a bare `"autoSeedDisabled"`
+ * marker that the bootstrap backfill later stamped with a `householdId`. New
+ * markers use the per-household id below; both are honored on read (see `doSeed`).
  */
 export const AUTO_SEED_DISABLED_ID = "autoSeedDisabled";
+
+/**
+ * The per-household auto-seed-disabled marker `_id`. Embedding the household in
+ * the `_id` (rather than a bare shared key + a `householdId` field) keeps the
+ * primary key unique across the tenancy boundary, so a second household — or the
+ * same owner re-bootstrapping a new household after a chunk-6 delete-household —
+ * can record its own reset without dup-keying on a shared marker id (#120 review).
+ */
+export function autoSeedDisabledId(householdId: string): string {
+  return `${AUTO_SEED_DISABLED_ID}:${householdId}`;
+}
+
+/**
+ * Seed docs carry stable, human-readable `_id`s (`"groceries"`, `"t1"`, a
+ * target's `` `${categoryId}:${effectiveFrom}` ``) that are shared across the
+ * codebase and, by design, identical for every household. Namespacing them by
+ * household keeps those stable ids unique across the tenancy boundary, so a
+ * second household seeds without colliding on the primary key against another
+ * household's already-stamped docs (#120 review). References between seed docs
+ * (a target/transaction's `categoryId`) are namespaced the same way so they
+ * still resolve within the household.
+ */
+export function seedDocId(householdId: string, id: string): string {
+  return `${householdId}:${id}`;
+}
 
 /**
  * Pure decision for {@link doSeed}: seed a fresh DB, backfill a populated one
@@ -128,7 +157,9 @@ const TRANSACTIONS: SeedTransaction[] = [
 // Keyed by householdId so each household's demo seed runs at most once per
 // process. In v1 there is exactly one household, but keying (rather than a lone
 // module promise) keeps the "seeded once" invariant correct if a second one
-// ever signs in, and lets a post-reset reseed for a different household proceed.
+// ever signs in — and, together with the per-household `_id` namespacing
+// (`seedDocId`) and marker id (`autoSeedDisabledId`), lets a fresh household
+// actually seed rather than dup-keying on another household's docs (#120 review).
 const seedPromises = new Map<string, Promise<void>>();
 
 /**
@@ -158,9 +189,18 @@ async function doSeed(householdId: string): Promise<void> {
 
   const now = new Date();
   const [disabledCount, categoryCount] = await Promise.all([
-    db
-      .collection<MetaDocument>(COLLECTIONS.meta)
-      .countDocuments({ _id: AUTO_SEED_DISABLED_ID, householdId }, { limit: 1 }),
+    db.collection<MetaDocument>(COLLECTIONS.meta).countDocuments(
+      {
+        $or: [
+          { _id: autoSeedDisabledId(householdId) },
+          // Legacy pre-auth marker (a danger-zone reset before auth existed),
+          // adopted into this household by the bootstrap backfill. Still honored
+          // so a deliberately-cleared DB isn't re-seeded on first sign-in.
+          { _id: AUTO_SEED_DISABLED_ID, householdId },
+        ],
+      },
+      { limit: 1 },
+    ),
     db
       .collection(COLLECTIONS.categories)
       .countDocuments({ householdId }, { limit: 1 }),
@@ -199,7 +239,7 @@ function buildCategoryDoc(
   now: Date,
 ): CategoryDocument {
   return {
-    _id: c._id,
+    _id: seedDocId(householdId, c._id),
     householdId,
     name: c.name,
     emoji: c.emoji,
@@ -222,9 +262,9 @@ function buildTargetDoc(
 ): CategoryTargetDocument | undefined {
   if (c.initialMonthly === undefined) return undefined;
   return {
-    _id: `${c._id}:${c.activeFrom}`,
+    _id: seedDocId(householdId, `${c._id}:${c.activeFrom}`),
     householdId,
-    categoryId: c._id,
+    categoryId: seedDocId(householdId, c._id),
     monthly: c.initialMonthly,
     effectiveFrom: c.activeFrom,
     createdAt: now,
@@ -236,18 +276,30 @@ async function backfillMissingCategories(
   householdId: string,
   now: Date,
 ): Promise<void> {
+  // A seed category counts as already present if this household has it under
+  // either the namespaced id (seeded after per-household namespacing) or the
+  // legacy bare id (a household first seeded before it, e.g. the owner's). We
+  // look for both forms so an already-seeded household is never re-inserted as
+  // duplicates; genuinely-missing categories are then inserted namespaced.
+  const wantedIds = CATEGORIES.flatMap((c) => [
+    c._id,
+    seedDocId(householdId, c._id),
+  ]);
   const existingIds = new Set(
     (
       await db
         .collection<CategoryDocument>(COLLECTIONS.categories)
         .find(
-          { _id: { $in: CATEGORIES.map((c) => c._id) }, householdId },
+          { _id: { $in: wantedIds }, householdId },
           { projection: { _id: 1 } },
         )
         .toArray()
     ).map((d) => d._id),
   );
-  const missing = CATEGORIES.filter((c) => !existingIds.has(c._id));
+  const missing = CATEGORIES.filter(
+    (c) =>
+      !existingIds.has(c._id) && !existingIds.has(seedDocId(householdId, c._id)),
+  );
   if (missing.length === 0) return;
 
   await db
@@ -295,6 +347,10 @@ async function seedTransactions(
 ): Promise<void> {
   const docs: TransactionDocument[] = TRANSACTIONS.map((t) => ({
     ...t,
+    _id: seedDocId(householdId, t._id),
+    // Reference the namespaced category id so the seed transaction resolves to
+    // its (also namespaced) category within this household.
+    categoryId: seedDocId(householdId, t.categoryId),
     householdId,
     createdAt: now,
   }));

@@ -48,17 +48,35 @@ function buildIndexes(db: Db): Promise<void> {
         // surfaces — silently swallowing those would mask real ops issues.
         if (err?.code !== 27) throw err;
       }),
+    // `categoryTargets` uniqueness is household-scoped (#120 review). Two
+    // households can legitimately hold a target for the same categoryId at the
+    // same effectiveFrom (seed categories share stable ids by design), so the
+    // old global `{ categoryId, effectiveFrom }` unique would dup-key across the
+    // tenancy boundary. Drop it and replace with a household-prefixed composite
+    // unique — which doubles as the read index (its `householdId` prefix serves
+    // the household-only filter, and it matches the `{ categoryId, effectiveFrom }`
+    // sort in listCategoryTargets). `dropIndex` is idempotent: code 27 =
+    // IndexNotFound on a DB that never had the old index.
     db
       .collection(COLLECTIONS.categoryTargets)
-      .createIndex({ categoryId: 1, effectiveFrom: 1 }, { unique: true }),
+      .dropIndex("categoryId_1_effectiveFrom_1")
+      .catch((err: { code?: number }) => {
+        if (err?.code !== 27) throw err;
+      }),
+    db
+      .collection(COLLECTIONS.categoryTargets)
+      .createIndex(
+        { householdId: 1, categoryId: 1, effectiveFrom: 1 },
+        { unique: true },
+      ),
     db.collection(COLLECTIONS.transactions).createIndex({ date: 1 }),
     db.collection(COLLECTIONS.transactions).createIndex({ categoryId: 1, date: 1 }),
     // Household-scoped reads (#111 chunk 4): every user-data query filters by
-    // `householdId`. Single-field on categories/targets (small, filter-only);
-    // compound `{ householdId, date }` on transactions serves the month-range
-    // and full-history reads, which always pair the household with a date sort.
+    // `householdId`. Single-field on categories (small, filter-only); the
+    // categoryTargets filter rides the composite unique index above; compound
+    // `{ householdId, date }` on transactions serves the month-range and
+    // full-history reads, which always pair the household with a date sort.
     db.collection(COLLECTIONS.categories).createIndex({ householdId: 1 }),
-    db.collection(COLLECTIONS.categoryTargets).createIndex({ householdId: 1 }),
     db.collection(COLLECTIONS.transactions).createIndex({ householdId: 1, date: 1 }),
     // Auth collections (#111 chunk 2). A user has exactly one identity record
     // and at most one membership in v1, so both lookups are unique. Invites
