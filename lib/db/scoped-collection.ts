@@ -57,8 +57,10 @@ export class ScopedCollection<T extends HouseholdOwned & Document> {
   }
 
   aggregate<R extends Document>(pipeline: Document[]): AggregationCursor<R> {
-    // Prefix a household `$match` so no stage can read across households,
-    // whatever the caller's pipeline does afterward.
+    // Prefix a household `$match` so every stage sees only this household's
+    // documents *from this collection*. NB: it does not reach documents pulled
+    // in by a cross-collection stage (`$lookup`, `$unionWith`) — scoping the
+    // joined/unioned collection is the caller's responsibility.
     return this.collection.aggregate<R>([
       { $match: { householdId: this.householdId } },
       ...pipeline,
@@ -99,6 +101,10 @@ export class ScopedCollection<T extends HouseholdOwned & Document> {
 
   /** Merge the bound household into a read/update/delete filter. */
   private scopedFilter(filter: Filter<T>): Filter<T> {
+    // The spread order makes the bound household always win: a caller-supplied
+    // `householdId` is ignored by design, so no caller can read or write across
+    // the tenancy boundary through this wrapper.
+    //
     // Cast: `Filter<T>` is a conditional type the object spread widens; the
     // result (the caller's fields plus a `householdId` equality) is exactly the
     // shape the driver expects.
