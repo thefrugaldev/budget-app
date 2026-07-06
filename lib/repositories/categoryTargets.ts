@@ -84,11 +84,11 @@ export async function upsertCategoryTarget(input: {
       },
       {
         $set: { monthly: input.monthly },
+        // Only the fields NOT in the filter: on an upsert-insert Mongo copies
+        // the equality-match filter fields (categoryId, effectiveFrom,
+        // householdId) into the new doc, so listing them here too is redundant.
         $setOnInsert: {
           _id: randomUUID(),
-          householdId,
-          categoryId: input.categoryId,
-          effectiveFrom: input.effectiveFrom,
           createdAt: new Date(),
         },
       },

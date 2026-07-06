@@ -10,7 +10,7 @@ import {
   resolveRange,
 } from "@/lib/budget";
 import type { RangePreset } from "@/types/range";
-import { requireHouseholdId } from "@/lib/auth/session";
+import { getSession, requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
@@ -22,7 +22,14 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  await ensureSeeded(await requireHouseholdId());
+  // Metadata resolves in parallel with AppLayout's session gate. For a
+  // signed-out/denied session the layout renders the redirect / PrivateAppScreen
+  // (story 6's no-residue flow); this must not throw past that gate via its own
+  // `requireHouseholdId`, so short-circuit to a neutral title without touching
+  // household data.
+  const session = await getSession();
+  if (session.status !== "active") return { title: "Category" };
+  await ensureSeeded(session.membership.householdId);
   const categories = await listCategories();
   const category = categories.find((c) => c.id === id);
   return { title: category?.name ?? "Category" };

@@ -19,7 +19,10 @@ export async function resetAllDataAction(): Promise<{ error: string | null }> {
     revalidatePath("/income");
     revalidatePath("/settings");
     return { error: null };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Reset failed" };
+  } catch {
+    // Deliberately generic: never surface an internal boundary string to the
+    // dialog (e.g. requireHouseholdId's "No active household session" if the
+    // session flips active→denied between render and this fire-and-forget call).
+    return { error: "Reset failed" };
   }
 }

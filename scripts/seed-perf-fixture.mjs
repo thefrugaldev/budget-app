@@ -12,15 +12,33 @@
 // The DB name is fixed to PERF_DB_NAME (default "budget-perf") regardless of
 // MONGODB_DB_NAME, so pointing the app at it for a measurement is opt-in:
 //   MONGODB_DB_NAME=budget-perf pnpm dev
+//
+// Household scoping (#111 chunk 4): the app filters every read by the signed-in
+// user's household, so the fixture must belong to a household to be visible.
+// Two flows:
+//   • Set PERF_HOUSEHOLD_ID to your perf household's id (from the `members`
+//     collection after signing into budget-perf once) — the fixture is stamped
+//     with it and shows up immediately, no re-seed needed.
+//   • Leave it unset — the fixture is written unstamped; sign in to a *fresh*
+//     budget-perf and first-sign-in bootstrap's backfill adopts the whole
+//     fixture into the new household. (Seed the fixture BEFORE that first
+//     sign-in — backfill runs once.)
 
 import { MongoClient } from "mongodb";
 
 const DB_NAME = process.env.PERF_DB_NAME ?? "budget-perf";
+// When set, every fixture doc is stamped with this household so the app renders
+// it without waiting on a first-sign-in backfill (see header).
+const HOUSEHOLD_ID = process.env.PERF_HOUSEHOLD_ID;
 const URI = process.env.MONGODB_URI;
 if (!URI) {
   console.error("Missing MONGODB_URI (run with `node --env-file=.env.local ...`).");
   process.exit(1);
 }
+
+// Stamp `householdId` only when configured; unstamped docs are adopted by the
+// first-sign-in backfill instead.
+const householdStamp = HOUSEHOLD_ID ? { householdId: HOUSEHOLD_ID } : {};
 
 const ACTIVE_FROM = "2026-01";
 
@@ -119,6 +137,7 @@ function generateTransactions(count) {
             : money(8, 450);
       docs.push({
         _id: `perf-${i++}`,
+        ...householdStamp,
         categoryId: cat._id,
         amount: refund ? -money(5, 80) : base,
         date,
@@ -161,6 +180,7 @@ async function main() {
   await db.collection("categories").insertMany(
     CATEGORIES.map((c) => ({
       _id: c._id,
+      ...householdStamp,
       name: c.name,
       emoji: c.emoji,
       kind: c.kind,
@@ -171,6 +191,7 @@ async function main() {
   await db.collection("categoryTargets").insertMany(
     CATEGORIES.map((c) => ({
       _id: `${c._id}:${ACTIVE_FROM}`,
+      ...householdStamp,
       categoryId: c._id,
       monthly: c.initialMonthly,
       effectiveFrom: ACTIVE_FROM,
@@ -185,6 +206,11 @@ async function main() {
   console.log(
     `Seeded "${DB_NAME}": ${txns.length} transactions across ${days} days, ` +
       `${CATEGORIES.length} categories.`,
+  );
+  console.log(
+    HOUSEHOLD_ID
+      ? `Stamped householdId=${HOUSEHOLD_ID} — visible immediately for that household.`
+      : `Unstamped — sign into a fresh "${DB_NAME}" so the first-sign-in backfill adopts it.`,
   );
   await client.close();
 }

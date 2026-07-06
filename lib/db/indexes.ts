@@ -72,11 +72,12 @@ function buildIndexes(db: Db): Promise<void> {
     db.collection(COLLECTIONS.transactions).createIndex({ date: 1 }),
     db.collection(COLLECTIONS.transactions).createIndex({ categoryId: 1, date: 1 }),
     // Household-scoped reads (#111 chunk 4): every user-data query filters by
-    // `householdId`. Single-field on categories (small, filter-only); the
+    // `householdId`. Compound `{ householdId, name }` on categories serves both
+    // listCategories's filter and its `.sort({ name: 1 })` from the index; the
     // categoryTargets filter rides the composite unique index above; compound
     // `{ householdId, date }` on transactions serves the month-range and
     // full-history reads, which always pair the household with a date sort.
-    db.collection(COLLECTIONS.categories).createIndex({ householdId: 1 }),
+    db.collection(COLLECTIONS.categories).createIndex({ householdId: 1, name: 1 }),
     db.collection(COLLECTIONS.transactions).createIndex({ householdId: 1, date: 1 }),
     // Auth collections (#111 chunk 2). A user has exactly one identity record
     // and at most one membership in v1, so both lookups are unique. Invites
