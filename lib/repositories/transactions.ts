@@ -1,10 +1,9 @@
 import { randomUUID } from "crypto";
 
-import { requireHouseholdId } from "@/lib/auth/session";
-import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import { monthDateRange } from "@/lib/db/dates";
 import type { TransactionDocument } from "@/lib/db/documents";
+import { scopedCollection } from "@/lib/db/household-scope";
 import { toTransaction } from "@/lib/db/mappers";
 import type { Transaction } from "@/types/budget";
 
@@ -15,12 +14,13 @@ export async function createTransaction(input: {
   vendor?: string;
   note?: string;
 }): Promise<Transaction> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
 
+  // `householdId` is stamped by the scoped collection on insert.
   const doc: TransactionDocument = {
     _id: randomUUID(),
-    householdId,
     categoryId: input.categoryId,
     amount: input.amount,
     date: input.date,
@@ -29,9 +29,7 @@ export async function createTransaction(input: {
     createdAt: new Date(),
   };
 
-  await db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .insertOne(doc);
+  await transactions.insertOne(doc);
 
   return toTransaction(doc);
 }
@@ -58,20 +56,18 @@ export async function updateTransaction(
   }
   if (Object.keys(set).length === 0) return false;
 
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  const result = await db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .updateOne({ _id: id, householdId }, { $set: set });
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
+  const result = await transactions.updateOne({ _id: id }, { $set: set });
   return result.matchedCount > 0;
 }
 
 export async function deleteTransaction(id: string): Promise<boolean> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  const result = await db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .deleteOne({ _id: id, householdId });
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
+  const result = await transactions.deleteOne({ _id: id });
   return result.deletedCount > 0;
 }
 
@@ -80,11 +76,10 @@ export async function deleteTransaction(id: string): Promise<boolean> {
 // confirm how many of the requested ids existed. An empty id list is a no-op.
 export async function deleteManyTransactions(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  const result = await db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .deleteMany({ _id: { $in: ids }, householdId });
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
+  const result = await transactions.deleteMany({ _id: { $in: ids } });
   return result.deletedCount;
 }
 
@@ -103,11 +98,13 @@ export async function updateManyTransactions(
   }
   if (Object.keys(set).length === 0) return 0;
 
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  const result = await db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .updateMany({ _id: { $in: ids }, householdId }, { $set: set });
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
+  const result = await transactions.updateMany(
+    { _id: { $in: ids } },
+    { $set: set },
+  );
   return result.matchedCount;
 }
 
@@ -115,13 +112,13 @@ export async function listTransactionsForMonth(
   year: number,
   month: number,
 ): Promise<Transaction[]> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
 
   const { start, end } = monthDateRange(year, month);
-  const docs = await db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .find({ householdId, date: { $gte: start, $lte: end } })
+  const docs = await transactions
+    .find({ date: { $gte: start, $lte: end } })
     .sort({ date: -1 })
     .toArray();
 
@@ -131,22 +128,18 @@ export async function listTransactionsForMonth(
 export async function countTransactionsForCategory(
   categoryId: string,
 ): Promise<number> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  return db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .countDocuments({ categoryId, householdId });
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
+  return transactions.countDocuments({ categoryId });
 }
 
 export async function listAllTransactions(): Promise<Transaction[]> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
+  const transactions = await scopedCollection<TransactionDocument>(
+    COLLECTIONS.transactions,
+  );
 
-  const docs = await db
-    .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .find({ householdId })
-    .sort({ date: -1 })
-    .toArray();
+  const docs = await transactions.find().sort({ date: -1 }).toArray();
 
   return docs.map(toTransaction);
 }

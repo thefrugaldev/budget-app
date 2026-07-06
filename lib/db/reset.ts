@@ -1,8 +1,13 @@
 import { requireHouseholdId } from "@/lib/auth/session";
 
-import { getDb } from "./client";
 import { COLLECTIONS } from "./collections";
-import type { MetaDocument } from "./documents";
+import type {
+  CategoryDocument,
+  CategoryTargetDocument,
+  MetaDocument,
+  TransactionDocument,
+} from "./documents";
+import { scopedCollection } from "./household-scope";
 import { autoSeedDisabledId } from "./seed";
 
 /**
@@ -24,24 +29,31 @@ import { autoSeedDisabledId } from "./seed";
  * NB: when a new user-data collection is added, clear it here too.
  */
 export async function resetAllData(): Promise<void> {
+  // Needed for the marker's per-household `_id`; the scoped collections resolve
+  // the same (cached) household internally for their own filters and stamps.
   const householdId = await requireHouseholdId();
-  const db = await getDb();
+
+  const [meta, transactions, categories, targets] = await Promise.all([
+    scopedCollection<MetaDocument>(COLLECTIONS.meta),
+    scopedCollection<TransactionDocument>(COLLECTIONS.transactions),
+    scopedCollection<CategoryDocument>(COLLECTIONS.categories),
+    scopedCollection<CategoryTargetDocument>(COLLECTIONS.categoryTargets),
+  ]);
 
   // Per-household marker id, so two households (or a re-bootstrap after a
-  // delete-household) never dup-key on a shared `_id`. The `householdId` field
-  // is still stamped for tenancy-consistent reads.
-  await db
-    .collection<MetaDocument>(COLLECTIONS.meta)
-    .updateOne(
-      { _id: autoSeedDisabledId(householdId) },
-      { $set: { clearedAt: new Date(), householdId } },
-      { upsert: true },
-    );
+  // delete-household) never dup-key on a shared `_id`. The scoped collection
+  // merges `householdId` into the filter, so the upsert-insert stamps it —
+  // only the mutable `clearedAt` needs `$set`.
+  await meta.updateOne(
+    { _id: autoSeedDisabledId(householdId) },
+    { $set: { clearedAt: new Date() } },
+    { upsert: true },
+  );
 
-  // Only this household's data — a reset never reaches another household's docs.
+  // Only this household's data — the scoped deleteMany can't reach another's.
   await Promise.all([
-    db.collection(COLLECTIONS.transactions).deleteMany({ householdId }),
-    db.collection(COLLECTIONS.categories).deleteMany({ householdId }),
-    db.collection(COLLECTIONS.categoryTargets).deleteMany({ householdId }),
+    transactions.deleteMany(),
+    categories.deleteMany(),
+    targets.deleteMany(),
   ]);
 }

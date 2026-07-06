@@ -1,19 +1,18 @@
 import { randomUUID } from "crypto";
 
-import { requireHouseholdId } from "@/lib/auth/session";
-import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { CategoryTargetDocument } from "@/lib/db/documents";
+import { scopedCollection } from "@/lib/db/household-scope";
 import { toCategoryTarget } from "@/lib/db/mappers";
 import type { CategoryTarget } from "@/types/budget";
 
 export async function listCategoryTargets(): Promise<CategoryTarget[]> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
+  const targets = await scopedCollection<CategoryTargetDocument>(
+    COLLECTIONS.categoryTargets,
+  );
 
-  const docs = await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .find({ householdId })
+  const docs = await targets
+    .find()
     .sort({ categoryId: 1, effectiveFrom: 1 })
     .toArray();
 
@@ -23,12 +22,12 @@ export async function listCategoryTargets(): Promise<CategoryTarget[]> {
 export async function listCategoryTargetsFor(
   categoryId: string,
 ): Promise<CategoryTarget[]> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
+  const targets = await scopedCollection<CategoryTargetDocument>(
+    COLLECTIONS.categoryTargets,
+  );
 
-  const docs = await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .find({ categoryId, householdId })
+  const docs = await targets
+    .find({ categoryId })
     .sort({ effectiveFrom: 1 })
     .toArray();
 
@@ -40,21 +39,19 @@ export async function createCategoryTarget(input: {
   monthly: number;
   effectiveFrom: string;
 }): Promise<CategoryTarget> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
+  const targets = await scopedCollection<CategoryTargetDocument>(
+    COLLECTIONS.categoryTargets,
+  );
 
   const doc: CategoryTargetDocument = {
     _id: randomUUID(),
-    householdId,
     categoryId: input.categoryId,
     monthly: input.monthly,
     effectiveFrom: input.effectiveFrom,
     createdAt: new Date(),
   };
 
-  await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .insertOne(doc);
+  await targets.insertOne(doc);
 
   return toCategoryTarget(doc);
 }
@@ -71,29 +68,25 @@ export async function upsertCategoryTarget(input: {
   monthly: number;
   effectiveFrom: string;
 }): Promise<void> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
+  const targets = await scopedCollection<CategoryTargetDocument>(
+    COLLECTIONS.categoryTargets,
+  );
 
-  await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .updateOne(
-      {
-        categoryId: input.categoryId,
-        effectiveFrom: input.effectiveFrom,
-        householdId,
+  await targets.updateOne(
+    { categoryId: input.categoryId, effectiveFrom: input.effectiveFrom },
+    {
+      $set: { monthly: input.monthly },
+      // Only the fields NOT in the filter: on an upsert-insert Mongo copies the
+      // equality-match filter fields (categoryId, effectiveFrom, and the
+      // householdId the scoped collection merges in) into the new document, so
+      // listing them here too would be redundant.
+      $setOnInsert: {
+        _id: randomUUID(),
+        createdAt: new Date(),
       },
-      {
-        $set: { monthly: input.monthly },
-        // Only the fields NOT in the filter: on an upsert-insert Mongo copies
-        // the equality-match filter fields (categoryId, effectiveFrom,
-        // householdId) into the new doc, so listing them here too is redundant.
-        $setOnInsert: {
-          _id: randomUUID(),
-          createdAt: new Date(),
-        },
-      },
-      { upsert: true },
-    );
+    },
+    { upsert: true },
+  );
 }
 
 export async function updateCategoryTarget(
@@ -101,30 +94,27 @@ export async function updateCategoryTarget(
   effectiveFrom: string,
   monthly: number,
 ): Promise<void> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .updateOne({ categoryId, effectiveFrom, householdId }, { $set: { monthly } });
+  const targets = await scopedCollection<CategoryTargetDocument>(
+    COLLECTIONS.categoryTargets,
+  );
+  await targets.updateOne({ categoryId, effectiveFrom }, { $set: { monthly } });
 }
 
 export async function deleteCategoryTarget(
   categoryId: string,
   effectiveFrom: string,
 ): Promise<void> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .deleteOne({ categoryId, effectiveFrom, householdId });
+  const targets = await scopedCollection<CategoryTargetDocument>(
+    COLLECTIONS.categoryTargets,
+  );
+  await targets.deleteOne({ categoryId, effectiveFrom });
 }
 
 // Wipes every target row for `categoryId`. Used by the category hard-delete
 // path so the orphaned rows don't linger.
 export async function deleteAllCategoryTargets(categoryId: string): Promise<void> {
-  const householdId = await requireHouseholdId();
-  const db = await getDb();
-  await db
-    .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
-    .deleteMany({ categoryId, householdId });
+  const targets = await scopedCollection<CategoryTargetDocument>(
+    COLLECTIONS.categoryTargets,
+  );
+  await targets.deleteMany({ categoryId });
 }
