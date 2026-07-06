@@ -10,6 +10,7 @@ import {
   resolveRange,
 } from "@/lib/budget";
 import type { RangePreset } from "@/types/range";
+import { requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
@@ -21,7 +22,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  await ensureSeeded();
+  await ensureSeeded(await requireHouseholdId());
   const categories = await listCategories();
   const category = categories.find((c) => c.id === id);
   return { title: category?.name ?? "Category" };
@@ -35,7 +36,7 @@ export default async function CategoryDetail({
   searchParams: Promise<{ range?: string | string[] }>;
 }) {
   const [{ id }, { range: rangeParam }] = await Promise.all([params, searchParams]);
-  await ensureSeeded();
+  await ensureSeeded(await requireHouseholdId());
   const [categories, targets, transactions] = await Promise.all([
     listCategories(),
     listCategoryTargets(),

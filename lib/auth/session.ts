@@ -116,6 +116,29 @@ export async function getCurrentUser() {
 }
 
 /**
+ * The household the current request is allowed to touch (#111 chunk 4). Every
+ * household-owned repository read filters by this and every write stamps it, so
+ * the tenancy boundary lives in the data layer — verified on every read and
+ * write, not merely at the proxy/layout redirect (story 14). Resolved from the
+ * once-per-request cached `getSession`, so calling it from many repositories in
+ * one request costs a single resolution.
+ *
+ * Throws for any non-active session: a forged or expired cookie fails Clerk
+ * verification inside `getSession` (→ signed-out) or resolves to a membership-
+ * less identity (→ denied), and either way reaches no data. Callers that reach a
+ * repository have already passed the layout gate on page loads; for Server
+ * Functions (which the proxy only optimistically guards) this is the real
+ * server-side check. Role enforcement layers on top in chunk 5.
+ */
+export async function requireHouseholdId(): Promise<string> {
+  const session = await getSession();
+  if (session.status !== "active") {
+    throw new Error("No active household session");
+  }
+  return session.membership.householdId;
+}
+
+/**
  * Server-side role guard for actions and loaders (wired in chunk 5): the
  * authorization decision for the current session against a required role.
  * Hiding a button is never the boundary — mutations call this.

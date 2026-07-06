@@ -125,27 +125,45 @@ const TRANSACTIONS: SeedTransaction[] = [
   { _id: "t55", categoryId: "rsu", amount: 12500, date: "2026-06-15", vendor: "Morgan Stanley", note: "Q2 vest" },
 ];
 
-let seedPromise: Promise<void> | undefined;
+// Keyed by householdId so each household's demo seed runs at most once per
+// process. In v1 there is exactly one household, but keying (rather than a lone
+// module promise) keeps the "seeded once" invariant correct if a second one
+// ever signs in, and lets a post-reset reseed for a different household proceed.
+const seedPromises = new Map<string, Promise<void>>();
 
-export function ensureSeeded(): Promise<void> {
-  if (!seedPromise) {
-    seedPromise = doSeed().catch((err) => {
-      seedPromise = undefined;
+/**
+ * Seed the demo data for `householdId`, once per process per household.
+ *
+ * Takes the household id explicitly (rather than resolving the session here)
+ * for two reasons: it mirrors `runBackfill`, the other bootstrap-adjacent write
+ * path, which is also handed its household id; and it keeps this module — whose
+ * pure `resolveSeedAction` is unit-tested — free of the Clerk/`server-only`
+ * import chain the session boundary carries. Callers resolve `requireHouseholdId`
+ * (they run inside the session-gated app shell) and pass it in.
+ */
+export function ensureSeeded(householdId: string): Promise<void> {
+  let promise = seedPromises.get(householdId);
+  if (!promise) {
+    promise = doSeed(householdId).catch((err) => {
+      seedPromises.delete(householdId);
       throw err;
     });
+    seedPromises.set(householdId, promise);
   }
-  return seedPromise;
+  return promise;
 }
 
-async function doSeed(): Promise<void> {
+async function doSeed(householdId: string): Promise<void> {
   const db = await getDb();
 
   const now = new Date();
   const [disabledCount, categoryCount] = await Promise.all([
     db
       .collection<MetaDocument>(COLLECTIONS.meta)
-      .countDocuments({ _id: AUTO_SEED_DISABLED_ID }, { limit: 1 }),
-    db.collection(COLLECTIONS.categories).countDocuments({}, { limit: 1 }),
+      .countDocuments({ _id: AUTO_SEED_DISABLED_ID, householdId }, { limit: 1 }),
+    db
+      .collection(COLLECTIONS.categories)
+      .countDocuments({ householdId }, { limit: 1 }),
   ]);
 
   const action = resolveSeedAction({
@@ -155,15 +173,15 @@ async function doSeed(): Promise<void> {
 
   switch (action) {
     case "seed":
-      await seedCategories(db, now);
-      await seedTargets(db, now);
-      await seedTransactions(db, now);
+      await seedCategories(db, householdId, now);
+      await seedTargets(db, householdId, now);
+      await seedTransactions(db, householdId, now);
       return;
     case "backfill":
       // DB already populated — backfill any categories added since this DB was
       // first seeded (e.g. the income source introduced in chunk 6). Keyed on
       // `_id`, so a user-renamed seed category isn't re-inserted.
-      await backfillMissingCategories(db, now);
+      await backfillMissingCategories(db, householdId, now);
       return;
     case "skip":
       // Explicitly cleared via the danger zone — respect the empty slate.
@@ -173,9 +191,16 @@ async function doSeed(): Promise<void> {
 
 // Omit optional fields when absent so Mongo doesn't persist `null` (mirrors
 // createCategory's null-avoidance, which the readers in mappers.ts rely on).
-function buildCategoryDoc(c: SeedCategory, now: Date): CategoryDocument {
+// Every doc is stamped with the seeding household so chunk 4's household-scoped
+// reads surface the demo data (a fresh install looks unchanged for the owner).
+function buildCategoryDoc(
+  c: SeedCategory,
+  householdId: string,
+  now: Date,
+): CategoryDocument {
   return {
     _id: c._id,
+    householdId,
     name: c.name,
     emoji: c.emoji,
     kind: c.kind,
@@ -192,11 +217,13 @@ function buildCategoryDoc(c: SeedCategory, now: Date): CategoryDocument {
 // One-time income sources have no baseline, so they get no target row.
 function buildTargetDoc(
   c: SeedCategory,
+  householdId: string,
   now: Date,
 ): CategoryTargetDocument | undefined {
   if (c.initialMonthly === undefined) return undefined;
   return {
     _id: `${c._id}:${c.activeFrom}`,
+    householdId,
     categoryId: c._id,
     monthly: c.initialMonthly,
     effectiveFrom: c.activeFrom,
@@ -204,12 +231,19 @@ function buildTargetDoc(
   };
 }
 
-async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
+async function backfillMissingCategories(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
   const existingIds = new Set(
     (
       await db
         .collection<CategoryDocument>(COLLECTIONS.categories)
-        .find({ _id: { $in: CATEGORIES.map((c) => c._id) } }, { projection: { _id: 1 } })
+        .find(
+          { _id: { $in: CATEGORIES.map((c) => c._id) }, householdId },
+          { projection: { _id: 1 } },
+        )
         .toArray()
     ).map((d) => d._id),
   );
@@ -218,10 +252,10 @@ async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
 
   await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .insertMany(missing.map((c) => buildCategoryDoc(c, now)));
+    .insertMany(missing.map((c) => buildCategoryDoc(c, householdId, now)));
 
   const targetDocs = missing
-    .map((c) => buildTargetDoc(c, now))
+    .map((c) => buildTargetDoc(c, householdId, now))
     .filter((d): d is CategoryTargetDocument => d !== undefined);
   // A backfill of only one-time sources yields no targets — insertMany([]) throws.
   if (targetDocs.length > 0) {
@@ -231,14 +265,22 @@ async function backfillMissingCategories(db: Db, now: Date): Promise<void> {
   }
 }
 
-async function seedCategories(db: Db, now: Date): Promise<void> {
+async function seedCategories(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
   await db
     .collection<CategoryDocument>(COLLECTIONS.categories)
-    .insertMany(CATEGORIES.map((c) => buildCategoryDoc(c, now)));
+    .insertMany(CATEGORIES.map((c) => buildCategoryDoc(c, householdId, now)));
 }
 
-async function seedTargets(db: Db, now: Date): Promise<void> {
-  const docs = CATEGORIES.map((c) => buildTargetDoc(c, now)).filter(
+async function seedTargets(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
+  const docs = CATEGORIES.map((c) => buildTargetDoc(c, householdId, now)).filter(
     (d): d is CategoryTargetDocument => d !== undefined,
   );
   await db
@@ -246,9 +288,14 @@ async function seedTargets(db: Db, now: Date): Promise<void> {
     .insertMany(docs);
 }
 
-async function seedTransactions(db: Db, now: Date): Promise<void> {
+async function seedTransactions(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
   const docs: TransactionDocument[] = TRANSACTIONS.map((t) => ({
     ...t,
+    householdId,
     createdAt: now,
   }));
   await db

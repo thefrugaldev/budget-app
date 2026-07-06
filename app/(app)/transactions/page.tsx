@@ -9,6 +9,7 @@ import {
   resolveRange,
 } from "@/lib/budget";
 import type { RangePreset } from "@/types/range";
+import { requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listAllTransactions } from "@/lib/repositories/transactions";
@@ -32,7 +33,7 @@ export default async function TransactionsPage({
   searchParams: Promise<{ range?: string | string[] }>;
 }) {
   const { range: rangeParam } = await searchParams;
-  await ensureSeeded();
+  await ensureSeeded(await requireHouseholdId());
   const [categories, transactions] = await Promise.all([
     listCategories(),
     listAllTransactions(),

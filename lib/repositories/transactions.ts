@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 
+import { requireHouseholdId } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import { monthDateRange } from "@/lib/db/dates";
@@ -14,10 +15,12 @@ export async function createTransaction(input: {
   vendor?: string;
   note?: string;
 }): Promise<Transaction> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
 
   const doc: TransactionDocument = {
     _id: randomUUID(),
+    householdId,
     categoryId: input.categoryId,
     amount: input.amount,
     date: input.date,
@@ -55,18 +58,20 @@ export async function updateTransaction(
   }
   if (Object.keys(set).length === 0) return false;
 
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const result = await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .updateOne({ _id: id }, { $set: set });
+    .updateOne({ _id: id, householdId }, { $set: set });
   return result.matchedCount > 0;
 }
 
 export async function deleteTransaction(id: string): Promise<boolean> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const result = await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .deleteOne({ _id: id });
+    .deleteOne({ _id: id, householdId });
   return result.deletedCount > 0;
 }
 
@@ -75,10 +80,11 @@ export async function deleteTransaction(id: string): Promise<boolean> {
 // confirm how many of the requested ids existed. An empty id list is a no-op.
 export async function deleteManyTransactions(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const result = await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .deleteMany({ _id: { $in: ids } });
+    .deleteMany({ _id: { $in: ids }, householdId });
   return result.deletedCount;
 }
 
@@ -97,10 +103,11 @@ export async function updateManyTransactions(
   }
   if (Object.keys(set).length === 0) return 0;
 
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   const result = await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .updateMany({ _id: { $in: ids } }, { $set: set });
+    .updateMany({ _id: { $in: ids }, householdId }, { $set: set });
   return result.matchedCount;
 }
 
@@ -108,12 +115,13 @@ export async function listTransactionsForMonth(
   year: number,
   month: number,
 ): Promise<Transaction[]> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
 
   const { start, end } = monthDateRange(year, month);
   const docs = await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .find({ date: { $gte: start, $lte: end } })
+    .find({ householdId, date: { $gte: start, $lte: end } })
     .sort({ date: -1 })
     .toArray();
 
@@ -123,18 +131,20 @@ export async function listTransactionsForMonth(
 export async function countTransactionsForCategory(
   categoryId: string,
 ): Promise<number> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
   return db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .countDocuments({ categoryId });
+    .countDocuments({ categoryId, householdId });
 }
 
 export async function listAllTransactions(): Promise<Transaction[]> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
 
   const docs = await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
-    .find()
+    .find({ householdId })
     .sort({ date: -1 })
     .toArray();
 

@@ -1,3 +1,4 @@
+import { requireHouseholdId } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import { COLLECTIONS } from "@/lib/db/collections";
 import { monthDateRange } from "@/lib/db/dates";
@@ -15,13 +16,14 @@ export async function getMonthlySpendByCategory(
   year: number,
   month: number,
 ): Promise<MonthlySpendByCategory[]> {
+  const householdId = await requireHouseholdId();
   const db = await getDb();
 
   const { start, end } = monthDateRange(year, month);
   const rows = await db
     .collection(COLLECTIONS.transactions)
     .aggregate<SpendAggregateRow>([
-      { $match: { date: { $gte: start, $lte: end } } },
+      { $match: { householdId, date: { $gte: start, $lte: end } } },
       { $group: { _id: "$categoryId", total: { $sum: "$amount" } } },
       { $sort: { total: -1 } },
     ])
