@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { AuthorizationError, requireRole } from "@/lib/auth/require-role";
 import { resetAllData } from "@/lib/db/reset";
 
 /**
@@ -13,16 +14,21 @@ import { resetAllData } from "@/lib/db/reset";
  */
 export async function resetAllDataAction(): Promise<{ error: string | null }> {
   try {
+    // Danger zone is owner-only (#111 chunk 5); editors and viewers can't reset.
+    await requireRole("owner");
     await resetAllData();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/income");
     revalidatePath("/settings");
     return { error: null };
-  } catch {
-    // Deliberately generic: never surface an internal boundary string to the
+  } catch (err) {
+    // A permission denial carries intentional, safe-to-show copy — surface it
+    // so a non-owner gets the same clear reason the other actions give. Any
+    // other error stays generic: never leak an internal boundary string to the
     // dialog (e.g. requireHouseholdId's "No active household session" if the
     // session flips active→denied between render and this fire-and-forget call).
+    if (err instanceof AuthorizationError) return { error: err.message };
     return { error: "Reset failed" };
   }
 }

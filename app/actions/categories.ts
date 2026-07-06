@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { requireRole } from "@/lib/auth/require-role";
 import { currentMonthKey, nextMonth } from "@/lib/budget";
 import {
   createCategory,
@@ -63,6 +64,7 @@ export async function createCategoryAction(
   formData: FormData,
 ): Promise<CategoryActionState> {
   try {
+    await requireRole("editor");
     const name = requireString(formData.get("name"), "name");
     const icon = (formData.get("icon") as string | null)?.trim() || undefined;
     const kind = parseCategoryKind(formData.get("kind"));
@@ -100,6 +102,7 @@ export async function updateCategoryAction(
   formData: FormData,
 ): Promise<CategoryActionState> {
   try {
+    await requireRole("editor");
     const id = requireString(formData.get("id"), "id");
     const cat = await getCategoryById(id);
     if (!cat) throw new Error("Category not found");
@@ -157,6 +160,7 @@ export async function endCategoryAction(
   formData: FormData,
 ): Promise<CategoryActionState> {
   try {
+    await requireRole("editor");
     const id = requireString(formData.get("id"), "id");
     const cat = await getCategoryById(id);
     if (!cat) throw new Error("Category not found");
@@ -179,6 +183,7 @@ export async function reopenCategoryAction(
   formData: FormData,
 ): Promise<CategoryActionState> {
   try {
+    await requireRole("editor");
     const id = requireString(formData.get("id"), "id");
     const cat = await getCategoryById(id);
     if (!cat) throw new Error("Category not found");
@@ -208,6 +213,7 @@ export async function deleteCategoryAction(
 ): Promise<CategoryActionState> {
   let deleted = false;
   try {
+    await requireRole("editor");
     const id = requireString(formData.get("id"), "id");
     const cat = await getCategoryById(id);
     if (!cat) throw new Error("Category not found");
@@ -249,6 +255,7 @@ export async function upsertCategoryTargetAction(
   formData: FormData,
 ): Promise<CategoryActionState> {
   try {
+    await requireRole("editor");
     const categoryId = requireString(formData.get("categoryId"), "categoryId");
     const cat = await getCategoryById(categoryId);
     if (!cat) throw new Error("Category not found");
@@ -286,6 +293,7 @@ export async function deleteCategoryTargetAction(
   formData: FormData,
 ): Promise<CategoryActionState> {
   try {
+    await requireRole("editor");
     const categoryId = requireString(formData.get("categoryId"), "categoryId");
     const effectiveFrom = parseMonthKey(
       formData.get("effectiveFrom"),
