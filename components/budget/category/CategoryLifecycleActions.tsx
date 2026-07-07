@@ -13,6 +13,7 @@ import { DeleteCategoryDialog } from "@/components/budget/category/DeleteCategor
 import { EndCategoryDialog } from "@/components/budget/category/EndCategoryDialog";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { monthLabel } from "@/lib/budget";
 import type { Category } from "@/types/budget";
 
@@ -39,6 +40,7 @@ export function CategoryLifecycleActions({
   txCount: number;
   targetRowCount: number;
 }) {
+  const canEdit = useCanEdit();
   const [reopenState, reopenAction] = useActionState(
     reopenCategoryAction,
     CATEGORY_ACTION_INITIAL,
@@ -47,6 +49,10 @@ export function CategoryLifecycleActions({
 
   const [endOpen, setEndOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // The Edit sheet is unreachable for viewers (the pencil is hidden), but guard
+  // the status/lifecycle actions here too so they never render (#111 story 9).
+  if (!canEdit) return null;
 
   const showEnd = !isEnded;
   const showDelete = canHardDelete;

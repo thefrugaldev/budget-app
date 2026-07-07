@@ -7,6 +7,7 @@ import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { IncomeSourceCardActions } from "@/components/budget/income/IncomeSourceCardActions";
 import { IncomeSourceEditor } from "@/components/budget/income/IncomeSourceEditor";
 import { IncomeSourceStatusPill } from "@/components/budget/income/IncomeSourceStatusPill";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import {
   fmt,
   fmtExact,
@@ -94,7 +95,11 @@ export function IncomeSourceCard({
 
   const [editing, setEditing] = useState(false);
   const editTriggerRef = useRef<HTMLButtonElement>(null);
-  const canEdit = !isEnded;
+  const canEdit = useCanEdit();
+  // `isActive` gates on the source's lifecycle (not ended); `canEdit` is the
+  // role gate (consistent with every other surface). Both must hold to show the
+  // inline editor (#111 story 9).
+  const isActive = !isEnded;
 
   const closeEditor = () => {
     setEditing(false);
@@ -125,7 +130,7 @@ export function IncomeSourceCard({
             {summary}
           </p>
         </div>
-        {canEdit && !editing && (
+        {canEdit && isActive && !editing && (
           <button
             ref={editTriggerRef}
             type="button"
@@ -144,7 +149,7 @@ export function IncomeSourceCard({
           scheduledTarget={scheduledTarget}
         />
       </div>
-      {editing && canEdit && (
+      {editing && isActive && (
         <IncomeSourceEditor
           source={source}
           currentMonthly={currentMonthly}

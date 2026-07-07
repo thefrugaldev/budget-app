@@ -1,12 +1,22 @@
+"use client";
+
 import { Menu } from "@base-ui/react/menu";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 /**
  * Per-row overflow (`…`) menu with Edit / Delete (story 43). Always visible on
  * mobile/touch; on desktop the trigger stays hidden until the row is hovered
  * or something inside it gains focus, keeping the trailing column quiet.
+ *
+ * Hidden entirely for viewers (#111 story 9) — both its items mutate, so a
+ * read-only row simply has no trailing ⋯.
  */
 export function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const canEdit = useCanEdit();
+  if (!canEdit) return null;
+
   return (
     <Menu.Root>
       <Menu.Trigger

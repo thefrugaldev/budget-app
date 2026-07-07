@@ -6,6 +6,7 @@ import { CategoryPill } from "@/components/budget/category/CategoryPill";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { CheckboxCell } from "@/components/budget/transaction/CheckboxCell";
 import { RowMenu } from "@/components/budget/transaction/RowMenu";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import type { TransactionSelection } from "@/hooks/useTransactionSelection";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
@@ -37,6 +38,7 @@ export function Row({
 }) {
   // Detail rows share the page kind; global rows resolve their own from the
   // category map, and show a pill since the per-category context is gone.
+  const canEdit = useCanEdit();
   const cat = pageCategory ?? categoryById.get(t.categoryId);
   const kind = cat?.kind ?? "expense";
   const isInflow = kind !== "expense";
@@ -67,6 +69,8 @@ export function Row({
         if (e.key === " ") {
           // Space selects the focused row, entering selection mode first so
           // the checkboxes are visible (parallels the mobile long-press).
+          // Viewers can't select (nothing to do with a selection) — no-op.
+          if (!canEdit) return;
           e.preventDefault();
           selection.enterSelectionMode();
           selection.toggle(t.id);
@@ -78,6 +82,7 @@ export function Row({
       }}
       onPointerDown={(e) => {
         if (e.pointerType !== "touch") return;
+        if (!canEdit) return; // viewers don't enter selection mode
         cancelLongPress();
         longPressStart.current = { x: e.clientX, y: e.clientY };
         longPress.current = setTimeout(() => {

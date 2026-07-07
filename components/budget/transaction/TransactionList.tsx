@@ -21,6 +21,7 @@ import { DaySection } from "@/components/budget/transaction/DaySection";
 import { EditDialog } from "@/components/budget/transaction/EditDialog";
 import { FilterRow } from "@/components/budget/transaction/FilterRow";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { useNotify } from "@/hooks/useNotify";
 import { useTransactionSelection } from "@/hooks/useTransactionSelection";
 import { matchesTransactionFilter } from "@/lib/budget";
@@ -186,6 +187,9 @@ export function TransactionList({
   const [bulkPending, setBulkPending] = useState<PendingBulkDelete | null>(null);
   const notify = useNotify();
   const selection = useTransactionSelection();
+  // Viewers get a read-only list (#111 story 9): no Select/bulk affordances and
+  // no add jump. Row-level entry (long-press / Space) is gated in Row/StreakRow.
+  const canEdit = useCanEdit();
 
   // Global mode: no single page category, so every row looks up its own kind
   // and pill here. `pageIsInflow` only colours subtotals/totals green in
@@ -739,7 +743,7 @@ export function TransactionList({
               mobile / Space on a focused row) — checkboxes stay out of the
               default reading view until asked for. Kept available while in mode
               even if a filter empties the list, so there's always an exit. */}
-          {(filtered.length > 0 || selection.selectionMode) && (
+          {canEdit && (filtered.length > 0 || selection.selectionMode) && (
             <button
               type="button"
               onClick={() =>
@@ -785,7 +789,7 @@ export function TransactionList({
               {/* Detail mode offers a jump to the left-rail Add form; the
                   global list has no add affordance, so it just states the
                   empty range. */}
-              {category && !category.activeUntil && (
+              {canEdit && category && !category.activeUntil && (
                 <button
                   type="button"
                   onClick={focusAddTransactionForm}
@@ -851,7 +855,7 @@ export function TransactionList({
         </div>
       )}
 
-      {selection.count > 0 && (
+      {canEdit && selection.count > 0 && (
         <BulkActionBar
           count={selection.count}
           total={selectedTotalValue}

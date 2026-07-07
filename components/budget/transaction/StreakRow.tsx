@@ -6,6 +6,7 @@ import { useId } from "react";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { CheckboxCell } from "@/components/budget/transaction/CheckboxCell";
 import { Row } from "@/components/budget/transaction/Row";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import type { TransactionSelection } from "@/hooks/useTransactionSelection";
 import { fmtExact } from "@/lib/budget";
 import { areAllSelected, areSomeSelected } from "@/lib/transaction-selection";
@@ -52,6 +53,7 @@ export function StreakRow({
   onDelete: (t: Transaction) => void;
 }) {
   const panelId = useId();
+  const canEdit = useCanEdit();
   // A streak collapses by vendor alone, so on the global list it can span
   // categories — the header is a vendor aggregate with no single pill, and its
   // total nets across kinds (expense convention). Each underlying row still
@@ -96,6 +98,8 @@ export function StreakRow({
               // Cancel the <button>'s native Space activation (which would
               // toggle the disclosure) and toggle the selection instead —
               // entering selection mode first so the checkboxes are visible.
+              // Viewers can't select, so Space falls through to expand/collapse.
+              if (!canEdit) return;
               e.preventDefault();
               selection.enterSelectionMode();
               selection.setMany(ids, !allSel);
