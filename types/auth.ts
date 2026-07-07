@@ -54,6 +54,14 @@ export type Member = {
   role: Role;
 };
 
+/**
+ * A member joined to their user's verified email — the shape the owner's
+ * Members list renders (#111 chunk 6). Composed in the Settings loader from
+ * `listMembersByHousehold` + `listUsersByIds`; the email is display-only (role
+ * changes and removal key off `userId`, never the email).
+ */
+export type MemberWithEmail = Member & { email: string };
+
 /** Lifecycle of an Invite: `pending` until a matching sign-in consumes it. */
 export type InviteStatus = "pending" | "accepted";
 

@@ -7,6 +7,20 @@ import { toUser } from "@/lib/db/mappers";
 import type { User } from "@/types/auth";
 
 /**
+ * Refresh the stored verified email for an existing user (chunk 6). Called on
+ * re-admission when the current Clerk verified email differs from what we
+ * stored, so `User.email` stays the invariant it claims to be — the current
+ * verified email that Profile and the Members list display.
+ */
+export async function updateUserEmail(id: string, email: string): Promise<void> {
+  const db = await getDb();
+
+  await db
+    .collection<UserDocument>(COLLECTIONS.users)
+    .updateOne({ _id: id }, { $set: { email } });
+}
+
+/**
  * Resolve our stable User from the provider's session subject (Clerk's user id).
  * The Clerk boundary (chunk 3) calls this after verifying a session; a `null`
  * means this authenticated person has no User record yet (first sign-in).
@@ -20,6 +34,22 @@ export async function findUserByProviderSubject(
     .collection<UserDocument>(COLLECTIONS.users)
     .findOne({ providerSubjectId });
   return doc ? toUser(doc) : undefined;
+}
+
+/**
+ * Resolve several users by our stable id in one round-trip — the Members list
+ * (chunk 6) has member `userId`s and needs their emails to display. Order is not
+ * guaranteed; callers key by `id`. An id with no matching user is simply absent.
+ */
+export async function listUsersByIds(ids: string[]): Promise<User[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+
+  const docs = await db
+    .collection<UserDocument>(COLLECTIONS.users)
+    .find({ _id: { $in: ids } })
+    .toArray();
+  return docs.map(toUser);
 }
 
 /**

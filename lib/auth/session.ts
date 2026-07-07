@@ -3,11 +3,16 @@ import "server-only";
 import { cache } from "react";
 
 import { runBackfill } from "@/lib/db/backfill";
+import { isDuplicateKeyError } from "@/lib/db/errors";
 import { createHousehold, getHousehold } from "@/lib/repositories/households";
 import { consumeInvite, listInvitesByHousehold } from "@/lib/repositories/invites";
 import { createMember, findMemberByUserId } from "@/lib/repositories/members";
-import { createUser, findUserByProviderSubject } from "@/lib/repositories/users";
-import type { AuthzDecision, ResolvedSession, Role } from "@/types/auth";
+import {
+  createUser,
+  findUserByProviderSubject,
+  updateUserEmail,
+} from "@/lib/repositories/users";
+import type { AuthzDecision, ResolvedSession, Role, User } from "@/types/auth";
 
 import { authorizeSession } from "./authorize";
 import { getClerkSubjectId, getClerkVerifiedEmail } from "./clerk";
@@ -19,10 +24,13 @@ import { decideSignIn } from "./sign-in";
  * in React `cache()` so the layout, pages, and actions share one resolution —
  * and one lazy bootstrap — per request rather than re-hitting Clerk + Mongo.
  *
- * A returning member resolves by subject id (no Clerk API call). A never-seen
- * authenticated person runs the first-sign-in decision (ADR 0004): bootstrap
- * the household, join via a matching invite, or land on the private-app screen
- * with no residue created.
+ * A returning member (identity + membership) resolves by subject id alone — no
+ * Clerk API call. Everyone else runs the sign-in decision (ADR 0004): bootstrap
+ * the household, join via a matching pending invite, or land on the private-app
+ * screen with no residue. That "everyone else" includes a returning identity
+ * whose membership is gone (access was removed): a *fresh* pending invite can
+ * re-admit them, so removal isn't a permanent lockout of a known email — the
+ * owner can re-invite, and the same identity rejoins rather than being stranded.
  */
 export const getSession = cache(async (): Promise<ResolvedSession> => {
   const subjectId = await getClerkSubjectId();
@@ -31,16 +39,46 @@ export const getSession = cache(async (): Promise<ResolvedSession> => {
   const existing = await findUserByProviderSubject(subjectId);
   if (existing) {
     const membership = await findMemberByUserId(existing.id);
-    // A user record without a membership means their access was removed — deny
-    // rather than trust a dangling identity.
-    if (!membership) return { status: "denied" };
-    return { status: "active", user: existing, membership };
+    if (membership) return { status: "active", user: existing, membership };
+    // Existing identity, no membership: access was removed (or a prior join
+    // half-failed). Don't dead-end on `denied` — fall through to the sign-in
+    // decision so a new pending invite can re-admit them. `resolveSignIn` skips
+    // user creation since we already hold their record.
   }
 
-  return firstSignIn(subjectId);
+  return resolveSignIn(existing ?? null, subjectId);
 });
 
-async function firstSignIn(subjectId: string): Promise<ResolvedSession> {
+/**
+ * Return the `User` to admit: create one for a never-seen identity, or reuse the
+ * existing record on re-admission — refreshing its stored email first when the
+ * current verified email has drifted, so `User.email` stays the current verified
+ * email (the invariant Profile / the Members list rely on). Exported-adjacent
+ * (via `resolveSignIn`) so the create-vs-reuse branch is regression-tested.
+ */
+async function ensureUser(
+  existing: User | null,
+  email: string,
+  subjectId: string,
+): Promise<User> {
+  if (!existing) return createUser({ email, providerSubjectId: subjectId });
+  if (existing.email !== email) {
+    await updateUserEmail(existing.id, email);
+    return { ...existing, email };
+  }
+  return existing;
+}
+
+/**
+ * Resolve a session for someone without an active membership (see `getSession`).
+ * Exported for orchestration tests — the create-vs-reuse-identity branch that
+ * makes re-admission work (and not dup-key) is load-bearing per ADR 0004, so it
+ * shouldn't rest on the pure `decideSignIn` tests alone.
+ */
+export async function resolveSignIn(
+  existing: User | null,
+  subjectId: string,
+): Promise<ResolvedSession> {
   const email = await getClerkVerifiedEmail();
   // No verified email means we can neither match an invite nor own a household.
   if (!email) return { status: "denied" };
@@ -60,7 +98,7 @@ async function firstSignIn(subjectId: string): Promise<ResolvedSession> {
         // Deny by default: no user record is created for an uninvited sign-in.
         return { status: "denied" };
       case "bootstrap": {
-        const user = await createUser({ email, providerSubjectId: subjectId });
+        const user = await ensureUser(existing, email, subjectId);
         const created = await createHousehold();
         const membership = await createMember({
           householdId: created.id,
@@ -72,7 +110,7 @@ async function firstSignIn(subjectId: string): Promise<ResolvedSession> {
         return { status: "active", user, membership };
       }
       case "join": {
-        const user = await createUser({ email, providerSubjectId: subjectId });
+        const user = await ensureUser(existing, email, subjectId);
         const membership = await createMember({
           householdId: outcome.invite.householdId,
           userId: user.id,
@@ -87,9 +125,10 @@ async function firstSignIn(subjectId: string): Promise<ResolvedSession> {
         return { status: "denied" };
     }
   } catch (err) {
-    // A concurrent first sign-in for the same person (two tabs, an SSR retry)
-    // can lose the race on the unique providerSubjectId/userId indexes. Adopt
-    // the records the winner created rather than surfacing a duplicate-key 500.
+    // A concurrent sign-in for the same person (two tabs, an SSR retry) — first
+    // bootstrap/join or a re-join after removal — can lose the race on the
+    // unique providerSubjectId/userId indexes. Adopt the records the winner
+    // created rather than surfacing a duplicate-key 500.
     // (The narrower two-different-users double-bootstrap is a v1 edge — the
     // owner is a single known person; a households singleton index can harden
     // it later if it ever bites.)
@@ -99,14 +138,6 @@ async function firstSignIn(subjectId: string): Promise<ResolvedSession> {
     if (user && membership) return { status: "active", user, membership };
     return { status: "denied" };
   }
-}
-
-function isDuplicateKeyError(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as { code?: number }).code === 11000
-  );
 }
 
 /** The current user for an active session, else null. */
