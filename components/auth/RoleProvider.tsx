@@ -1,7 +1,6 @@
 "use client";
 
-import { createContext } from "react";
-
+import { RoleContext } from "@/hooks/roleContext";
 import type { Role } from "@/types/auth";
 
 /**
@@ -11,8 +10,6 @@ import type { Role } from "@/types/auth";
  * session; consumed via `useCanEdit`. This is a UI convenience only — never the
  * security boundary: every mutation is still gated server-side by `requireRole`.
  */
-export const RoleContext = createContext<Role | null>(null);
-
 export function RoleProvider({
   role,
   children,

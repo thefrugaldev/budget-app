@@ -70,6 +70,7 @@ Established by #111 chunk 7. Two rules bind every new surface that mutates data:
 
 - **The server is the boundary; the UI only hides.** Every mutating server action calls `requireRole(...)` (`lib/auth/require-role.ts`) — that is what makes access real. Hiding a button is never the security check; it's UX, so a viewer isn't shown affordances that would only 403.
 - **Hide with `useCanEdit()`, absent not disabled.** Client components read `useCanEdit()` (`hooks/useCanEdit.ts`, fed by `RoleProvider` in the authenticated layout) and *omit* edit affordances for viewers — `return null` for a pure-affordance component, or drop the specific trigger in a mixed one. Never render a greyed-out/disabled control (story 9). A missing provider fails closed to read-only.
+- **Server components gate directly on the session.** A server component or loader that renders an owner/editor-only *section* branches inline on `getSession()`'s `membership.role` (e.g. the Settings page hides Members & Invites + the Danger zone for non-owners) — `useCanEdit()` is a client hook and can't run there. Same boundary either way; pick by where the code runs. The matrix's last two rows are server-gated; the rest are client-hidden.
 
 **Manual role-matrix check (run for any UI-touching PR that adds a mutating affordance).** As a **viewer**, none of these may appear; as **editor/owner** they do:
 

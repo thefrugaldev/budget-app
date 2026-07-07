@@ -95,10 +95,11 @@ export function IncomeSourceCard({
 
   const [editing, setEditing] = useState(false);
   const editTriggerRef = useRef<HTMLButtonElement>(null);
-  const mayEdit = useCanEdit();
-  // `canEdit` here means "this source is editable" (active, not ended); `mayEdit`
-  // is the role gate. Both must hold to show the inline editor (#111 story 9).
-  const canEdit = !isEnded;
+  const canEdit = useCanEdit();
+  // `isActive` gates on the source's lifecycle (not ended); `canEdit` is the
+  // role gate (consistent with every other surface). Both must hold to show the
+  // inline editor (#111 story 9).
+  const isActive = !isEnded;
 
   const closeEditor = () => {
     setEditing(false);
@@ -129,7 +130,7 @@ export function IncomeSourceCard({
             {summary}
           </p>
         </div>
-        {mayEdit && canEdit && !editing && (
+        {canEdit && isActive && !editing && (
           <button
             ref={editTriggerRef}
             type="button"
@@ -148,7 +149,7 @@ export function IncomeSourceCard({
           scheduledTarget={scheduledTarget}
         />
       </div>
-      {editing && canEdit && (
+      {editing && isActive && (
         <IncomeSourceEditor
           source={source}
           currentMonthly={currentMonthly}
