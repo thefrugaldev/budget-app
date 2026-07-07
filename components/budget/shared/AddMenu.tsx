@@ -7,6 +7,7 @@ import { useState } from "react";
 import { AddCategoryDialog } from "@/components/budget/category/AddCategoryDialog";
 import { AddIncomeSourceDialog } from "@/components/budget/income/AddIncomeSourceDialog";
 import { AddTransactionDialog } from "@/components/budget/shared/AddTransactionDialog";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import type { Category, Transaction } from "@/types/budget";
 
 type Sheet = "transaction" | "category" | "income" | null;
@@ -32,6 +33,11 @@ export function AddMenu({
   transactions: Transaction[];
 }) {
   const [sheet, setSheet] = useState<Sheet>(null);
+  const canEdit = useCanEdit();
+
+  // Every entry here mutates data (create transaction/category/income), so the
+  // whole FAB is hidden for viewers — nothing left to add (#111 story 9).
+  if (!canEdit) return null;
 
   return (
     <>

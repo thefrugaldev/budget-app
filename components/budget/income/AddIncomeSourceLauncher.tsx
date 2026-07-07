@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import { AddIncomeSourceDialog } from "@/components/budget/income/AddIncomeSourceDialog";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,6 +25,12 @@ export function AddIncomeSourceLauncher({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const canEdit = useCanEdit();
+
+  // Both the header pill and the empty-state CTA route through here, so one
+  // guard hides income creation from viewers everywhere (#111 story 9).
+  if (!canEdit) return null;
+
   const styles =
     variant === "prominent"
       ? "inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -7,6 +7,7 @@ import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { IncomeSourceCardActions } from "@/components/budget/income/IncomeSourceCardActions";
 import { IncomeSourceEditor } from "@/components/budget/income/IncomeSourceEditor";
 import { IncomeSourceStatusPill } from "@/components/budget/income/IncomeSourceStatusPill";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import {
   fmt,
   fmtExact,
@@ -94,6 +95,9 @@ export function IncomeSourceCard({
 
   const [editing, setEditing] = useState(false);
   const editTriggerRef = useRef<HTMLButtonElement>(null);
+  const mayEdit = useCanEdit();
+  // `canEdit` here means "this source is editable" (active, not ended); `mayEdit`
+  // is the role gate. Both must hold to show the inline editor (#111 story 9).
   const canEdit = !isEnded;
 
   const closeEditor = () => {
@@ -125,7 +129,7 @@ export function IncomeSourceCard({
             {summary}
           </p>
         </div>
-        {canEdit && !editing && (
+        {mayEdit && canEdit && !editing && (
           <button
             ref={editTriggerRef}
             type="button"

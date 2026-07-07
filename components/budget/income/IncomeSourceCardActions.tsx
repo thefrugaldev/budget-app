@@ -15,6 +15,7 @@ import { DeleteCategoryDialog } from "@/components/budget/category/DeleteCategor
 import { EndCategoryDialog } from "@/components/budget/category/EndCategoryDialog";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import type { Category, CategoryTarget } from "@/types/budget";
 
 /**
@@ -56,6 +57,7 @@ export function IncomeSourceCardActions({
   /** Soonest future-effective target, when one exists. */
   scheduledTarget?: CategoryTarget;
 }) {
+  const canEdit = useCanEdit();
   const [endOpen, setEndOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -70,6 +72,9 @@ export function IncomeSourceCardActions({
     INCOME_ACTION_INITIAL,
   );
   useActionSuccessToast(cancelState, () => "Scheduled change cancelled");
+
+  // Viewers get no per-source lifecycle affordances (#111 story 9).
+  if (!canEdit) return null;
 
   const showEnd = !isEnded;
   const showReopen = isEnded;

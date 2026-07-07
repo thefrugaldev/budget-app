@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import { AddCategoryDialog } from "@/components/budget/category/AddCategoryDialog";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { cn } from "@/lib/utils";
 import type { CategoryKind } from "@/types/budget";
 
@@ -14,6 +15,12 @@ import type { CategoryKind } from "@/types/budget";
  */
 export function AddCategoryTile({ kind }: { kind: CategoryKind }) {
   const [open, setOpen] = useState(false);
+  const canEdit = useCanEdit();
+
+  // Viewers can't add categories, so the tile is absent rather than dangling a
+  // dead "+" at the end of the grid (#111 story 9).
+  if (!canEdit) return null;
+
   const label =
     kind === "expense"
       ? "Add expense category"

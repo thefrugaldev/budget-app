@@ -63,3 +63,24 @@ The app's identity is **Harvest** — a warm, no-gray palette organized around p
 - **Scope transitions; never `transition-all`.** Animate the properties that actually move (`transition-colors`, `transition-transform`). `transition-all` animates layout and color too, fighting the reduced-motion baseline and masking jank — `pnpm lint:design` rejects it.
 - **New surfaces extend the identity, they don't re-theme.** A new page/component should look designed by consuming the same tokens, type roles, chart primitives (`lib/charts`), and signal model — not by introducing its own colors or a one-off chart. When the identity genuinely needs to grow (a new token, a new chart primitive), add it to the shared home and note the decision in the ADR.
 <!-- END:design-accessibility-baseline -->
+
+# Authorization: viewer read-only (roles owner > editor > viewer)
+
+Established by #111 chunk 7. Two rules bind every new surface that mutates data:
+
+- **The server is the boundary; the UI only hides.** Every mutating server action calls `requireRole(...)` (`lib/auth/require-role.ts`) — that is what makes access real. Hiding a button is never the security check; it's UX, so a viewer isn't shown affordances that would only 403.
+- **Hide with `useCanEdit()`, absent not disabled.** Client components read `useCanEdit()` (`hooks/useCanEdit.ts`, fed by `RoleProvider` in the authenticated layout) and *omit* edit affordances for viewers — `return null` for a pure-affordance component, or drop the specific trigger in a mixed one. Never render a greyed-out/disabled control (story 9). A missing provider fails closed to read-only.
+
+**Manual role-matrix check (run for any UI-touching PR that adds a mutating affordance).** As a **viewer**, none of these may appear; as **editor/owner** they do:
+
+| Surface | Affordance hidden from viewers |
+| --- | --- |
+| Pulse / any page | Floating "+" Add menu; inline "+ Add category" tiles |
+| Transactions list | Row ⋯ (Edit/Delete); "Select" → bulk bar; long-press/Space selection; empty-state "Add a transaction" |
+| Category detail | Edit pencil; ⋯ lifecycle (End/Reopen/Delete); "Add transaction" card; Edit sheet (targets) |
+| Income | Add-source button (header + empty state); per-card Edit pencil; ⋯ (End/Cancel/Reopen/Delete) |
+| Settings | Ended-category "Reopen"; Members & Invites + Danger zone (owner-only, server-gated in the page) |
+
+Read surfaces (viewing data, CSV export, theme, sign-out) stay available to everyone.
+
+**Carry-forward (surfaces not built yet):** when the FIRE assumptions UI lands (#110), viewers keep the knobs *interactive* but the **Save** affordance is hidden and persistence is server-rejected (story 10); when the net-worth **check-in** mode lands (#109), it's hidden for viewers. Both reuse `useCanEdit()`.

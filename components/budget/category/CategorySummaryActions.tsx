@@ -11,6 +11,7 @@ import {
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { DeleteCategoryDialog } from "@/components/budget/category/DeleteCategoryDialog";
 import { EndCategoryDialog } from "@/components/budget/category/EndCategoryDialog";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { useNotify } from "@/hooks/useNotify";
 import type { Category } from "@/types/budget";
 
@@ -37,6 +38,7 @@ export function CategorySummaryActions({
   targetRowCount: number;
   onEdit?: () => void;
 }) {
+  const canEdit = useCanEdit();
   const [endOpen, setEndOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -64,6 +66,10 @@ export function CategorySummaryActions({
       notify.error("Could not reopen", reopenState.error);
     }
   }, [reopenState, notify, category.name]);
+
+  // Viewers see the card read-only — no edit pencil, no lifecycle overflow
+  // (#111 story 9). All hooks run first so their order is stable across renders.
+  if (!canEdit) return null;
 
   const isEnded = Boolean(category.activeUntil);
   const showEnd = !isEnded;

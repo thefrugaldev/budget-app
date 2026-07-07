@@ -11,6 +11,7 @@ import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/charts/ThresholdMeter";
 import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
 import { TransactionList } from "@/components/budget/transaction/TransactionList";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import {
   aggregateRange,
   currentMonthKey,
@@ -63,6 +64,7 @@ export function CategoryDetailBody({
 }) {
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+  const canEdit = useCanEdit();
 
   const visibleTxns = useMemo(() => {
     if (hiddenIds.length === 0) return transactions;
@@ -185,27 +187,30 @@ export function CategoryDetailBody({
           </div>
         </div>
 
-        <div
-          id="add-transaction"
-          className="rounded-2xl bg-card p-4 ring-1 ring-border scroll-mt-20 transition-[box-shadow,--tw-ring-color] duration-300"
-        >
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Add transaction
-          </h2>
-          {category.activeUntil ? (
-            <p className="text-xs text-muted-foreground">
-              This category is ended. Reopen via Edit to add transactions.
-            </p>
-          ) : (
-            <TransactionForm
-              categories={categories}
-              transactions={visibleTxns}
-              initialCategoryId={category.id}
-              compact
-            />
-          )}
-        </div>
-
+        {/* Adding transactions is an editor action — the whole card is absent
+            for viewers (#111 story 9), not a disabled shell. */}
+        {canEdit && (
+          <div
+            id="add-transaction"
+            className="rounded-2xl bg-card p-4 ring-1 ring-border scroll-mt-20 transition-[box-shadow,--tw-ring-color] duration-300"
+          >
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Add transaction
+            </h2>
+            {category.activeUntil ? (
+              <p className="text-xs text-muted-foreground">
+                This category is ended. Reopen via Edit to add transactions.
+              </p>
+            ) : (
+              <TransactionForm
+                categories={categories}
+                transactions={visibleTxns}
+                initialCategoryId={category.id}
+                compact
+              />
+            )}
+          </div>
+        )}
       </aside>
 
       <section>
@@ -220,14 +225,18 @@ export function CategoryDetailBody({
         />
       </section>
 
-      <CategoryEditSheet
-        category={category}
-        targets={targets}
-        txCount={txCountForCategory}
-        now={now}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
+      {/* Unreachable for viewers (the edit pencil is hidden), but gated too so
+          the sheet and its inline target editors never mount for them. */}
+      {canEdit && (
+        <CategoryEditSheet
+          category={category}
+          targets={targets}
+          txCount={txCountForCategory}
+          now={now}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
     </div>
   );
 }
