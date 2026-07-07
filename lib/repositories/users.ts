@@ -23,6 +23,22 @@ export async function findUserByProviderSubject(
 }
 
 /**
+ * Resolve several users by our stable id in one round-trip — the Members list
+ * (chunk 6) has member `userId`s and needs their emails to display. Order is not
+ * guaranteed; callers key by `id`. An id with no matching user is simply absent.
+ */
+export async function listUsersByIds(ids: string[]): Promise<User[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+
+  const docs = await db
+    .collection<UserDocument>(COLLECTIONS.users)
+    .find({ _id: { $in: ids } })
+    .toArray();
+  return docs.map(toUser);
+}
+
+/**
  * Create our User record for a freshly-authenticated person. Stores the verified
  * email and the provider link; `provider` is fixed to `"clerk"` at v1 (ADR 0004
  * — adding a provider is a later, explicit change, not a silent widening).

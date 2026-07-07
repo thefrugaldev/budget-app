@@ -86,6 +86,19 @@ function buildIndexes(db: Db): Promise<void> {
       .collection(COLLECTIONS.users)
       .createIndex({ providerSubjectId: 1 }, { unique: true }),
     db.collection(COLLECTIONS.members).createIndex({ userId: 1 }, { unique: true }),
+    // Per-household member listing for the owner's Members panel (#111 chunk 6).
+    db.collection(COLLECTIONS.members).createIndex({ householdId: 1 }),
     db.collection(COLLECTIONS.invites).createIndex({ householdId: 1 }),
+    // At most one *pending* invite per (household, email) — the owner UI checks
+    // first, this is the race backstop (#111 chunk 6). Partial so accepted
+    // invites (history) don't collide and a re-invite after acceptance is fine.
+    // Emails are stored normalized (see `parseInviteEmail`), so the equality the
+    // index dedupes on is the same one `matchInvite` compares.
+    db
+      .collection(COLLECTIONS.invites)
+      .createIndex(
+        { householdId: 1, email: 1 },
+        { unique: true, partialFilterExpression: { status: "pending" } },
+      ),
   ]).then(() => undefined);
 }
