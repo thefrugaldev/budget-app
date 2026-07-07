@@ -7,7 +7,11 @@ import { isDuplicateKeyError } from "@/lib/db/errors";
 import { createHousehold, getHousehold } from "@/lib/repositories/households";
 import { consumeInvite, listInvitesByHousehold } from "@/lib/repositories/invites";
 import { createMember, findMemberByUserId } from "@/lib/repositories/members";
-import { createUser, findUserByProviderSubject } from "@/lib/repositories/users";
+import {
+  createUser,
+  findUserByProviderSubject,
+  updateUserEmail,
+} from "@/lib/repositories/users";
 import type { AuthzDecision, ResolvedSession, Role, User } from "@/types/auth";
 
 import { authorizeSession } from "./authorize";
@@ -46,14 +50,32 @@ export const getSession = cache(async (): Promise<ResolvedSession> => {
 });
 
 /**
- * Resolve a session for someone without an active membership: a never-seen user
- * or a returning identity whose membership was removed. Runs the pure
- * `decideSignIn` gate, then performs its side effects — creating the `User`
- * record only when we don't already have one (`existing`), so re-admitting a
- * removed member reuses their identity instead of colliding on the unique
- * providerSubjectId index.
+ * Return the `User` to admit: create one for a never-seen identity, or reuse the
+ * existing record on re-admission — refreshing its stored email first when the
+ * current verified email has drifted, so `User.email` stays the current verified
+ * email (the invariant Profile / the Members list rely on). Exported-adjacent
+ * (via `resolveSignIn`) so the create-vs-reuse branch is regression-tested.
  */
-async function resolveSignIn(
+async function ensureUser(
+  existing: User | null,
+  email: string,
+  subjectId: string,
+): Promise<User> {
+  if (!existing) return createUser({ email, providerSubjectId: subjectId });
+  if (existing.email !== email) {
+    await updateUserEmail(existing.id, email);
+    return { ...existing, email };
+  }
+  return existing;
+}
+
+/**
+ * Resolve a session for someone without an active membership (see `getSession`).
+ * Exported for orchestration tests — the create-vs-reuse-identity branch that
+ * makes re-admission work (and not dup-key) is load-bearing per ADR 0004, so it
+ * shouldn't rest on the pure `decideSignIn` tests alone.
+ */
+export async function resolveSignIn(
   existing: User | null,
   subjectId: string,
 ): Promise<ResolvedSession> {
@@ -76,8 +98,7 @@ async function resolveSignIn(
         // Deny by default: no user record is created for an uninvited sign-in.
         return { status: "denied" };
       case "bootstrap": {
-        const user =
-          existing ?? (await createUser({ email, providerSubjectId: subjectId }));
+        const user = await ensureUser(existing, email, subjectId);
         const created = await createHousehold();
         const membership = await createMember({
           householdId: created.id,
@@ -89,8 +110,7 @@ async function resolveSignIn(
         return { status: "active", user, membership };
       }
       case "join": {
-        const user =
-          existing ?? (await createUser({ email, providerSubjectId: subjectId }));
+        const user = await ensureUser(existing, email, subjectId);
         const membership = await createMember({
           householdId: outcome.invite.householdId,
           userId: user.id,
