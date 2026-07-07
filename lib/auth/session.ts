@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { runBackfill } from "@/lib/db/backfill";
+import { isDuplicateKeyError } from "@/lib/db/errors";
 import { createHousehold, getHousehold } from "@/lib/repositories/households";
 import { consumeInvite, listInvitesByHousehold } from "@/lib/repositories/invites";
 import { createMember, findMemberByUserId } from "@/lib/repositories/members";
@@ -99,14 +100,6 @@ async function firstSignIn(subjectId: string): Promise<ResolvedSession> {
     if (user && membership) return { status: "active", user, membership };
     return { status: "denied" };
   }
-}
-
-function isDuplicateKeyError(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as { code?: number }).code === 11000
-  );
 }
 
 /** The current user for an active session, else null. */

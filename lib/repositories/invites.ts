@@ -48,11 +48,15 @@ export async function createInvite(input: {
 }
 
 /**
- * Revoke a pending invite (owner action, chunk 6). Scoped to `(id, householdId)`
- * so an owner can only ever revoke an invite of their own household. Returns
- * whether a row was deleted — a no-op (already accepted, already revoked, or a
- * stale UI id) returns false so the action can stay idempotent without lying
- * about having removed something.
+ * Revoke a *pending* invite (owner action, chunk 6). Scoped to `(id,
+ * householdId)` so an owner can only ever revoke an invite of their own
+ * household, and filtered to `status: "pending"` so an already-accepted invite
+ * is never deletable: if a matching sign-in consumed the invite between the
+ * owner's stale render and their Revoke click, this no-ops rather than erasing
+ * the `accepted` record (the only persistent link, with `acceptedAt`, between
+ * the invite and the resulting membership). Returns whether a row was deleted —
+ * a no-op (already accepted, already revoked, or a stale UI id) returns false,
+ * so the action stays idempotent without lying about having removed something.
  */
 export async function deleteInvite(
   householdId: string,
@@ -62,7 +66,7 @@ export async function deleteInvite(
 
   const result = await db
     .collection<InviteDocument>(COLLECTIONS.invites)
-    .deleteOne({ _id: id, householdId });
+    .deleteOne({ _id: id, householdId, status: "pending" });
   return result.deletedCount > 0;
 }
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { normalizeEmail } from "@/lib/auth";
 import { requireRole } from "@/lib/auth/require-role";
+import { isDuplicateKeyError } from "@/lib/db/errors";
 import { requireHouseholdId } from "@/lib/auth/session";
 import {
   createInvite,
@@ -32,14 +33,6 @@ function success(prev: MemberActionState): MemberActionState {
 function failure(prev: MemberActionState, err: unknown): MemberActionState {
   const message = err instanceof Error ? err.message : "Something went wrong";
   return { error: message, ok: prev.ok };
-}
-
-function isDuplicateKeyError(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as { code?: number }).code === 11000
-  );
 }
 
 /**
