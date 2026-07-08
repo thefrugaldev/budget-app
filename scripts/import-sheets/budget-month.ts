@@ -19,6 +19,19 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/**
+ * Guard a 1–12 month. `parseCommentLine` already gates its own output, but this
+ * module's functions are exported and called directly (chunk 2's extract, test
+ * harnesses); an out-of-range month would otherwise be silently normalized by
+ * `Date.UTC` (month 13 → January of the next year), so we fail loudly instead —
+ * matching the posture in `money.ts`.
+ */
+function assertMonth(month: number, label: string): void {
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error(`${label} must be an integer 1–12, got ${month}`);
+  }
+}
+
 export type BudgetMonthDate = {
   /** ISO date, "YYYY-MM-DD", in the budget month. */
   date: string;
@@ -43,6 +56,8 @@ export function toBudgetMonthDate(input: {
   commentDay: number;
 }): BudgetMonthDate {
   const { budgetYear, budgetMonth, commentMonth, commentDay } = input;
+  assertMonth(budgetMonth, "budgetMonth");
+  assertMonth(commentMonth, "commentMonth");
 
   const maxDay = daysInMonth(budgetYear, budgetMonth);
   const clampedDay = Math.min(Math.max(commentDay, 1), maxDay);

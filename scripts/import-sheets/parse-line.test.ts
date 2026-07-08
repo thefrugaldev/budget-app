@@ -74,6 +74,13 @@ describe("parseCommentLine — refunds (negative, minus inside parens)", () => {
   it("parses a whole-dollar refund", () => {
     expect(tx("5/9 - (-$40) (Target)").amountCents).toBe(-4000);
   });
+
+  it("rejects an unbalanced refund wrapper rather than mis-signing", () => {
+    // `(-` without its close, and a stray `)` without an open, must not parse:
+    // the wrapper is all-or-nothing.
+    expect(parseCommentLine("5/9 - (-$40 (Target)").kind).toBe("unparsed");
+    expect(parseCommentLine("5/9 - $40) (Target)").kind).toBe("unparsed");
+  });
 });
 
 describe("parseCommentLine — non-transaction lines", () => {
@@ -95,5 +102,9 @@ describe("parseCommentLine — non-transaction lines", () => {
 
   it("returns unparsed for an empty line", () => {
     expect(parseCommentLine("   ").kind).toBe("unparsed");
+  });
+
+  it("returns unparsed for unparenthesized trailing junk after the amount", () => {
+    expect(parseCommentLine("4/3 - $5.00 misc note").kind).toBe("unparsed");
   });
 });

@@ -34,15 +34,22 @@ export function parseCommentLine(raw: string): ParsedLine {
 
   const rest = dateMatch[3];
 
-  // Amount at the start of the remainder: optional `(-` refund wrapper, `$`,
-  // the magnitude, an optional closing `)` for the wrapper. Anything after is
-  // the vendor/note parens.
-  const amountMatch = /^(\(-\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)\s*(\))?\s*(.*)$/.exec(rest);
-  if (!amountMatch) return unparsed;
+  // The remainder is the amount followed by an optional `(Vendor - Note)` group
+  // and nothing else. Two anchored branches so the refund wrapper's `(-` and
+  // `)` are all-or-nothing: an unbalanced `(-$5.00` or `$5.00)` matches neither
+  // and falls to `unparsed` rather than silently mis-signing or swallowing junk.
+  const MAGNITUDE = String.raw`[\d,]+(?:\.\d{1,2})?`;
+  const PARENS = String.raw`(?:\s*\((.*)\))?`;
+  const negativeMatch = new RegExp(
+    `^\\(-\\s*\\$\\s*(${MAGNITUDE})\\s*\\)${PARENS}\\s*$`,
+  ).exec(rest);
+  const positiveMatch =
+    negativeMatch ?? new RegExp(`^\\$\\s*(${MAGNITUDE})${PARENS}\\s*$`).exec(rest);
+  if (!positiveMatch) return unparsed;
 
-  const negative = Boolean(amountMatch[1]);
-  const magnitude = amountMatch[2];
-  const leftover = amountMatch[4].trim();
+  const negative = negativeMatch !== null;
+  const magnitude = positiveMatch[1];
+  const parenBody = positiveMatch[2] ?? null;
 
   let amountCents: number;
   try {
@@ -52,25 +59,22 @@ export function parseCommentLine(raw: string): ParsedLine {
   }
   if (negative) amountCents = -amountCents;
 
-  const { vendor, note } = parseVendorNote(leftover);
+  const { vendor, note } = parseVendorNote(parenBody);
 
   return { kind: "transaction", month, day, amountCents, vendor, note };
 }
 
 /**
- * Split the trailing `(Vendor - Note)` region. The vendor and note divide on
- * the *first* ` - ` only, so a note may itself contain " - ". Un-parenthesized
- * trailing text is treated as the vendor (a lenient fallback for the rare line
- * missing its parens); an empty remainder yields two nulls.
+ * Split the `(Vendor - Note)` body (already unwrapped from its parens by the
+ * caller, or `null` when the line had none). The vendor and note divide on the
+ * *first* ` - ` only, so a note may itself contain " - "; an absent or empty
+ * body yields two nulls.
  */
-function parseVendorNote(leftover: string): {
+function parseVendorNote(body: string | null): {
   vendor: string | null;
   note: string | null;
 } {
-  if (leftover === "") return { vendor: null, note: null };
-
-  const paren = /^\((.*)\)$/.exec(leftover);
-  const inner = (paren ? paren[1] : leftover).trim();
+  const inner = body?.trim() ?? "";
   if (inner === "") return { vendor: null, note: null };
 
   const sep = inner.indexOf(" - ");

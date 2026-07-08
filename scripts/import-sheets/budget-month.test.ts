@@ -51,6 +51,25 @@ describe("toBudgetMonthDate", () => {
     ).toEqual({ date: "2023-02-28", coerced: true, paidNote: "(paid 1/31)" });
   });
 
+  it("throws loudly on an out-of-range month instead of normalizing silently", () => {
+    expect(() =>
+      toBudgetMonthDate({
+        budgetYear: 2023,
+        budgetMonth: 13,
+        commentMonth: 1,
+        commentDay: 1,
+      }),
+    ).toThrow(/budgetMonth/);
+    expect(() =>
+      toBudgetMonthDate({
+        budgetYear: 2023,
+        budgetMonth: 1,
+        commentMonth: 0,
+        commentDay: 1,
+      }),
+    ).toThrow(/commentMonth/);
+  });
+
   it("pads month and day to two digits", () => {
     expect(
       toBudgetMonthDate({
