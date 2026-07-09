@@ -14,7 +14,8 @@
     "lint:design": "node scripts/check-design-tokens.mjs",
     "test": "vitest",
     "seed:perf": "node --env-file=.env.local scripts/seed-perf-fixture.mjs",
-    "import:extract": "tsx scripts/import-sheets/extract.ts"
+    "import:extract": "tsx scripts/import-sheets/extract.ts",
+    "import:apply": "tsx scripts/import-sheets/apply.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -41,6 +42,7 @@
     "eslint-config-next": "16.2.7",
     "exceljs": "^4.4.0",
     "madge": "^8.0.0",
+    "mongodb-memory-server": "^11.2.0",
     "shadcn": "^4.10.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
