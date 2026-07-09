@@ -25,8 +25,13 @@ export function Checkbox({
   checked: boolean;
   indeterminate?: boolean;
   onCheckedChange: (checked: boolean) => void;
-  /** Accessible name — these boxes have no adjacent visible label text. */
-  label: string;
+  /**
+   * Accessible name, applied as `aria-label` — for boxes with no adjacent
+   * visible label text (e.g. the transaction-list selection boxes). Omit it
+   * when the checkbox is wrapped in a `<label>` whose visible text already names
+   * it, so the box isn't doubly labelled.
+   */
+  label?: string;
   tabIndex?: number;
   className?: string;
 }) {
