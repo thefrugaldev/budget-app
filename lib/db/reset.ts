@@ -8,14 +8,19 @@ import type {
   TransactionDocument,
 } from "./documents";
 import { scopedCollection } from "./household-scope";
+import { resetDeletionFilter } from "./reset-filter";
 import { autoSeedDisabledId } from "./seed";
 
 /**
- * Danger-zone reset (#81 story 9): permanently clears every user-data
- * collection (transactions, categories, and their target history) and records
- * the auto-seed-disabled marker so {@link ensureSeeded} never refills the
- * deliberately-emptied database on a later cold start. Leaves the app in a true
- * blank slate. Local data only — there is no remote/account state to touch yet.
+ * Danger-zone reset (#81 story 9): permanently clears user-data collections
+ * (transactions, categories, and their target history) and records the
+ * auto-seed-disabled marker so {@link ensureSeeded} never refills the
+ * deliberately-emptied database on a later cold start. Local data only — there
+ * is no remote/account state to touch yet.
+ *
+ * By default it spares imported archive history (#118 story 14): only
+ * hand-entered docs are removed. `includeImported: true` (the explicit UI
+ * opt-in) clears the imported docs too.
  *
  * The marker is written **first, on purpose**: MongoDB has no cross-collection
  * transaction guarantee here, so a delete could partially fail. By disabling
@@ -28,7 +33,11 @@ import { autoSeedDisabledId } from "./seed";
  *
  * NB: when a new user-data collection is added, clear it here too.
  */
-export async function resetAllData(): Promise<void> {
+export async function resetAllData(
+  options: { includeImported?: boolean } = {},
+): Promise<void> {
+  const includeImported = options.includeImported ?? false;
+
   // Needed for the marker's per-household `_id`; the scoped collections resolve
   // the same (cached) household internally for their own filters and stamps.
   const householdId = await requireHouseholdId();
@@ -50,10 +59,11 @@ export async function resetAllData(): Promise<void> {
     { upsert: true },
   );
 
-  // Only this household's data — the scoped deleteMany can't reach another's.
+  // Only this household's data — the scoped deleteMany can't reach another's —
+  // and, by default, only its non-imported docs (imported history is spared).
   await Promise.all([
-    transactions.deleteMany(),
-    categories.deleteMany(),
-    targets.deleteMany(),
+    transactions.deleteMany(resetDeletionFilter<TransactionDocument>(includeImported)),
+    categories.deleteMany(resetDeletionFilter<CategoryDocument>(includeImported)),
+    targets.deleteMany(resetDeletionFilter<CategoryTargetDocument>(includeImported)),
   ]);
 }
