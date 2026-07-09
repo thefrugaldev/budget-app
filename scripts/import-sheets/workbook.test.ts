@@ -35,8 +35,10 @@ describe("readWorkbook", () => {
       cell: "B2",
       balanceCents: 30000000,
     });
-    // The "Total Debts" column is excluded.
+    // Reading stops at "Total Debts", so neither it nor the "Equity" column
+    // to its right is treated as a liability.
     expect(wb.liabilities.every((l) => l.liability === "Mortgage")).toBe(true);
+    expect(wb.liabilities.some((l) => l.liability === "Equity")).toBe(false);
   });
 
   it("throws when there is no year-grid sheet", async () => {

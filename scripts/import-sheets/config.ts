@@ -103,8 +103,8 @@ function parseLineOverride(raw: unknown, path: string) {
       return {
         line,
         action: "set-date" as const,
-        month: asInt(o.month, `${path}.month`),
-        day: asInt(o.day, `${path}.day`),
+        month: asIntInRange(o.month, `${path}.month`, 1, 12),
+        day: asIntInRange(o.day, `${path}.day`, 1, 31),
         reason,
       };
     default:
@@ -196,6 +196,11 @@ function asNumber(v: unknown, path: string): number {
 function asInt(v: unknown, path: string): number {
   const n = asNumber(v, path);
   if (!Number.isInteger(n)) throw new Error(`${path} must be an integer`);
+  return n;
+}
+function asIntInRange(v: unknown, path: string, min: number, max: number): number {
+  const n = asInt(v, path);
+  if (n < min || n > max) throw new Error(`${path} must be an integer ${min}–${max}, got ${n}`);
   return n;
 }
 function asYearMonth(v: unknown, path: string): string {

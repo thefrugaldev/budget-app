@@ -1,3 +1,5 @@
+import { basename } from "node:path";
+
 import ExcelJS from "exceljs";
 
 /**
@@ -149,13 +151,19 @@ function parseEstimates(ws: ExcelJS.Worksheet | undefined): RawEstimateRow[] {
 function parseDebts(ws: ExcelJS.Worksheet | undefined): RawLiabilityCell[] {
   if (!ws) return [];
 
-  // Row 1: liability names across columns, stopping at a "Total …" column.
+  // Row 1: liability names across columns, stopping at the first "Total …"
+  // column — everything to its right (totals, equity, notes) is not a liability.
   const header = ws.getRow(1);
   const liabilityCols: { liability: string; col: number }[] = [];
+  let reachedTotal = false;
   header.eachCell((cell, col) => {
-    if (col === 1) return;
+    if (reachedTotal || col === 1) return;
     const name = cellString(cell);
-    if (name === "" || /^total/i.test(name)) return;
+    if (name === "") return;
+    if (/^total/i.test(name)) {
+      reachedTotal = true;
+      return;
+    }
     liabilityCols.push({ liability: name, col });
   });
 
@@ -215,9 +223,4 @@ function noteText(cell: ExcelJS.Cell): string | null {
   if (!texts) return null;
   const joined = texts.map((t) => t.text).join("").trim();
   return joined || null;
-}
-
-function basename(filePath: string): string {
-  const parts = filePath.split(/[\\/]/);
-  return parts[parts.length - 1];
 }

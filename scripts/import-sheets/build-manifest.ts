@@ -5,6 +5,7 @@ import { centsToDollars } from "./money";
 import { parseCommentLine } from "./parse-line";
 import { reconcileCell } from "./reconcile";
 import { buildReconciliationReport, buildVendorReport } from "./reports";
+import { compareStrings } from "./sort";
 import type {
   CellReconcileReport,
   ExtractResult,
@@ -102,7 +103,10 @@ function buildWorkbook(
 
   for (const est of wb.estimates) {
     const category = resolveCategory(est.label, mapping);
-    if (!category) continue; // Estimate tab also holds ignored income rows
+    // The Estimate tab's income rows are stale (ADR §6 uses W-2 config); skip
+    // unmapped rows and any income-kind row so an estimate target can't collide
+    // with the W-2 income baseline for the same category.
+    if (!category || category.kind === "income") continue;
     const ref = buildImportRef({ file: wb.file, sheet: "Estimate", cell: est.cell, line: 1 });
     estimateTargets.push({
       _id: hashImportRef(ref),
@@ -201,52 +205,42 @@ function emitExpenseCell(
   // any unreconciled cell, so we never persist a divergent one.
   if (verdict.status === "unreconciled") return;
 
-  // `#line` is the 1-based position among the cell's transaction lines — the
-  // same keying reconcileCell used for overrides and auto-flips, so they align.
-  const flipped = new Set(verdict.autoFlippedLines);
-  txLines.forEach((line, i) => {
-    const lineNo = i + 1;
-    const override = cellOverrides.find((o) => o.line === lineNo);
-    if (override?.action === "skip") return;
+  // Amounts come straight from reconcileCell's effectiveLines (overrides +
+  // accepted auto-flip already applied, skips removed) — the single source of
+  // truth, so the manifest can't diverge from the verdict. Only `set-date`
+  // (which doesn't affect the checksum, so reconcile ignores it) is applied
+  // here, with the same last-wins override precedence reconcile uses.
+  const overrideByLine = new Map<number, LineOverride>();
+  for (const o of cellOverrides) overrideByLine.set(o.line, o);
 
-    let amountCents = line.amountCents;
-    if (override?.action === "sign-flip") amountCents = -amountCents;
-    else if (override?.action === "set-amount") amountCents = override.amountCents;
-    if (flipped.has(lineNo)) amountCents = -amountCents;
-
-    const { month, day } = dateFor(line, override);
+  for (const eff of verdict.effectiveLines) {
+    const override = overrideByLine.get(eff.line);
+    const { month, day } =
+      override?.action === "set-date"
+        ? { month: override.month, day: override.day }
+        : { month: eff.month, day: eff.day };
     const coerced = toBudgetMonthDate({
       budgetYear: wb.year,
       budgetMonth: cell.month,
       commentMonth: month,
       commentDay: day,
     });
-    const vendor = rewriteVendor(line.vendor, mapping.vendorRewrites);
-    const note = appendPaidNote(line.note, coerced.paidNote);
+    const vendor = rewriteVendor(eff.vendor, mapping.vendorRewrites);
+    const note = appendPaidNote(eff.note, coerced.paidNote);
 
-    const ref = buildImportRef({ file: wb.file, sheet: wb.gridSheet, cell: cell.cell, line: lineNo });
+    const ref = buildImportRef({ file: wb.file, sheet: wb.gridSheet, cell: cell.cell, line: eff.line });
     out.push({
       _id: hashImportRef(ref),
       importRef: ref,
       categoryId: categoryId(category.canonicalName),
-      amount: centsToDollars(amountCents),
+      amount: centsToDollars(eff.amountCents),
       date: coerced.date,
       ...(vendor ? { vendor } : {}),
       ...(note ? { note } : {}),
     });
-    tallyVendor(vendorTally, vendor, amountCents);
+    tallyVendor(vendorTally, vendor, eff.amountCents);
     activity.mark(category.canonicalName, wb.year, cell.month);
-  });
-}
-
-function dateFor(
-  line: ParsedTransactionLine,
-  override: LineOverride | undefined,
-): { month: number; day: number } {
-  if (override?.action === "set-date") {
-    return { month: override.month, day: override.day };
   }
-  return { month: line.month, day: line.day };
 }
 
 function buildCategoriesManifest(
@@ -353,5 +347,5 @@ function round2(n: number): number {
 }
 
 function sortByRef<T extends { importRef: string }>(docs: T[]): T[] {
-  return [...docs].sort((a, b) => a.importRef.localeCompare(b.importRef));
+  return [...docs].sort((a, b) => compareStrings(a.importRef, b.importRef));
 }

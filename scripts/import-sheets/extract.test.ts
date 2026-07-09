@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -56,12 +56,16 @@ describe("runExtract", () => {
     expect(second).toBe(first);
   });
 
-  it("fails the reconciliation gate (exit 1) on an unbalanced cell", async () => {
+  it("fails the reconciliation gate (exit 1), writing reports but NOT manifests", async () => {
     const dir = await makeArchive({ includeUnreconciled: true });
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const code = await runExtract([dir]);
     expect(code).toBe(1);
     expect(stderr.mock.calls.join("")).toMatch(/reconciliation gate/);
+    // The diagnostic report is written; a partial manifest is NOT persisted.
+    expect(existsSync(join(dir, "import/reports/reconciliation.json"))).toBe(true);
+    expect(existsSync(join(dir, "import/manifest/2023.json"))).toBe(false);
+    expect(existsSync(join(dir, "import/manifest/categories.json"))).toBe(false);
   });
 
   it("warns when an Excel lock file is present", async () => {
@@ -75,5 +79,18 @@ describe("runExtract", () => {
   it("returns usage code 2 with no archive dir", async () => {
     vi.spyOn(process.stderr, "write").mockReturnValue(true);
     expect(await runExtract([])).toBe(2);
+  });
+
+  it("honors an explicit --out directory", async () => {
+    const dir = await makeArchive();
+    const out = mkdtempSync(join(tmpdir(), "out-"));
+    expect(await runExtract([dir, "--out", out])).toBe(0);
+    expect(existsSync(join(out, "manifest/2023.json"))).toBe(true);
+  });
+
+  it("throws on an unknown flag or a --out with no value", async () => {
+    const dir = await makeArchive();
+    await expect(runExtract([dir, "--bogus"])).rejects.toThrow();
+    await expect(runExtract([dir, "--out"])).rejects.toThrow();
   });
 });

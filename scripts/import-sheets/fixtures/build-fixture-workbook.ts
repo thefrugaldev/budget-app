@@ -44,11 +44,16 @@ export async function buildFixtureWorkbook(
   // ── DebtsEquity tab (transposed: months down, liabilities across) ──
   const debts = wb.addWorksheet("DebtsEquity");
   debts.getCell("B1").value = "Mortgage";
-  debts.getCell("C1").value = "Total Debts";
+  debts.getCell("C1").value = "Total Debts"; // reader stops here…
+  debts.getCell("D1").value = "Equity"; // …so this column is NOT a liability
   debts.getCell("A2").value = "January";
   debts.getCell("B2").value = 300000;
+  debts.getCell("C2").value = 300000;
+  debts.getCell("D2").value = 50000;
   debts.getCell("A3").value = "February";
   debts.getCell("B3").value = 299000;
+  debts.getCell("C3").value = 299000;
+  debts.getCell("D3").value = 55000;
 
   // ── Year grid ──
   const grid = wb.addWorksheet("2023");

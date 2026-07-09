@@ -71,6 +71,15 @@ describe("parseOverrides", () => {
       parseOverrides({ cells: { k: [{ line: 1, action: "explode", reason: "x" }] } }),
     ).toThrow(/action invalid/);
   });
+
+  it("range-checks a set-date month and day", () => {
+    expect(() =>
+      parseOverrides({ cells: { k: [{ line: 1, action: "set-date", month: 13, day: 1, reason: "x" }] } }),
+    ).toThrow(/month must be an integer 1–12/);
+    expect(() =>
+      parseOverrides({ cells: { k: [{ line: 1, action: "set-date", month: 1, day: 0, reason: "x" }] } }),
+    ).toThrow(/day must be an integer 1–31/);
+  });
 });
 
 describe("parseIncome", () => {

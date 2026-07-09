@@ -1,4 +1,4 @@
-import type { CategoryKind } from "@/types/budget";
+import type { CategoryKind, PayCadence } from "@/types/budget";
 
 /**
  * Internal types for the Excel-archive importer (issue #118 / ADR 0005).
@@ -64,6 +64,15 @@ export type LineOverride =
   | { line: number; action: "set-amount"; amountCents: number; reason: string }
   | { line: number; action: "set-date"; month: number; day: number; reason: string };
 
+/**
+ * A reconciled line paired with its 1-based source position within the cell —
+ * the `line` an override keys on and the `#line` of its importRef. Its
+ * `amountCents` is *final* (explicit overrides and any accepted auto-flip
+ * already applied), so document construction consumes these directly rather
+ * than re-deriving the amount (which risks diverging from the verdict).
+ */
+export type EffectiveLine = ParsedTransactionLine & { line: number };
+
 export type ReconcileStatus = "exact" | "reconciled-by-flip" | "unreconciled";
 
 /**
@@ -82,7 +91,10 @@ export type ReconcileResult = {
    * needs when a cell fails to reconcile. Zero on `exact`/`reconciled-by-flip`.
    */
   deltaCents: number;
-  effectiveLines: ParsedTransactionLine[];
+  /** Final lines (overrides + accepted auto-flip applied, skips removed), each
+   * carrying its source `line` index so callers emit documents without
+   * re-deriving amounts. */
+  effectiveLines: EffectiveLine[];
   /** 1-based line indices the keyword rule flipped to reach reconciliation. */
   autoFlippedLines: number[];
 };
@@ -153,7 +165,7 @@ export type IncomeSourceConfig = {
   canonicalName: string;
   /** Lucide icon name; validated against the app catalog at extract time. */
   icon: string;
-  payCadence: "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
+  payCadence: PayCadence;
   /** A known payday "YYYY-MM-DD" anchoring paycheck-aware YTD pro-ration. */
   firstPaycheckDate?: string;
   /** Annual gross by year, e.g. `{ "2023": 120000 }`. */

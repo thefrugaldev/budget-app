@@ -1,5 +1,15 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs as nodeParseArgs } from "node:util";
 
 import { buildExtract } from "./build-manifest";
 import { parseIncome, parseMapping, parseOverrides } from "./config";
@@ -53,7 +63,12 @@ export async function runExtract(argv: string[]): Promise<number> {
   );
 
   const result = buildExtract({ workbooks, mapping, overrides, income });
-  writeOutputs(outDir, result);
+
+  // Reports are the diagnostic and are always written. Manifests are written
+  // ONLY when the reconciliation gate passes — a failed run must never leave a
+  // partial manifest on disk (unreconciled cells emit no transactions), which a
+  // later step could mistake for the current, complete extract.
+  writeReports(outDir, result);
 
   const { reconciliation: recon } = result;
   process.stdout.write(
@@ -63,24 +78,29 @@ export async function runExtract(argv: string[]): Promise<number> {
   if (recon.unreconciled > 0) {
     process.stderr.write(
       `FAILED reconciliation gate: ${recon.unreconciled} cell(s) do not balance. ` +
-        `See ${join(outDir, "reports", "reconciliation.json")} (unreconciled listed first).\n`,
+        `No manifest written. See ${join(outDir, "reports", "reconciliation.json")} ` +
+        `(unreconciled listed first).\n`,
     );
     return 1;
   }
+
+  writeManifests(outDir, result);
   return 0;
 }
 
-function writeOutputs(outDir: string, result: ExtractResult): void {
+function writeManifests(outDir: string, result: ExtractResult): void {
   const manifestDir = join(outDir, "manifest");
-  const reportsDir = join(outDir, "reports");
   mkdirSync(manifestDir, { recursive: true });
-  mkdirSync(reportsDir, { recursive: true });
-
   writeJson(join(manifestDir, "categories.json"), result.categories);
   for (const wb of result.workbooks) {
     const year = wb.file.replace(/\.xlsx$/, "");
     writeJson(join(manifestDir, `${year}.json`), wb);
   }
+}
+
+function writeReports(outDir: string, result: ExtractResult): void {
+  const reportsDir = join(outDir, "reports");
+  mkdirSync(reportsDir, { recursive: true });
   writeJson(join(reportsDir, "reconciliation.json"), result.reconciliation);
   writeJson(join(reportsDir, "vendors.json"), result.vendors);
 }
@@ -103,8 +123,11 @@ function readJson(path: string, required: boolean): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+/** Write atomically (tmp + rename) so a crash mid-write can't truncate a file. */
 function writeJson(path: string, value: unknown): void {
-  writeFileSync(path, stableStringify(value) + "\n", "utf8");
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, stableStringify(value) + "\n", "utf8");
+  renameSync(tmp, path);
 }
 
 /**
@@ -127,18 +150,38 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
+/**
+ * Parse args via `node:util` in strict mode: an unknown flag or a `--out` with
+ * no value throws (rather than being silently ignored and clobbering the
+ * default output dir). The first positional is the archive directory.
+ */
 function parseArgs(argv: string[]): { archiveDir?: string; out?: string } {
-  const out: { archiveDir?: string; out?: string } = {};
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === "--out") out.out = argv[++i];
-    else if (!arg.startsWith("-") && !out.archiveDir) out.archiveDir = arg;
-  }
-  return out;
+  const { values, positionals } = nodeParseArgs({
+    args: argv,
+    options: { out: { type: "string" } },
+    allowPositionals: true,
+    strict: true,
+  });
+  return { archiveDir: positionals[0], out: values.out };
 }
 
-// Run when invoked directly (tsx scripts/import-sheets/extract.ts …).
-if (import.meta.url === `file://${process.argv[1]}`) {
+/**
+ * True when this file is the process entry point. Compares real paths on both
+ * sides so it holds up under symlinks and under paths with spaces/non-ASCII
+ * (where `import.meta.url` is percent-encoded and a raw `file://` + argv concat
+ * would never match).
+ */
+function isMainModule(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entry);
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule()) {
   runExtract(process.argv.slice(2))
     .then((code) => process.exit(code))
     .catch((err) => {

@@ -70,6 +70,27 @@ describe("buildExtract — transactions", () => {
     expect(cell.autoFlippedLines).toEqual([2]);
   });
 
+  it("applies a set-date override to the emitted transaction date", async () => {
+    const buf = await buildFixtureWorkbook();
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const result = buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      // Re-date the Safeway line (B2 line 2) to 1/15 without changing the sum.
+      overrides: {
+        cells: { "2023.xlsx!2023!B2": [{ line: 2, action: "set-date", month: 1, day: 15, reason: "fix" }] },
+        refundKeywords: ["refund"],
+      },
+      income: fixtureIncome,
+    });
+    const safeway = result.workbooks[0].transactions.find(
+      (t) => t.importRef === "2023.xlsx!2023!B2#2",
+    )!;
+    expect(safeway.date).toBe("2023-01-15");
+    // Sum is unchanged, so the cell still reconciles.
+    expect(result.reconciliation.unreconciled).toBe(0);
+  });
+
   it("emits a savings cell as a month-end monthly total", async () => {
     const { workbooks } = await extract();
     const brokerage = workbooks[0].transactions.find(

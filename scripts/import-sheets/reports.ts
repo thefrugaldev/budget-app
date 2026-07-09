@@ -3,6 +3,7 @@ import type {
   ReconciliationReport,
   VendorReport,
 } from "./manifest-types";
+import { compareStrings } from "./sort";
 
 /**
  * The two review artifacts extract emits alongside the manifests (story 11).
@@ -23,7 +24,7 @@ export function buildReconciliationReport(
   const rank = (s: string) =>
     s === "unreconciled" ? 0 : s === "reconciled-by-flip" ? 1 : 2;
   const sorted = [...cells].sort(
-    (a, b) => rank(a.status) - rank(b.status) || a.ref.localeCompare(b.ref),
+    (a, b) => rank(a.status) - rank(b.status) || compareStrings(a.ref, b.ref),
   );
   return {
     totalCells: cells.length,
@@ -45,6 +46,6 @@ export function buildVendorReport(
 ): VendorReport {
   const vendors = [...tally.entries()]
     .map(([vendor, v]) => ({ vendor, count: v.count, totalCents: v.totalCents }))
-    .sort((a, b) => b.count - a.count || a.vendor.localeCompare(b.vendor));
+    .sort((a, b) => b.count - a.count || compareStrings(a.vendor, b.vendor));
   return { vendors };
 }
