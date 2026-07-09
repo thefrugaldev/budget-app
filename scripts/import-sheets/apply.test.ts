@@ -89,9 +89,29 @@ describe("applyManifests — first apply", () => {
     expect(report.skippedLiabilitySnapshots).toBe(2);
   });
 
+  it("spares hand-entered (non-seed) data when wiping the seed", async () => {
+    // Seed doc (namespaced key) + a hand-entered transaction (UUID key, no ref).
+    await coll("categories").insertOne({ _id: `${HH}:groceries`, householdId: HH, name: "Groceries", kind: "expense", activeFrom: "2026-01", createdAt: NOW });
+    await coll("transactions").insertOne({ _id: "8f0e-uuid-manual", householdId: HH, categoryId: `${HH}:groceries`, amount: 12, date: "2026-07-01", createdAt: NOW });
+
+    const report = await apply({ firstApply: true });
+    expect(report.seedWiped).toBe(1); // only the namespaced seed category
+    // The hand-entered transaction survives.
+    expect(await coll("transactions").countDocuments({ _id: "8f0e-uuid-manual" })).toBe(1);
+  });
+
   it("refuses --first-apply once imported data exists", async () => {
     await apply({ firstApply: true });
     await expect(apply({ firstApply: true })).rejects.toThrow(/refused/);
+  });
+
+  it("dry-run + first-apply writes nothing (no wipe, no marker, no sync)", async () => {
+    await coll("categories").insertOne({ _id: `${HH}:groceries`, householdId: HH, name: "Groceries", kind: "expense", activeFrom: "2026-01", createdAt: NOW });
+    const report = await apply({ dryRun: true, firstApply: true });
+    expect(report.seedWiped).toBe(1); // projected count
+    expect(await coll("categories").countDocuments({ _id: `${HH}:groceries` })).toBe(1); // not wiped
+    expect(await coll("meta").countDocuments({ _id: `autoSeedDisabled:${HH}` })).toBe(0); // no marker
+    expect(await coll("transactions").countDocuments()).toBe(0); // nothing synced
   });
 });
 

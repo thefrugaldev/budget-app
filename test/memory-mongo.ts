@@ -21,7 +21,7 @@ export type MemoryMongo = {
   client: MongoClient;
   db: Db;
   uri: string;
-  /** Drop every collection — call between tests for isolation. */
+  /** Drop the database (docs AND indexes) — call between tests for full isolation. */
   reset: () => Promise<void>;
   /** Stop the client and the server. */
   stop: () => Promise<void>;
@@ -38,8 +38,9 @@ export async function startMemoryMongo(dbName = "budget-test"): Promise<MemoryMo
     db,
     uri,
     async reset() {
-      const collections = await db.collections();
-      await Promise.all(collections.map((c) => c.deleteMany({})));
+      // Drop the whole db, not just docs, so a test's custom indexes don't leak
+      // into siblings (matters now the harness is shared beyond the importer).
+      await db.dropDatabase();
     },
     async stop() {
       await client.close();

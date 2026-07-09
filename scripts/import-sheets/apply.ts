@@ -175,10 +175,16 @@ async function syncCollection<T extends ImportedDoc>(input: {
 }
 
 /**
- * First-prod-apply prep (story 15): remove the seed/demo data (any doc without
- * an `importRef`) and write the auto-seed-disabled marker so a cold start never
- * re-seeds. Refuses to run once imported data exists — `--first-apply` is for
- * the initial apply only; a later re-apply must not wipe hand-entered data.
+ * First-prod-apply prep (story 15): remove the seed/demo data and write the
+ * auto-seed-disabled marker so a cold start never re-seeds. Refuses to run once
+ * imported data exists — `--first-apply` is for the initial apply only.
+ *
+ * Seed docs are identified by their namespaced `_id` prefix (`<householdId>:…`,
+ * from `seedDocId`) — NOT by "lacks an importRef". That distinction matters:
+ * a hand-entered transaction added between bootstrap and import (a random-UUID
+ * `_id`, no `importRef`) must survive rather than be silently wiped. Only the
+ * demo seed carries the household-namespaced key.
+ *
  * Returns the number of seed docs removed (a projected count under `dryRun`).
  */
 async function wipeSeedAndDisableAutoSeed(input: {
@@ -208,11 +214,13 @@ async function wipeSeedAndDisableAutoSeed(input: {
     );
   }
 
-  const seedFilter = { householdId, importRef: { $exists: false } };
+  // Seed docs only: keys are `${householdId}:…`. An anchored `^`-prefix regex on
+  // `_id` uses the primary key index. Hand-entered docs (UUID keys) are spared.
+  const seedFilter = { householdId, _id: { $regex: `^${escapeRegExp(householdId)}:` } };
   let wiped = 0;
   for (const c of seedCollections) {
-    wiped += await db.collection(c).countDocuments(seedFilter);
-    if (!dryRun) await db.collection(c).deleteMany(seedFilter);
+    wiped += await db.collection<StringIdDoc>(c).countDocuments(seedFilter);
+    if (!dryRun) await db.collection<StringIdDoc>(c).deleteMany(seedFilter);
   }
 
   if (!dryRun) {
