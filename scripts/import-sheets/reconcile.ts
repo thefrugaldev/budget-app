@@ -116,7 +116,7 @@ function result(
     cellValueCents,
     sumCents,
     deltaCents,
-    effectiveLines: working.map((r) => r.line),
+    effectiveLines: working.map((r) => ({ ...r.line, line: r.index })),
     autoFlippedLines,
   };
 }
