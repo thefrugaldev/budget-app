@@ -3,15 +3,14 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  realpathSync,
   renameSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs as nodeParseArgs } from "node:util";
 
 import { buildExtract } from "./build-manifest";
+import { runCli } from "./cli";
 import { parseIncome, parseMapping, parseOverrides } from "./config";
 import { assertIconsResolve } from "./icon-validate";
 import { readWorkbook } from "./workbook";
@@ -165,27 +164,4 @@ function parseArgs(argv: string[]): { archiveDir?: string; out?: string } {
   return { archiveDir: positionals[0], out: values.out };
 }
 
-/**
- * True when this file is the process entry point. Compares real paths on both
- * sides so it holds up under symlinks and under paths with spaces/non-ASCII
- * (where `import.meta.url` is percent-encoded and a raw `file://` + argv concat
- * would never match).
- */
-function isMainModule(): boolean {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  try {
-    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entry);
-  } catch {
-    return false;
-  }
-}
-
-if (isMainModule()) {
-  runExtract(process.argv.slice(2))
-    .then((code) => process.exit(code))
-    .catch((err) => {
-      process.stderr.write(`extract error: ${err instanceof Error ? err.message : String(err)}\n`);
-      process.exit(1);
-    });
-}
+runCli(import.meta.url, "extract", () => runExtract(process.argv.slice(2)));

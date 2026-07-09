@@ -1,9 +1,7 @@
-import { realpathSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs as nodeParseArgs } from "node:util";
 
-import { MongoClient, type Db } from "mongodb";
+import { type Db } from "mongodb";
 
 import { monthTotalsByCategory, ytdTotalsByCategory } from "@/lib/budget/aggregate";
 import { COLLECTIONS } from "@/lib/db/collections";
@@ -11,6 +9,7 @@ import type { CategoryDocument, TransactionDocument } from "@/lib/db/documents";
 import { toCategory, toTransaction } from "@/lib/db/mappers";
 
 import { readManifests, resolveHouseholdId } from "./apply";
+import { connectMongo, runCli } from "./cli";
 import type { WorkbookManifest } from "./manifest-types";
 
 /**
@@ -69,8 +68,11 @@ export function expectedTotals(workbooks: WorkbookManifest[]): Expected {
 
   const add = (map: Map<string, number>, key: string, amount: number) =>
     map.set(key, (map.get(key) ?? 0) + amount);
-  const track = (map: Map<string, string[]>, key: string, ref: string) =>
-    map.set(key, [...(map.get(key) ?? []), ref]);
+  const track = (map: Map<string, string[]>, key: string, ref: string) => {
+    const refs = map.get(key);
+    if (refs) refs.push(ref);
+    else map.set(key, [ref]);
+  };
 
   for (const wb of workbooks) {
     for (const t of wb.transactions) {
@@ -109,15 +111,19 @@ export async function checkParity(input: {
   const expected = expectedTotals(workbooks);
   const mismatches: ParityMismatch[] = [];
 
+  // Pre-group the manifest's expected keys by period once (rather than scanning
+  // all keys per period), and let the period set fall out of the same grouping.
+  const monthlyByPeriod = groupByPeriod(expected.monthly);
+  const yearlyByPeriod = groupByPeriod(expected.yearly);
+
   // Monthly-spend parity: the app's per-month category totals vs manifest sums.
-  const months = new Set<string>();
-  for (const key of expected.monthly.keys()) months.add(key.split("|")[1]);
+  const months = new Set<string>(monthlyByPeriod.keys());
   for (const t of txns) months.add(t.date.slice(0, 7));
 
   let checkedCategoryMonths = 0;
   for (const ym of months) {
     const actual = monthTotalsByCategory(txns, cats, ym);
-    for (const categoryId of categoriesInPeriod(expected.monthly, actual, ym)) {
+    for (const categoryId of categoriesToCheck(monthlyByPeriod.get(ym), actual)) {
       const exp = expected.monthly.get(cellKey(categoryId, ym)) ?? 0;
       const act = actual.get(categoryId) ?? 0;
       checkedCategoryMonths++;
@@ -129,14 +135,13 @@ export async function checkParity(input: {
 
   // YTD parity: exercise the app's year-to-date aggregation at each year-end
   // (which sums that whole calendar year) against the manifest year sums.
-  const years = new Set<string>();
-  for (const key of expected.yearly.keys()) years.add(key.split("|")[1]);
+  const years = new Set<string>(yearlyByPeriod.keys());
   for (const t of txns) years.add(t.date.slice(0, 4));
 
   let checkedCategoryYears = 0;
   for (const year of years) {
     const actual = ytdTotalsByCategory(txns, cats, new Date(`${year}-12-31T00:00:00.000Z`));
-    for (const categoryId of categoriesInPeriod(expected.yearly, actual, year)) {
+    for (const categoryId of categoriesToCheck(yearlyByPeriod.get(year), actual)) {
       const exp = expected.yearly.get(cellKey(categoryId, year)) ?? 0;
       const act = actual.get(categoryId) ?? 0;
       checkedCategoryYears++;
@@ -149,18 +154,25 @@ export async function checkParity(input: {
   return { checkedCategoryMonths, checkedCategoryYears, mismatches };
 }
 
+/** `Map<period, Set<categoryId>>` from `${categoryId}|${period}` keys, in one pass. */
+function groupByPeriod(totals: Map<string, number>): Map<string, Set<string>> {
+  const byPeriod = new Map<string, Set<string>>();
+  for (const key of totals.keys()) {
+    const [categoryId, period] = key.split("|");
+    let set = byPeriod.get(period);
+    if (!set) byPeriod.set(period, (set = new Set()));
+    set.add(categoryId);
+  }
+  return byPeriod;
+}
+
 /** Category ids to check for a period: those the manifest expects, plus any the
  * DB aggregation produced a nonzero total for (to catch unexpected extras). */
-function categoriesInPeriod(
-  expectedForScope: Map<string, number>,
+function categoriesToCheck(
+  expectedIds: Set<string> | undefined,
   actual: Map<string, number>,
-  period: string,
 ): Set<string> {
-  const ids = new Set<string>();
-  for (const key of expectedForScope.keys()) {
-    const [categoryId, p] = key.split("|");
-    if (p === period) ids.add(categoryId);
-  }
+  const ids = new Set<string>(expectedIds ?? []);
   for (const [categoryId, total] of actual) if (cents(total) !== 0) ids.add(categoryId);
   return ids;
 }
@@ -196,18 +208,13 @@ export async function runParity(argv: string[]): Promise<number> {
     return 2;
   }
 
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error("Missing MONGODB_URI environment variable");
-  const dbName = args.db ?? process.env.MONGODB_DB_NAME ?? "budget";
-
   const { workbooks } = readManifests(join(archiveDir, "import", "manifest"));
 
-  const client = await new MongoClient(uri).connect();
+  const { client, db } = await connectMongo(args.db);
   try {
-    const db = client.db(dbName);
     const householdId = await resolveHouseholdId(db);
     const report = await checkParity({ db, householdId, workbooks });
-    process.stdout.write(formatReport(report, dbName));
+    process.stdout.write(formatReport(report, db.databaseName));
     return report.mismatches.length === 0 ? 0 : 1;
   } finally {
     await client.close();
@@ -249,21 +256,4 @@ function parseArgs(argv: string[]): { archiveDir?: string; db?: string } {
   return { archiveDir: positionals[0], db: values.db };
 }
 
-function isMainModule(): boolean {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  try {
-    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entry);
-  } catch {
-    return false;
-  }
-}
-
-if (isMainModule()) {
-  runParity(process.argv.slice(2))
-    .then((code) => process.exit(code))
-    .catch((err) => {
-      process.stderr.write(`parity error: ${err instanceof Error ? err.message : String(err)}\n`);
-      process.exit(1);
-    });
-}
+runCli(import.meta.url, "parity", () => runParity(process.argv.slice(2)));
