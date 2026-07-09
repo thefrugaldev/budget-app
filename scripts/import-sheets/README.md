@@ -78,8 +78,24 @@ snapshots are skipped until Net Worth ships (#109 / chunk 7).
 | `apply.ts` | `applyManifests` (pure of global state — clock injected), `resolveHouseholdId`, `readManifests`, and the CLI. |
 | `../../test/memory-mongo.ts` | Disposable-MongoDB harness (`mongodb-memory-server`) — the repo's first Mongo integration harness, reusable beyond the importer. |
 
+## Parity validation (chunk 4)
+
+```
+MONGODB_URI=… pnpm import:parity <archive-dir> [--db <name>]
+```
+
+Proves the import round-tripped: reads the applied DB through the app's own
+`toTransaction`/`toCategory` mappers and runs the app's own aggregations
+(`monthTotalsByCategory` for monthly spend, `ytdTotalsByCategory` for year
+totals), then diffs every category-month and category-year against the manifest
+sums. Exits non-zero on any divergence, naming the offending cell's source
+`importRef`s. Considers only imported docs, so it's meaningful on a DB that also
+holds seed or hand-entered data. `parity.ts` — `expectedTotals` (pure) +
+`checkParity` + CLI.
+
 ## Not yet (later chunks)
 
-- **Chunk 4:** parity validation against the app's own aggregations.
+- **Chunk 5:** reset protection for imported data (danger-zone opt-in).
+- **Chunk 6:** prod runbook + storage audit.
 - **Chunk 7 (blocked by #109):** apply the already-extracted DebtsEquity
   liability snapshots.
