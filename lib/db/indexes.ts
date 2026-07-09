@@ -71,6 +71,22 @@ function buildIndexes(db: Db): Promise<void> {
       ),
     db.collection(COLLECTIONS.transactions).createIndex({ date: 1 }),
     db.collection(COLLECTIONS.transactions).createIndex({ categoryId: 1, date: 1 }),
+    // Archive-import provenance (#118). Partial (only imported docs carry
+    // `importRef`) to stay slim. Serves apply's per-file orphan sweep — an
+    // anchored `^<file>!` regex over this household's imported docs — and the
+    // reset-protection filter (`importRef` presence) that lands in chunk 5.
+    db
+      .collection(COLLECTIONS.transactions)
+      .createIndex(
+        { importRef: 1 },
+        { partialFilterExpression: { importRef: { $exists: true } } },
+      ),
+    db
+      .collection(COLLECTIONS.categoryTargets)
+      .createIndex(
+        { importRef: 1 },
+        { partialFilterExpression: { importRef: { $exists: true } } },
+      ),
     // Household-scoped reads (#111 chunk 4): every user-data query filters by
     // `householdId`. Compound `{ householdId, name }` on categories serves both
     // listCategories's filter and its `.sort({ name: 1 })` from the index; the

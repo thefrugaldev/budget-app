@@ -15,7 +15,17 @@ type HouseholdOwned = {
   householdId?: string;
 };
 
-export type CategoryDocument = HouseholdOwned & {
+// Provenance for documents synced from the Excel archive (#118 / ADR 0005).
+// Absent on hand-entered and seed docs. `importRef` (`<file>!<sheet>!<cell>#<line>`)
+// is the human-readable source pointer: it makes re-apply a deterministic sync
+// (upsert by `_id` + delete orphaned refs), powers source traceability, and —
+// by its mere presence — marks a doc as imported so the danger-zone reset spares
+// it unless explicitly opted in (chunk 5, story 14).
+type Imported = {
+  importRef?: string;
+};
+
+export type CategoryDocument = HouseholdOwned & Imported & {
   _id: string;
   name: string;
   // Legacy display glyph. Absent on new icon-based docs (#80 chunk 4).
@@ -34,7 +44,7 @@ export type CategoryDocument = HouseholdOwned & {
   createdAt: Date;
 };
 
-export type CategoryTargetDocument = HouseholdOwned & {
+export type CategoryTargetDocument = HouseholdOwned & Imported & {
   _id: string;
   categoryId: string;
   monthly: number;
@@ -42,7 +52,7 @@ export type CategoryTargetDocument = HouseholdOwned & {
   createdAt: Date;
 };
 
-export type TransactionDocument = HouseholdOwned & {
+export type TransactionDocument = HouseholdOwned & Imported & {
   _id: string;
   categoryId: string;
   // Signed: positive = outflow/contribution/income, negative = refund/withdrawal/reversed.

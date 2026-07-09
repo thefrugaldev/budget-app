@@ -57,11 +57,29 @@ documents (transactions, estimate targets, liability snapshots) live in per-year
 deletion is scoped to them. Liability snapshots are extracted now but not applied
 until Net Worth ships (#109 / chunk 7).
 
+## Apply CLI (chunk 3)
+
+```
+MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--first-apply] [--db <name>]
+```
+
+Syncs the manifests into MongoDB. Idempotent per file — upsert by deterministic
+`_id`, then delete orphaned imported docs for that file — so re-running the
+current year's workbook updates and prunes rather than duplicating.
+`--dry-run` prints the plan and touches nothing; `--first-apply` wipes the
+seed/demo data (any doc with no `importRef`) and writes the auto-seed-disabled
+marker so a cold start never re-seeds (and refuses to run once imported data
+exists). `householdId` is stamped from the single household document; each
+existing doc's `createdAt` is preserved so re-applies don't churn. Liability
+snapshots are skipped until Net Worth ships (#109 / chunk 7).
+
+| Module | Responsibility |
+| --- | --- |
+| `apply.ts` | `applyManifests` (pure of global state — clock injected), `resolveHouseholdId`, `readManifests`, and the CLI. |
+| `../../test/memory-mongo.ts` | Disposable-MongoDB harness (`mongodb-memory-server`) — the repo's first Mongo integration harness, reusable beyond the importer. |
+
 ## Not yet (later chunks)
 
-- **Chunk 3 — `apply` CLI + Mongo integration harness:** per-file sync (upsert
-  by deterministic id, delete orphaned refs), `--dry-run`, `householdId`
-  stamping, first-prod-apply seed wipe.
 - **Chunk 4:** parity validation against the app's own aggregations.
 - **Chunk 7 (blocked by #109):** apply the already-extracted DebtsEquity
   liability snapshots.

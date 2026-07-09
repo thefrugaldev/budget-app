@@ -1,9 +1,11 @@
 allowBuilds:
   esbuild: true
+  mongodb-memory-server: true
   msw: false
   sharp: true
   unrs-resolver: true
 onlyBuiltDependencies:
   - esbuild
+  - mongodb-memory-server
   - sharp
   - unrs-resolver
