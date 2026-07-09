@@ -26,7 +26,9 @@ import { autoSeedDisabledId } from "./seed";
  * transaction guarantee here, so a delete could partially fail. By disabling
  * auto-seed up front, any outcome — full wipe, partial wipe, or total delete
  * failure — is safe: the app never re-inserts seed categories that could
- * collide with survivors. A marker on a still-populated DB (all deletes failed)
+ * collide with survivors. It is also written **regardless of
+ * `includeImported`**: any press of the danger-zone button is a signal not to
+ * auto-refill demo data, independent of whether imported history is spared. A marker on a still-populated DB (all deletes failed)
  * is inert, since a non-empty DB is never auto-seeded anyway, and the caller
  * surfaces the error so the reset can be retried. `clearedAt` is recorded for
  * observability only — nothing reads it today.

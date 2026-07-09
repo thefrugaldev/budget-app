@@ -43,12 +43,10 @@ export function ResetDataControl() {
 
   return (
     <div className="flex flex-col items-start gap-3">
+      {/* The wrapping <label> names the checkbox via its visible text, so no
+          aria-label prop (which would doubly-label it). */}
       <label className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Checkbox
-          checked={includeImported}
-          onCheckedChange={setIncludeImported}
-          label="Also delete imported spreadsheet history"
-        />
+        <Checkbox checked={includeImported} onCheckedChange={setIncludeImported} />
         Also delete imported spreadsheet history
       </label>
       <Button
