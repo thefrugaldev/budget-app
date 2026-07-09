@@ -1,14 +1,14 @@
-import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs as nodeParseArgs } from "node:util";
 
-import { MongoClient, type AnyBulkWriteOperation, type Db } from "mongodb";
+import { type AnyBulkWriteOperation, type Db } from "mongodb";
 
 import { COLLECTIONS } from "@/lib/db/collections";
 import { autoSeedDisabledId } from "@/lib/db/seed-marker";
 import type { HouseholdDocument } from "@/lib/db/documents";
 
+import { connectMongo, runCli } from "./cli";
 import type { CategoriesManifest, WorkbookManifest } from "./manifest-types";
 
 /**
@@ -262,21 +262,16 @@ export async function runApply(argv: string[]): Promise<number> {
     return 2;
   }
 
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error("Missing MONGODB_URI environment variable");
-  const dbName = args.db ?? process.env.MONGODB_DB_NAME ?? "budget";
-
   const { categories, workbooks } = readManifests(join(archiveDir, "import", "manifest"));
 
-  const client = await new MongoClient(uri).connect();
+  const { client, db } = await connectMongo(args.db);
   try {
-    const db = client.db(dbName);
     const householdId = await resolveHouseholdId(db);
     const report = await applyManifests({
       db, householdId, categories, workbooks,
       dryRun: args.dryRun, firstApply: args.firstApply, now: new Date(),
     });
-    process.stdout.write(formatReport(report, dbName));
+    process.stdout.write(formatReport(report, db.databaseName));
     return 0;
   } finally {
     await client.close();
@@ -346,21 +341,4 @@ function parseArgs(argv: string[]): {
   };
 }
 
-function isMainModule(): boolean {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  try {
-    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entry);
-  } catch {
-    return false;
-  }
-}
-
-if (isMainModule()) {
-  runApply(process.argv.slice(2))
-    .then((code) => process.exit(code))
-    .catch((err) => {
-      process.stderr.write(`apply error: ${err instanceof Error ? err.message : String(err)}\n`);
-      process.exit(1);
-    });
-}
+runCli(import.meta.url, "apply", () => runApply(process.argv.slice(2)));
