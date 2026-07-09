@@ -125,6 +125,41 @@ export type CategoryMapping = {
   vendorRewrites: VendorRewrite[];
 };
 
+/**
+ * The curated per-cell/per-line exceptions from `overrides.json`, keyed by the
+ * cell's importRef *prefix* (`<file>!<sheet>!<cell>`, no `#line`). Each entry's
+ * `LineOverride.line` is the 1-based line within that cell. Extract looks a
+ * cell's overrides up by prefix before reconciling.
+ */
+export type OverridesConfig = {
+  cells: Record<string, LineOverride[]>;
+  /**
+   * Vendor/note substrings that license the conditional refund sign-flip
+   * (ADR 0005 decision 1). Global, not per-cell.
+   */
+  refundKeywords: string[];
+};
+
+/**
+ * Recurring-income baselines from W-2 gross figures (ADR 0005 decision 6), not
+ * the stale Estimate-tab income rows. Each source yields one effective-dated
+ * income category plus one target per year (`annualGross / 12`).
+ */
+export type IncomeConfig = {
+  sources: IncomeSourceConfig[];
+};
+
+export type IncomeSourceConfig = {
+  canonicalName: string;
+  /** Lucide icon name; validated against the app catalog at extract time. */
+  icon: string;
+  payCadence: "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
+  /** A known payday "YYYY-MM-DD" anchoring paycheck-aware YTD pro-ration. */
+  firstPaycheckDate?: string;
+  /** Annual gross by year, e.g. `{ "2023": 120000 }`. */
+  annualGrossByYear: Record<string, number>;
+};
+
 /** The four coordinates that locate a value in the workbook archive. */
 export type ImportRefParts = {
   /** Workbook file, e.g. `"2023.xlsx"`. */
