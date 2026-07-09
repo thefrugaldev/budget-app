@@ -93,9 +93,30 @@ sums. Exits non-zero on any divergence, naming the offending cell's source
 holds seed or hand-entered data. `parity.ts` — `expectedTotals` (pure) +
 `checkParity` + CLI.
 
+## Storage audit (chunk 6)
+
+```
+MONGODB_URI=… pnpm import:audit [--cap-gb <n>] [--db <name>]
+```
+
+Read-only. Reports per-collection document counts, average document sizes, and
+total bytes, then projects years of free-tier headroom at the *observed*
+transactions-per-year rate (story 18). Only `transactions` grows unboundedly, so
+the projection is driven by that collection's footprint per row times its
+rows/year. Sizes are logical (uncompressed) — a deliberately conservative
+headroom estimate. `--cap-gb` overrides the storage cap (default 25 GiB, the
+Cosmos DB Mongo-API free tier). `storage-audit.ts` — `projectStorage` (pure) +
+`auditStorage` + CLI.
+
+## Prod runbook (chunk 6)
+
+[RUNBOOK.md](./RUNBOOK.md) is the operational procedure: auth-bootstrap ordering
+(the household must exist before apply can stamp it), the first prod apply,
+current-year re-run cadence, the cutover checklist, and the post-cutover backup
+policy. Reset protection for imported data (chunk 5) is the danger-zone opt-in
+described there and in the app's Settings danger zone.
+
 ## Not yet (later chunks)
 
-- **Chunk 5:** reset protection for imported data (danger-zone opt-in).
-- **Chunk 6:** prod runbook + storage audit.
 - **Chunk 7 (blocked by #109):** apply the already-extracted DebtsEquity
   liability snapshots.
