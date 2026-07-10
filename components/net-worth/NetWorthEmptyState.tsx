@@ -1,11 +1,11 @@
 import { Home, Landmark, TrendingUp, Wallet } from "lucide-react";
+import type { ReactNode } from "react";
 
 /**
- * First-run state for the Net Worth page (#109 chunk 6, story 17): explains what
- * an account is and the four types the page tracks, so the page is
- * self-explanatory on day one. The actual "Add account" trigger is wired in
- * chunk 7 (it's an edit affordance, gated by `useCanEdit`) — this read-only
- * chunk sets the scene and the copy points at it.
+ * First-run state for the Net Worth page (story 17): explains what an account is
+ * and the four types the page tracks, so the page is self-explanatory on day
+ * one. `action` is the "Add account" trigger (#109 chunk 7) — role-gated, so it's
+ * absent for a viewer, who just sees the explanatory copy.
  */
 const TYPES = [
   { icon: Wallet, label: "Cash", hint: "checking, savings" },
@@ -14,7 +14,7 @@ const TYPES = [
   { icon: Landmark, label: "Liabilities", hint: "a mortgage, loans" },
 ];
 
-export function NetWorthEmptyState() {
+export function NetWorthEmptyState({ action }: { action?: ReactNode }) {
   return (
     <div className="mx-auto max-w-xl rounded-2xl bg-card p-8 text-center ring-1 ring-border">
       <h2 className="font-heading text-display font-semibold tracking-tight">
@@ -35,7 +35,7 @@ export function NetWorthEmptyState() {
           </li>
         ))}
       </ul>
-      <p className="mt-6 text-sm text-muted-foreground">Add your first account to get started.</p>
+      {action && <div className="mt-6 flex justify-center">{action}</div>}
     </div>
   );
 }
