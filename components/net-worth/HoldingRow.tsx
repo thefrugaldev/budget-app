@@ -8,7 +8,7 @@ import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
-import { fmt } from "@/lib/budget";
+import { fmt, fmtExact } from "@/lib/budget";
 import type { Holding } from "@/types/net-worth";
 
 /**
@@ -66,7 +66,8 @@ export function HoldingRow({
           <span className="font-medium">{holding.ticker}</span>
           <span className="ml-2 text-xs text-muted-foreground tabular-nums">
             {holding.quantity} shares
-            {holding.priceOverride !== undefined && ` · ${fmt(holding.priceOverride)} manual`}
+            {effectivePrice !== undefined &&
+              ` @ ${fmtExact(effectivePrice)}${holding.priceOverride !== undefined ? " manual" : ""}`}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
