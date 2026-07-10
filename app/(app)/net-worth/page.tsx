@@ -4,6 +4,7 @@ import { AccountCard } from "@/components/net-worth/AccountCard";
 import { NetWorthEmptyState } from "@/components/net-worth/NetWorthEmptyState";
 import { NetWorthHero } from "@/components/net-worth/NetWorthHero";
 import { PriceStalenessNotice } from "@/components/net-worth/PriceStalenessNotice";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { fmt } from "@/lib/budget";
 import { tickersNeedingQuotes } from "@/lib/net-worth/check-in";
 import { DEFAULT_QUOTE_TTL_MS, getQuotesWithAsOf } from "@/lib/net-worth/price/get-quotes";
@@ -99,19 +100,6 @@ export default async function NetWorthPage() {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function SectionHeading({ children, amount }: { children: React.ReactNode; amount: string }) {
-  return (
-    <div className="mb-3 flex items-baseline justify-between gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {children}
-      </h2>
-      <span className="font-heading text-sm font-semibold tabular-nums text-muted-foreground">
-        {amount}
-      </span>
     </div>
   );
 }
