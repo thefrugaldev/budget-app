@@ -9,9 +9,16 @@
  * Some kinds are deliberately co-located even when shared (see AGENTS.md):
  *   - component prop types (`*Props`)
  *   - server-action state (`*ActionState`)
- *   - persistence document shapes (`*Document`)
  *   - a hook's own public return type (one per hook, named in ALLOWLIST)
  *   - small presentation-only unions bound to one UI unit (named in ALLOWLIST)
+ *
+ * Persistence document shapes (`*Document`) are also co-located, but on a
+ * *tighter* leash: they may only be imported within the data layer (`lib/db`,
+ * `lib/repositories`). The moment a `*Document` is imported anywhere else it has
+ * drifted into a de-facto domain type used across the app — the mapper seam has
+ * been bypassed — so it's flagged. Extract the domain shape to `types/` and map
+ * to it. This catches the persistence→domain drift a purely name-based
+ * exemption cannot (a `*Document` stays trusted by name no matter how it's used).
  *
  * Anything else that's shared but sits outside `types/` is flagged. Exit 1 on
  * any violation so CI blocks new drift.
@@ -28,11 +35,18 @@ const ALLOWLIST = new Set([
   "AmountUnit", // components/budget/income/RecurringAmountField.tsx — UI-only union bound to one field
 ]);
 
+// Unconditionally co-located (any importer is fine). `*Document` is handled
+// separately below — it's co-located too, but only when imported within the
+// data layer.
 const isExempt = (name) =>
   ALLOWLIST.has(name) ||
   name.endsWith("Props") ||
-  name.endsWith("ActionState") ||
-  name.endsWith("Document");
+  name.endsWith("ActionState");
+
+// The only place a persistence `*Document` shape may be consumed: the data layer
+// (documents/mappers/indexes/repositories). Anywhere else means it's leaked past
+// the mapper into domain/UI code.
+const isDataLayer = (file) => /(^|\/)lib\/(db|repositories)\//.test(file);
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
@@ -70,26 +84,44 @@ for (const [file, text] of sources) {
   for (const match of text.matchAll(declRe)) {
     const name = match[1];
     if (isExempt(name)) continue;
-    // Imported by another file? (the symbol appears in an import statement
-    // somewhere other than its declaring file)
+    // Files that import this symbol (the name appears in an import statement in
+    // a file other than the one declaring it).
     const importRe = new RegExp(`import[^;]*\\b${name}\\b[^;]*from`, "s");
-    const sharedBy = [...sources].find(
+    const importers = [...sources].filter(
       ([f, t]) => f !== file && importRe.test(t),
     );
-    if (sharedBy) {
-      violations.push({ name, file, importedBy: sharedBy[0] });
+    if (importers.length === 0) continue;
+
+    if (name.endsWith("Document")) {
+      // Co-located, but every importer must be in the data layer. Flag each one
+      // that isn't — that's the persistence shape leaking into domain/UI code.
+      for (const [f] of importers.filter(([f]) => !isDataLayer(f))) {
+        violations.push({ name, file, importedBy: f, kind: "document-leak" });
+      }
+      continue;
     }
+
+    violations.push({ name, file, importedBy: importers[0][0], kind: "misplaced" });
   }
 }
 
 if (violations.length > 0) {
-  console.error("Shared types must live in types/ (see AGENTS.md):\n");
+  console.error("Type-placement violations (see AGENTS.md):\n");
   for (const v of violations) {
-    console.error(`  ${v.name}  (${v.file})  imported by ${v.importedBy}`);
+    if (v.kind === "document-leak") {
+      console.error(
+        `  ${v.name}  (${v.file})  imported by ${v.importedBy}\n` +
+          `    → *Document shapes must stay in the data layer (lib/db, lib/repositories).\n` +
+          `      Extract a domain type to @/types/… and map to it via mappers.ts.`,
+      );
+    } else {
+      console.error(
+        `  ${v.name}  (${v.file})  imported by ${v.importedBy}\n` +
+          `    → shared type declared outside types/; move it to @/types/… and import from there.`,
+      );
+    }
   }
-  console.error(
-    `\n${violations.length} shared type(s) declared outside types/. Move them to @/types/… and import from there.`,
-  );
+  console.error(`\n${violations.length} violation(s).`);
   process.exit(1);
 }
 
