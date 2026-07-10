@@ -10,6 +10,10 @@ import { resolveQuotes } from "./resolve";
  */
 export const DEFAULT_QUOTE_TTL_MS = 12 * 60 * 60 * 1000;
 
+// The API key and platform `fetch` are stable per process, so construct the
+// provider once (matching the single exported `mongoQuoteCache`).
+const provider = new FinnhubPriceProvider();
+
 /**
  * The app's live-price entry point (#109 chunk 3): current prices for `tickers`,
  * served from the Mongo cache and refreshed from Finnhub only when stale. Wires
@@ -22,7 +26,7 @@ export async function getQuotes(tickers: string[]): Promise<Map<string, number>>
   return resolveQuotes({
     tickers,
     cache: mongoQuoteCache,
-    provider: new FinnhubPriceProvider(),
+    provider,
     now: new Date().toISOString(),
     ttlMs: DEFAULT_QUOTE_TTL_MS,
   });

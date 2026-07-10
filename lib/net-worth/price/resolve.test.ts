@@ -39,6 +39,10 @@ describe("isFresh", () => {
     expect(isFresh("2026-07-10T06:00:00.000Z", NOW, TTL)).toBe(true); // 6h old
     expect(isFresh("2026-07-09T23:00:00.000Z", NOW, TTL)).toBe(false); // 13h old
   });
+
+  it("treats a future asOf (clock skew) as not fresh", () => {
+    expect(isFresh("2026-07-10T18:00:00.000Z", NOW, TTL)).toBe(false); // 6h in the future
+  });
 });
 
 describe("resolveQuotes", () => {

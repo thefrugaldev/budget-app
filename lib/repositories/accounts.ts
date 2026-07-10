@@ -4,7 +4,11 @@ import { COLLECTIONS } from "@/lib/db/collections";
 import type { AccountDocument } from "@/lib/db/documents";
 import { scopedCollection } from "@/lib/db/household-scope";
 import { toAccount } from "@/lib/db/mappers";
-import { assertNonEmptyName, assertValidAccountShape } from "@/lib/net-worth/validate";
+import {
+  assertNonEmptyName,
+  assertValidAccountShape,
+  assertValidHolding,
+} from "@/lib/net-worth/validate";
 import type { Account, AssetKind, Holding } from "@/types/net-worth";
 
 import {
@@ -35,6 +39,7 @@ export async function createAccount(input: {
 }): Promise<Account> {
   assertNonEmptyName(input.name);
   assertValidAccountShape(input);
+  input.holdings?.forEach(assertValidHolding);
 
   const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
   // `householdId` is stamped by the scoped collection on insert; optionals are
@@ -106,6 +111,7 @@ export async function updateAccount(
 ): Promise<UpdateAccountResult> {
   assertNoConflictingClears(patch);
   if (patch.name !== undefined) assertNonEmptyName(patch.name);
+  patch.holdings?.forEach(assertValidHolding);
 
   const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
   const current = await accounts.findOne({ _id: id });

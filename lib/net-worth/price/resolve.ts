@@ -1,8 +1,14 @@
 import type { CachedQuote, PriceProvider, QuoteCache } from "@/types/net-worth";
 
-/** A cached quote is fresh while it's younger than the TTL at `now` (ISO datetimes). */
+/**
+ * A cached quote is fresh while its age at `now` is within the TTL (ISO
+ * datetimes). A negative age — an `asOf` in the future, only from clock skew —
+ * reads as *not* fresh, so a skewed quote is refetched rather than trusted
+ * indefinitely.
+ */
 export function isFresh(asOf: string, now: string, ttlMs: number): boolean {
-  return Date.parse(now) - Date.parse(asOf) < ttlMs;
+  const age = Date.parse(now) - Date.parse(asOf);
+  return age >= 0 && age < ttlMs;
 }
 
 /**

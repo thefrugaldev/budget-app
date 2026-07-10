@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { parseFinnhubQuote } from "./finnhub";
+import { FinnhubPriceProvider, parseFinnhubQuote } from "./finnhub";
 
 describe("parseFinnhubQuote", () => {
   it("reads the current price `c` from a real quote response", () => {
@@ -20,5 +20,55 @@ describe("parseFinnhubQuote", () => {
     expect(parseFinnhubQuote({})).toBeUndefined();
     expect(parseFinnhubQuote(null)).toBeUndefined();
     expect(parseFinnhubQuote("nope")).toBeUndefined();
+  });
+});
+
+// Exercises getQuotes with an injected fake fetch — real shapes, no network.
+type FetchSpec = { ok?: boolean; status?: number; body?: unknown };
+function fakeFetch(byTicker: Record<string, FetchSpec>): typeof fetch {
+  return (async (input: string | URL | Request) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const symbol = new URL(url).searchParams.get("symbol") ?? "";
+    const spec = byTicker[symbol] ?? { ok: false, status: 404 };
+    return {
+      ok: spec.ok ?? true,
+      status: spec.status ?? 200,
+      json: async () => spec.body,
+    } as Response;
+  }) as typeof fetch;
+}
+
+describe("FinnhubPriceProvider.getQuotes", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns parsed prices, skipping non-OK and unquotable tickers", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const provider = new FinnhubPriceProvider(
+      "test-key",
+      fakeFetch({
+        VOO: { body: { c: 500 } },
+        AAPL: { ok: false, status: 429 }, // rate-limited
+        GHOST: { body: { c: 0 } }, // unknown symbol
+      }),
+    );
+
+    const prices = await provider.getQuotes(["VOO", "AAPL", "GHOST"]);
+
+    expect(prices.get("VOO")).toBe(500);
+    expect(prices.has("AAPL")).toBe(false);
+    expect(prices.has("GHOST")).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("AAPL")); // logged the 429
+  });
+
+  it("throws when the API key is missing but tickers are requested", async () => {
+    const provider = new FinnhubPriceProvider(undefined, fakeFetch({}));
+    await expect(provider.getQuotes(["VOO"])).rejects.toThrow(/FINNHUB_API_KEY/);
+  });
+
+  it("makes no request (and needs no key) for an empty ticker list", async () => {
+    const fetchImpl = vi.fn(fakeFetch({}));
+    const provider = new FinnhubPriceProvider(undefined, fetchImpl);
+    expect((await provider.getQuotes([])).size).toBe(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

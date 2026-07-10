@@ -1,4 +1,4 @@
-import type { AccountClass, AssetKind } from "@/types/net-worth";
+import type { AccountClass, AssetKind, Holding } from "@/types/net-worth";
 
 /**
  * Guard the account shape at the write boundary (#109 chunk 2; carried over from
@@ -32,6 +32,30 @@ export function assertValidAccountShape(input: {
 export function assertNonNegativeSnapshotValue(value: number): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`A snapshot value must be a non-negative magnitude (got ${value}).`);
+  }
+}
+
+/**
+ * Guard an investment holding at the write boundary (#109 chunk 3). A blank
+ * ticker, or a negative / non-finite quantity or price override, would flow
+ * straight through `accountValue` as `quantity × price` and silently produce a
+ * negative account value — inverting downstream aggregation. The holdings-side
+ * twin of {@link assertNonNegativeSnapshotValue}.
+ */
+export function assertValidHolding(holding: Holding): void {
+  if (holding.ticker.trim().length === 0) {
+    throw new Error("A holding must have a ticker.");
+  }
+  if (!Number.isFinite(holding.quantity) || holding.quantity < 0) {
+    throw new Error(`A holding quantity must be a non-negative number (got ${holding.quantity}).`);
+  }
+  if (
+    holding.priceOverride !== undefined &&
+    (!Number.isFinite(holding.priceOverride) || holding.priceOverride < 0)
+  ) {
+    throw new Error(
+      `A holding price override must be a non-negative number (got ${holding.priceOverride}).`,
+    );
   }
 }
 

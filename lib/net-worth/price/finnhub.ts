@@ -34,15 +34,27 @@ export class FinnhubPriceProvider implements PriceProvider {
   async getQuotes(tickers: string[]): Promise<Map<string, number>> {
     const prices = new Map<string, number>();
     if (tickers.length === 0) return prices;
-    if (!this.apiKey) throw new Error("Missing FINNHUB_API_KEY environment variable");
+    const key = this.apiKey;
+    if (!key) throw new Error("Missing FINNHUB_API_KEY environment variable");
 
-    for (const ticker of tickers) {
-      const url = `${FINNHUB_QUOTE_URL}?symbol=${encodeURIComponent(ticker)}&token=${encodeURIComponent(this.apiKey)}`;
-      const res = await this.fetchImpl(url);
-      if (!res.ok) continue; // skip this ticker; caller falls back to cache/override
-      const price = parseFinnhubQuote(await res.json());
-      if (price !== undefined) prices.set(ticker, price);
-    }
+    // One /quote call per symbol, fired in parallel — a single-user refresh of a
+    // handful of holdings stays well under the 60/min free-tier limit, and avoids
+    // paying N serial round-trips on the first read past the TTL.
+    const entries = await Promise.all(
+      tickers.map(async (ticker): Promise<readonly [string, number] | null> => {
+        const url = `${FINNHUB_QUOTE_URL}?symbol=${encodeURIComponent(ticker)}&token=${encodeURIComponent(key)}`;
+        const res = await this.fetchImpl(url);
+        if (!res.ok) {
+          // 401 (bad key), 429 (rate-limited), 5xx all look like "no quote" to the
+          // caller; log the status so a Finnhub outage is distinguishable in ops.
+          console.warn(`Finnhub quote failed for ${ticker}: HTTP ${res.status}`);
+          return null;
+        }
+        const price = parseFinnhubQuote(await res.json());
+        return price !== undefined ? [ticker, price] : null;
+      }),
+    );
+    for (const entry of entries) if (entry) prices.set(entry[0], entry[1]);
     return prices;
   }
 }
