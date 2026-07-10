@@ -124,6 +124,11 @@ async function collectStats(db: Db): Promise<CollectionStat[]> {
   for (const name of Object.values(COLLECTIONS)) {
     let raw: { count?: number; avgObjSize?: number; size?: number; totalIndexSize?: number };
     try {
+      // NB: the `collStats` command is deprecated since server 6.2 in favour of
+      // the `$collStats` aggregation stage (`storageStats`). Cosmos DB's Mongo
+      // API — the app's target — still accepts this form, so it stays until that
+      // changes; swap to `collection(name).aggregate([{ $collStats: { storageStats: {} } }])`
+      // when the deprecation warning starts firing.
       raw = await db.command({ collStats: name });
     } catch {
       continue; // Collection doesn't exist yet — nothing to report.
@@ -144,21 +149,20 @@ async function transactionSpan(
   db: Db,
 ): Promise<{ count: number; firstYear: number | null; lastYear: number | null }> {
   const coll = db.collection<TransactionDocument>(COLLECTIONS.transactions);
-  const count = await coll.countDocuments({});
-  if (count === 0) return { count: 0, firstYear: null, lastYear: null };
 
-  // `date` is a sortable "YYYY-MM-DD" string, so min/max are one indexed read each.
-  const projection = { date: 1 } as const;
-  const [first] = await coll.find({}, { projection }).sort({ date: 1 }).limit(1).toArray();
-  const [last] = await coll.find({}, { projection }).sort({ date: -1 }).limit(1).toArray();
-  return {
-    count,
-    firstYear: yearOf(first?.date),
-    lastYear: yearOf(last?.date),
-  };
+  // One pass for count + min/max `date` (a sortable "YYYY-MM-DD" string). `date`
+  // isn't indexed, so a single `$group` scan beats separate count + two sorted
+  // reads at prod scale — this is the one call that grows with the collection.
+  const [span] = await coll
+    .aggregate<{ count: number; min: string | null; max: string | null }>([
+      { $group: { _id: null, count: { $sum: 1 }, min: { $min: "$date" }, max: { $max: "$date" } } },
+    ])
+    .toArray();
+  if (!span || span.count === 0) return { count: 0, firstYear: null, lastYear: null };
+  return { count: span.count, firstYear: yearOf(span.min), lastYear: yearOf(span.max) };
 }
 
-function yearOf(date: string | undefined): number | null {
+function yearOf(date: string | null | undefined): number | null {
   if (!date) return null;
   const year = Number.parseInt(date.slice(0, 4), 10);
   return Number.isFinite(year) ? year : null;
@@ -190,11 +194,16 @@ export async function auditStorage(input: { db: Db; capBytes: number }): Promise
 export async function runAudit(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
   const capBytes = args.capGib * GIB;
+  // Name where the cap came from, so the headroom number isn't read as gospel:
+  // the default assumes one specific tier.
+  const capNote = args.capExplicit
+    ? "via --cap-gb"
+    : "assumed: Cosmos DB Mongo-API free tier — override with --cap-gb";
 
   const { client, db } = await connectMongo(args.db);
   try {
     const audit = await auditStorage({ db, capBytes });
-    process.stdout.write(formatReport(audit));
+    process.stdout.write(formatReport(audit, capNote));
     return 0; // Informational — a full disk is a warning, not a failed run.
   } finally {
     await client.close();
@@ -219,7 +228,15 @@ function formatYears(years: number | null): string {
   return `${years.toFixed(years >= 10 ? 0 : 1)} years`;
 }
 
-function formatReport(audit: StorageAudit): string {
+/** A per-year rate: one decimal below 10 so a low-volume rate reconciles with the
+ * (unrounded) headroom math, whole numbers above. Mirrors {@link formatYears}. */
+function formatRate(rate: number): string {
+  return rate >= 10
+    ? Math.round(rate).toLocaleString("en-US")
+    : rate.toFixed(1);
+}
+
+function formatReport(audit: StorageAudit, capNote: string): string {
   const { projection: p, transactions: t } = audit;
   const lines = [`storage audit → db "${audit.db}"`, "  collections:"];
 
@@ -236,7 +253,7 @@ function formatReport(audit: StorageAudit): string {
   const pct = (p.usedFraction * 100).toFixed(p.usedFraction < 0.01 ? 4 : 2);
   lines.push(
     "",
-    `  used ${humanBytes(p.usedBytes)} of ${humanBytes(p.capBytes)} (${pct}%) — ${humanBytes(p.freeBytes)} free`,
+    `  used ${humanBytes(p.usedBytes)} of ${humanBytes(p.capBytes)} cap (${capNote}) (${pct}%) — ${humanBytes(p.freeBytes)} free`,
   );
 
   if (p.transactionsPerYear === null) {
@@ -248,7 +265,7 @@ function formatReport(audit: StorageAudit): string {
         : "unknown span";
     lines.push(
       `  growth: ${t.count.toLocaleString("en-US")} transactions over ${span} = ` +
-        `${Math.round(p.transactionsPerYear).toLocaleString("en-US")}/yr @ ` +
+        `${formatRate(p.transactionsPerYear)}/yr @ ` +
         `${humanBytes(p.bytesPerTransaction)}/txn ≈ ${humanBytes(p.bytesPerYear ?? 0)}/yr`,
       `  headroom: ~${formatYears(p.yearsOfHeadroom)} at the observed rate`,
     );
@@ -260,18 +277,19 @@ function formatReport(audit: StorageAudit): string {
   return lines.join("\n") + "\n";
 }
 
-function parseArgs(argv: string[]): { db?: string; capGib: number } {
+function parseArgs(argv: string[]): { db?: string; capGib: number; capExplicit: boolean } {
   const { values } = nodeParseArgs({
     args: argv,
     options: { db: { type: "string" }, "cap-gb": { type: "string" } },
     allowPositionals: true,
     strict: true,
   });
-  const capGib = values["cap-gb"] !== undefined ? Number(values["cap-gb"]) : DEFAULT_CAP_GIB;
+  const capExplicit = values["cap-gb"] !== undefined;
+  const capGib = capExplicit ? Number(values["cap-gb"]) : DEFAULT_CAP_GIB;
   if (!Number.isFinite(capGib) || capGib <= 0) {
     throw new Error(`--cap-gb must be a positive number (got "${values["cap-gb"]}")`);
   }
-  return { db: values.db, capGib };
+  return { db: values.db, capGib, capExplicit };
 }
 
 runCli(import.meta.url, "storage-audit", () => runAudit(process.argv.slice(2)));

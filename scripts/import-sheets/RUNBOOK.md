@@ -94,6 +94,10 @@ The one-way switch from spreadsheet to app as system of record:
 - [ ] `pnpm import:parity` — passes.
 - [ ] `pnpm import:audit` — headroom recorded.
 - [ ] Spot-check a few historical months in the app against the sheet.
+- [ ] **Take the first database backup.** This is the moment the app becomes
+      authoritative, so it's the first backup that matters — the baseline the
+      mandatory post-cutover policy below builds on. Do it before retiring the
+      workbook.
 - [ ] Retire the spreadsheet: from here the app is authoritative; new data is
       entered in the app, not the workbook.
 
@@ -101,7 +105,8 @@ The one-way switch from spreadsheet to app as system of record:
 
 Before cutover, imported data is fully reproducible from the archive, so backups
 are optional. **After cutover, backups are mandatory:** hand-entered data now
-exists that the archive can't regenerate. Any apply run after cutover (should one
-ever be needed) is preceded by a database backup — the danger-zone reset already
-spares imported docs by default (chunk 5), but a backup is the belt-and-braces
-step before any bulk write to a live, authoritative database.
+exists that the archive can't regenerate. The first required backup is the one
+taken *at* cutover (the checklist step above); from then on, any apply run
+(should one ever be needed) is preceded by a database backup — the danger-zone
+reset already spares imported docs by default (chunk 5), but a backup is the
+belt-and-braces step before any bulk write to a live, authoritative database.
