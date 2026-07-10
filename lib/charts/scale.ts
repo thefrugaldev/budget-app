@@ -77,6 +77,8 @@ export function spreadX(count: number, extentPx: number, startPx = 0) {
  */
 export function extentScale(min: number, max: number, extentPx: number) {
   const span = max - min;
-  if (span <= 0) return { y: () => extentPx / 2 };
+  // `_value` is spelled out (not dropped) so the degenerate branch has the same
+  // shape callers expect from the normal one.
+  if (span <= 0) return { y: (_value: number) => extentPx / 2 };
   return { y: (value: number) => ((max - value) / span) * extentPx };
 }

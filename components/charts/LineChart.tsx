@@ -13,8 +13,10 @@ import { extentScale, spreadX } from "@/lib/charts/scale";
  * so a series that dips negative (an underwater net worth) draws below a dashed
  * zero line rather than clamping flat. Empty input renders nothing.
  *
- * Accessibility: pass `ariaLabel` to name the chart (`role="img"`); chunk 9 adds
- * the per-point text alternative for the net-worth series.
+ * Accessibility: `ariaLabel` is **required** so the `role="img"` SVG is never an
+ * unlabeled graphic — the guarantee lives in the primitive, not in each caller
+ * remembering. Chunk 9 adds the richer per-point text alternative for the
+ * net-worth series on top of this.
  */
 const defaultFormat = (value: number): string =>
   value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -29,6 +31,8 @@ export function LineChart({
   ariaLabel,
 }: {
   points: { label: string; value: number }[];
+  /** Names the chart for screen readers (`role="img"`). Required — never unlabeled. */
+  ariaLabel: string;
   /** Fill the region between the line and the zero baseline. */
   area?: boolean;
   width?: number;
@@ -36,7 +40,6 @@ export function LineChart({
   /** Sets the line/area color via `currentColor`; a token text-* class. */
   className?: string;
   formatValue?: (value: number) => string;
-  ariaLabel?: string;
 }) {
   if (points.length === 0) return null;
 
@@ -46,9 +49,10 @@ export function LineChart({
 
   const values = points.map((p) => p.value);
   // Fold 0 into the domain so the zero baseline is always meaningful (and a
-  // fully-positive series fills to the chart floor).
-  const max = Math.max(...values, 0);
-  const min = Math.min(...values, 0);
+  // fully-positive series fills to the chart floor). `reduce` rather than
+  // `Math.max(...values)` so a very long series can't blow the arg-count ceiling.
+  const max = values.reduce((m, v) => Math.max(m, v), 0);
+  const min = values.reduce((m, v) => Math.min(m, v), 0);
   const yScale = extentScale(min, max, innerH);
   const xAt = spreadX(points.length, innerW, pad.l);
 
@@ -69,9 +73,12 @@ export function LineChart({
       <text x={pad.l - 6} y={pad.t + 3} textAnchor="end" className="fill-muted-foreground text-[9px] tabular-nums">
         {formatValue(max)}
       </text>
-      <text x={pad.l - 6} y={pad.t + innerH + 3} textAnchor="end" className="fill-muted-foreground text-[9px] tabular-nums">
-        {formatValue(min)}
-      </text>
+      {/* Skip the min label on a flat series — it would duplicate the max label. */}
+      {min !== max && (
+        <text x={pad.l - 6} y={pad.t + innerH + 3} textAnchor="end" className="fill-muted-foreground text-[9px] tabular-nums">
+          {formatValue(min)}
+        </text>
+      )}
 
       {showZeroLine && (
         <line
