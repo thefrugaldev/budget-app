@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bandScale, domainMax, linearScale } from "./scale";
+import { bandScale, domainMax, extentScale, linearScale, spreadX } from "./scale";
 
 describe("domainMax", () => {
   it("returns the largest value with no headroom", () => {
@@ -69,5 +69,47 @@ describe("bandScale", () => {
     const band = bandScale(0, 400);
     expect(band.slot).toBe(400);
     expect(Number.isFinite(band.center(0))).toBe(true);
+  });
+});
+
+describe("spreadX", () => {
+  it("places points edge-to-edge across the extent", () => {
+    const x = spreadX(5, 400);
+    expect(x.at(0)).toBe(0);
+    expect(x.at(4)).toBe(400);
+    expect(x.at(2)).toBe(200);
+  });
+
+  it("offsets by the start position", () => {
+    const x = spreadX(3, 100, 20);
+    expect(x.at(0)).toBe(20);
+    expect(x.at(2)).toBe(120);
+  });
+
+  it("puts a single point at the start (no span to divide)", () => {
+    expect(spreadX(1, 400, 10).at(0)).toBe(10);
+  });
+});
+
+describe("extentScale", () => {
+  it("maps max to the top and min to the bottom", () => {
+    const s = extentScale(0, 100, 200);
+    expect(s.y(100)).toBe(0);
+    expect(s.y(0)).toBe(200);
+    expect(s.y(50)).toBe(100);
+  });
+
+  it("supports a signed domain, exposing the zero line via y(0)", () => {
+    // Domain [-100, 100] over 200px: 0 sits in the middle, negatives below it.
+    const s = extentScale(-100, 100, 200);
+    expect(s.y(0)).toBe(100);
+    expect(s.y(-100)).toBe(200);
+    expect(s.y(100)).toBe(0);
+  });
+
+  it("centers everything when the domain is degenerate (min === max)", () => {
+    const s = extentScale(50, 50, 200);
+    expect(s.y(50)).toBe(100);
+    expect(Number.isFinite(s.y(0))).toBe(true);
   });
 });
