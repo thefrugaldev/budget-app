@@ -47,12 +47,14 @@ describe("isFresh", () => {
 
 describe("resolveQuotes", () => {
   it("serves fresh cached quotes without calling the provider", async () => {
-    const { cache, writes } = fakeCache([{ ticker: "VOO", price: 500, asOf: "2026-07-10T06:00:00.000Z" }]);
+    const cachedAsOf = "2026-07-10T06:00:00.000Z";
+    const { cache, writes } = fakeCache([{ ticker: "VOO", price: 500, asOf: cachedAsOf }]);
     const provider = fakeProvider({ VOO: 999 });
 
-    const prices = await resolveQuotes({ tickers: ["VOO"], cache, provider, now: NOW, ttlMs: TTL });
+    const { prices, asOf } = await resolveQuotes({ tickers: ["VOO"], cache, provider, now: NOW, ttlMs: TTL });
 
     expect(prices.get("VOO")).toBe(500); // cached, not the provider's 999
+    expect(asOf.get("VOO")).toBe(cachedAsOf); // fresh cache hit keeps its stamp
     expect(provider.getQuotes).not.toHaveBeenCalled();
     expect(writes).toEqual([]);
   });
@@ -61,10 +63,12 @@ describe("resolveQuotes", () => {
     const { cache, writes } = fakeCache([{ ticker: "VOO", price: 480, asOf: "2026-07-09T00:00:00.000Z" }]); // stale
     const provider = fakeProvider({ VOO: 500, AAPL: 200 });
 
-    const prices = await resolveQuotes({ tickers: ["VOO", "AAPL"], cache, provider, now: NOW, ttlMs: TTL });
+    const { prices, asOf } = await resolveQuotes({ tickers: ["VOO", "AAPL"], cache, provider, now: NOW, ttlMs: TTL });
 
     expect(prices.get("VOO")).toBe(500); // refreshed
     expect(prices.get("AAPL")).toBe(200); // freshly fetched
+    expect(asOf.get("VOO")).toBe(NOW); // refreshed → stamped now
+    expect(asOf.get("AAPL")).toBe(NOW);
     expect(provider.getQuotes).toHaveBeenCalledWith(["VOO", "AAPL"]);
     expect(writes).toEqual([
       { ticker: "VOO", price: 500, asOf: NOW },
@@ -73,12 +77,14 @@ describe("resolveQuotes", () => {
   });
 
   it("falls back to a stale cached price when the provider can't quote it", async () => {
-    const { cache, writes } = fakeCache([{ ticker: "OLD", price: 42, asOf: "2026-07-01T00:00:00.000Z" }]);
+    const staleAsOf = "2026-07-01T00:00:00.000Z";
+    const { cache, writes } = fakeCache([{ ticker: "OLD", price: 42, asOf: staleAsOf }]);
     const provider = fakeProvider({}); // quotes nothing
 
-    const prices = await resolveQuotes({ tickers: ["OLD"], cache, provider, now: NOW, ttlMs: TTL });
+    const { prices, asOf } = await resolveQuotes({ tickers: ["OLD"], cache, provider, now: NOW, ttlMs: TTL });
 
     expect(prices.get("OLD")).toBe(42); // stale price served rather than dropped
+    expect(asOf.get("OLD")).toBe(staleAsOf); // keeps its old stamp → page flags stale
     expect(writes).toEqual([]); // nothing fresh to persist
   });
 
@@ -86,21 +92,22 @@ describe("resolveQuotes", () => {
     const { cache } = fakeCache([{ ticker: "VOO", price: 480, asOf: "2026-07-01T00:00:00.000Z" }]);
     const provider: PriceProvider = { getQuotes: vi.fn(async () => { throw new Error("feed down"); }) };
 
-    const prices = await resolveQuotes({ tickers: ["VOO"], cache, provider, now: NOW, ttlMs: TTL });
+    const { prices } = await resolveQuotes({ tickers: ["VOO"], cache, provider, now: NOW, ttlMs: TTL });
 
     expect(prices.get("VOO")).toBe(480);
   });
 
   it("omits a ticker that is neither cached nor quotable", async () => {
     const { cache } = fakeCache();
-    const prices = await resolveQuotes({ tickers: ["GHOST"], cache, provider: fakeProvider({}), now: NOW, ttlMs: TTL });
+    const { prices, asOf } = await resolveQuotes({ tickers: ["GHOST"], cache, provider: fakeProvider({}), now: NOW, ttlMs: TTL });
     expect(prices.has("GHOST")).toBe(false);
+    expect(asOf.has("GHOST")).toBe(false); // no price → no stamp
   });
 
   it("dedupes tickers and skips the provider entirely when none are given", async () => {
     const { cache } = fakeCache();
     const provider = fakeProvider({});
-    expect((await resolveQuotes({ tickers: [], cache, provider, now: NOW, ttlMs: TTL })).size).toBe(0);
+    expect((await resolveQuotes({ tickers: [], cache, provider, now: NOW, ttlMs: TTL })).prices.size).toBe(0);
     expect(provider.getQuotes).not.toHaveBeenCalled();
   });
 });

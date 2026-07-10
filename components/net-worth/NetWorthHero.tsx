@@ -9,23 +9,27 @@ import type { NetWorthHeadline } from "@/types/net-worth";
  * one product (story 20). The net leads neutral and only turns red when it goes
  * negative (underwater); the subtotals carry the good/bad signal tones so the
  * two sides are legible without relying on the net's color alone.
+ *
+ * The page-subject ("Net worth") is the `<h1>`, not the amount — a screen reader
+ * announcing the heading says what the page is about rather than a bare figure;
+ * the figure sits beneath as a decorated non-heading (a11y baseline).
  */
 export function NetWorthHero({ headline }: { headline: NetWorthHeadline }) {
   const { assets, liabilities, net } = headline;
 
   return (
     <header className="mb-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <h1 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         Net worth
-      </p>
-      <h1
+      </h1>
+      <p
         className={cn(
           "mt-3 font-heading text-hero font-semibold tracking-tight tabular-nums",
           net < 0 ? "text-signal-bad-foreground" : "text-foreground",
         )}
       >
         {fmt(net)}
-      </h1>
+      </p>
       <p className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-base text-muted-foreground">
         <span>
           Assets{" "}

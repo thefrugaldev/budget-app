@@ -34,7 +34,9 @@ export function AccountCard({
           <p className="truncate font-medium leading-tight">{account.name}</p>
           {account.kind === "investment" && (
             <p className="text-xs text-muted-foreground">
-              {holdingsCount} {holdingsCount === 1 ? "holding" : "holdings"}
+              {holdingsCount === 0
+                ? "No holdings"
+                : `${holdingsCount} ${holdingsCount === 1 ? "holding" : "holdings"}`}
             </p>
           )}
         </div>

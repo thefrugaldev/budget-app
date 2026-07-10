@@ -65,13 +65,22 @@ export default async function NetWorthPage() {
   const headline = netWorthHeadline(openAccounts, priceFor);
   const lastUpdated = latestSnapshotDates(snapshots);
 
-  const groups = GROUPS.map((group) => {
-    const items = openAccounts
-      .filter(group.match)
-      .map((account) => ({ account, value: accountValue(account, priceFor) }));
-    const subtotal = items.reduce((sum, it) => sum + it.value, 0);
-    return { ...group, items, subtotal };
-  }).filter((group) => group.items.length > 0);
+  const toGroup = (key: string, label: string, accts: Account[]) => {
+    const items = accts.map((account) => ({ account, value: accountValue(account, priceFor) }));
+    return { key, label, items, subtotal: items.reduce((sum, it) => sum + it.value, 0) };
+  };
+
+  const groups = GROUPS.map((group) =>
+    toGroup(group.key, group.label, openAccounts.filter(group.match)),
+  ).filter((group) => group.items.length > 0);
+
+  // Safety net: an open account matching no group (e.g. a legacy or mis-shaped
+  // asset with no kind) still counts in `netWorthHeadline`, so surface it as an
+  // "Other" card rather than letting it vanish — otherwise the visible subtotals
+  // wouldn't reconcile with the net figure. Can't happen for data that passed
+  // `assertValidAccountShape`, but this keeps a bad record honest instead of hidden.
+  const unclassified = openAccounts.filter((account) => !GROUPS.some((group) => group.match(account)));
+  if (unclassified.length > 0) groups.push(toGroup("other", "Other", unclassified));
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">

@@ -22,33 +22,30 @@ const provider = new FinnhubPriceProvider();
  * pass only the tickers they actually need priced (override precedence lives in
  * `accountValue`).
  */
-export async function getQuotes(tickers: string[]): Promise<Map<string, number>> {
-  return resolveQuotes({
+function resolveInput(tickers: string[]) {
+  return {
     tickers,
     cache: mongoQuoteCache,
     provider,
     now: new Date().toISOString(),
     ttlMs: DEFAULT_QUOTE_TTL_MS,
-  });
+  };
+}
+
+export async function getQuotes(tickers: string[]): Promise<Map<string, number>> {
+  return (await resolveQuotes(resolveInput(tickers))).prices;
 }
 
 /**
  * Live prices **plus their cache timestamps** — for the Net Worth page's
- * staleness indicator (#109 chunk 6, story 19). `getQuotes` refreshes stale
- * entries on read, so the `asOf` map read straight after reflects the post-fetch
- * state: a ticker the feed refreshed carries a `now`-ish stamp, while one the
- * feed couldn't refresh keeps its older cached stamp (or is absent from
- * `prices`). Feed the pair to `pricingStatus` to derive the banner. Values-only
+ * staleness indicator (#109 chunk 6, story 19). `resolveQuotes` builds the
+ * `asOf` map in the same pass it resolves prices (a refreshed ticker carries
+ * `now`, a stale-fallback keeps its older stamp), so this needs no extra cache
+ * read. Feed the pair to `pricingStatus` to derive the banner; values-only
  * callers (the check-in) stay on `getQuotes`.
  */
 export async function getQuotesWithAsOf(
   tickers: string[],
 ): Promise<{ prices: Map<string, number>; asOf: Map<string, string> }> {
-  const prices = await getQuotes(tickers);
-  const asOf = new Map<string, string>();
-  if (tickers.length > 0) {
-    const cached = await mongoQuoteCache.read(tickers);
-    for (const [ticker, quote] of cached) asOf.set(ticker, quote.asOf);
-  }
-  return { prices, asOf };
+  return resolveQuotes(resolveInput(tickers));
 }
