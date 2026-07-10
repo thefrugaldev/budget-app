@@ -53,3 +53,32 @@ export function bandScale(count: number, extentPx: number, startPx = 0) {
     center: (i: number) => startPx + slot * i + slot / 2,
   };
 }
+
+/**
+ * Evenly places `count` points **edge-to-edge** across `extentPx` (beginning at
+ * `startPx`): `at(0) === startPx`, `at(count - 1) === startPx + extentPx`. This
+ * is the x-placement for a line/area chart — vertices span the full width —
+ * whereas {@link bandScale} centers marks in slots (bars). A single point sits
+ * at the start (no span to divide); `count` of 0 is treated the same.
+ */
+export function spreadX(count: number, extentPx: number, startPx = 0) {
+  const span = count > 1 ? extentPx / (count - 1) : 0;
+  return { at: (i: number) => startPx + span * i };
+}
+
+/**
+ * Maps a value in a **signed** `[min, max]` domain to a y pixel measured from
+ * the top of an `extentPx`-tall axis: `max → 0`, `min → extentPx`. Unlike
+ * {@link linearScale} (a 0..max length for bars that never invert), this
+ * supports negative values — a net-worth line dips below zero — and gives the
+ * zero baseline as `y(0)` for an area fill or a zero reference line. A
+ * degenerate `min === max` domain maps everything to the vertical middle, so a
+ * flat series draws a centered line instead of dividing by zero.
+ */
+export function extentScale(min: number, max: number, extentPx: number) {
+  const span = max - min;
+  // `_value` is spelled out (not dropped) so the degenerate branch has the same
+  // shape callers expect from the normal one.
+  if (span <= 0) return { y: (_value: number) => extentPx / 2 };
+  return { y: (value: number) => ((max - value) / span) * extentPx };
+}
