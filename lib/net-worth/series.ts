@@ -83,3 +83,18 @@ export function monthlyNetWorthSeries(
   }
   return points;
 }
+
+/**
+ * The most recent snapshot date per account — the "last updated" each account
+ * card shows (#109 chunk 6, story 14). A snapshot is recorded only by a check-in
+ * (or a close), so an account created but never checked in is simply absent from
+ * the map, and the card reads "not recorded yet". Pure over the snapshot list.
+ */
+export function latestSnapshotDates(snapshots: Snapshot[]): Map<string, string> {
+  const latest = new Map<string, string>();
+  for (const s of snapshots) {
+    const current = latest.get(s.accountId);
+    if (current === undefined || s.date > current) latest.set(s.accountId, s.date);
+  }
+  return latest;
+}

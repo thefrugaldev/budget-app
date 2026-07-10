@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Account, Snapshot } from "@/types/net-worth";
 
-import { monthlyNetWorthSeries } from "./series";
+import { latestSnapshotDates, monthlyNetWorthSeries } from "./series";
 
 function account(over: Partial<Account> & Pick<Account, "id" | "class">): Account {
   return { name: over.name ?? over.id, ...over };
@@ -113,5 +113,26 @@ describe("monthlyNetWorthSeries", () => {
       { ym: "2026-02", net: 18_000 }, // car's 8_000 carried forward despite closedAt
       { ym: "2026-03", net: 18_500 },
     ]);
+  });
+});
+
+describe("latestSnapshotDates", () => {
+  it("returns the most recent date per account", () => {
+    const snapshots: Snapshot[] = [
+      { accountId: "a", date: "2026-01-31", value: 1 },
+      { accountId: "a", date: "2026-03-31", value: 3 },
+      { accountId: "a", date: "2026-02-28", value: 2 },
+      { accountId: "b", date: "2026-02-28", value: 9 },
+    ];
+    expect(latestSnapshotDates(snapshots)).toEqual(
+      new Map([
+        ["a", "2026-03-31"],
+        ["b", "2026-02-28"],
+      ]),
+    );
+  });
+
+  it("is empty for no snapshots (a never-checked-in account is simply absent)", () => {
+    expect(latestSnapshotDates([])).toEqual(new Map());
   });
 });

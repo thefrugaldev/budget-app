@@ -22,12 +22,30 @@ const provider = new FinnhubPriceProvider();
  * pass only the tickers they actually need priced (override precedence lives in
  * `accountValue`).
  */
-export async function getQuotes(tickers: string[]): Promise<Map<string, number>> {
-  return resolveQuotes({
+function resolveInput(tickers: string[]) {
+  return {
     tickers,
     cache: mongoQuoteCache,
     provider,
     now: new Date().toISOString(),
     ttlMs: DEFAULT_QUOTE_TTL_MS,
-  });
+  };
+}
+
+export async function getQuotes(tickers: string[]): Promise<Map<string, number>> {
+  return (await resolveQuotes(resolveInput(tickers))).prices;
+}
+
+/**
+ * Live prices **plus their cache timestamps** — for the Net Worth page's
+ * staleness indicator (#109 chunk 6, story 19). `resolveQuotes` builds the
+ * `asOf` map in the same pass it resolves prices (a refreshed ticker carries
+ * `now`, a stale-fallback keeps its older stamp), so this needs no extra cache
+ * read. Feed the pair to `pricingStatus` to derive the banner; values-only
+ * callers (the check-in) stay on `getQuotes`.
+ */
+export async function getQuotesWithAsOf(
+  tickers: string[],
+): Promise<{ prices: Map<string, number>; asOf: Map<string, string> }> {
+  return resolveQuotes(resolveInput(tickers));
 }

@@ -6,6 +6,7 @@ import { CategoryCard } from "@/components/budget/category/CategoryCard";
 import { GrowthColumns } from "@/components/budget/pulse/GrowthColumns";
 import { HeaderIncome } from "@/components/budget/income/HeaderIncome";
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import {
   aggregateRange,
   computeIncomeForRange,
@@ -218,27 +219,6 @@ export default async function Home({
       </div>
 
       <AddMenu categories={categories} transactions={transactions} />
-    </div>
-  );
-}
-
-function SectionHeading({
-  children,
-  amount,
-}: {
-  children: React.ReactNode;
-  amount?: string;
-}) {
-  return (
-    <div className="mb-3 flex items-baseline justify-between gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {children}
-      </h2>
-      {amount && (
-        <span className="font-heading text-sm font-semibold tabular-nums text-muted-foreground">
-          {amount}
-        </span>
-      )}
     </div>
   );
 }
