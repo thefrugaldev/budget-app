@@ -72,6 +72,11 @@ describe("monthlyNetWorthSeries", () => {
     ]);
   });
 
+  // The closed-account contract has two sides (see monthlyNetWorthSeries' doc):
+  // history is defined purely over snapshots, so closing zeroes an account out
+  // only via the final value:0 snapshot the chunk-2 write path records — this
+  // function never reads `closedAt`. These two tests pin both sides.
+
   it("keeps a closed account's history and zeroes it out from its closing snapshot", () => {
     const accounts = [
       account({ id: "hysa", class: "asset" }),
@@ -86,6 +91,27 @@ describe("monthlyNetWorthSeries", () => {
     expect(monthlyNetWorthSeries(accounts, snapshots)).toEqual([
       { ym: "2026-01", net: 18_000 }, // car still contributes its history
       { ym: "2026-02", net: 10_000 }, // car zeroed by its closing snapshot
+    ]);
+  });
+
+  it("carries a closed account forward when the write path omitted the closing zero snapshot (chunk-2 invariant)", () => {
+    // Documents the dependency: `closedAt` alone does NOT zero the series —
+    // absent the value:0 closing snapshot, the last recorded value carries
+    // forward. This is why persisting that snapshot is a chunk-2 write invariant.
+    const accounts = [
+      account({ id: "hysa", class: "asset" }),
+      account({ id: "car", class: "asset", closedAt: "2026-02-15" }),
+    ];
+    const snapshots: Snapshot[] = [
+      { accountId: "hysa", date: "2026-01-31", value: 10_000 },
+      { accountId: "car", date: "2026-01-31", value: 8_000 },
+      { accountId: "hysa", date: "2026-03-31", value: 10_500 },
+      // No closing snapshot for `car`.
+    ];
+    expect(monthlyNetWorthSeries(accounts, snapshots)).toEqual([
+      { ym: "2026-01", net: 18_000 },
+      { ym: "2026-02", net: 18_000 }, // car's 8_000 carried forward despite closedAt
+      { ym: "2026-03", net: 18_500 },
     ]);
   });
 });
