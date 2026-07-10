@@ -4,6 +4,7 @@ import {
   assertNonEmptyName,
   assertNonNegativeSnapshotValue,
   assertValidAccountShape,
+  assertValidHolding,
   assertValidIsoDate,
 } from "./validate";
 
@@ -42,6 +43,32 @@ describe("assertNonNegativeSnapshotValue", () => {
   it("rejects non-finite values", () => {
     expect(() => assertNonNegativeSnapshotValue(Number.NaN)).toThrow();
     expect(() => assertNonNegativeSnapshotValue(Number.POSITIVE_INFINITY)).toThrow();
+  });
+});
+
+describe("assertValidHolding", () => {
+  it("accepts a holding with a ticker, non-negative quantity, and optional override", () => {
+    expect(() => assertValidHolding({ ticker: "VOO", quantity: 10 })).not.toThrow();
+    expect(() => assertValidHolding({ ticker: "VOO", quantity: 0 })).not.toThrow();
+    expect(() => assertValidHolding({ ticker: "VOO", quantity: 10, priceOverride: 12.5 })).not.toThrow();
+  });
+
+  it("rejects a blank ticker", () => {
+    expect(() => assertValidHolding({ ticker: "  ", quantity: 10 })).toThrow(/must have a ticker/);
+  });
+
+  it("rejects a negative or non-finite quantity", () => {
+    expect(() => assertValidHolding({ ticker: "VOO", quantity: -1 })).toThrow(/quantity/);
+    expect(() => assertValidHolding({ ticker: "VOO", quantity: Number.NaN })).toThrow(/quantity/);
+  });
+
+  it("rejects a negative or non-finite price override", () => {
+    expect(() => assertValidHolding({ ticker: "VOO", quantity: 1, priceOverride: -5 })).toThrow(
+      /price override/,
+    );
+    expect(() =>
+      assertValidHolding({ ticker: "VOO", quantity: 1, priceOverride: Number.POSITIVE_INFINITY }),
+    ).toThrow(/price override/);
   });
 });
 

@@ -18,6 +18,12 @@ export type AssetKind = "cash" | "investment" | "property";
 export type Holding = {
   ticker: string;
   quantity: number;
+  /**
+   * Manual price override in dollars (#109 chunk 3, story 12). When set it wins
+   * over the market feed — so a ticker the feed can't quote (or quotes wrongly)
+   * never blocks valuation. Absent means "use the feed price".
+   */
+  priceOverride?: number;
 };
 
 /**
@@ -78,3 +84,33 @@ export type NetWorthPoint = {
   ym: string; // "YYYY-MM"
   net: number;
 };
+
+// --- Price layer contracts (#109 chunk 3, ADR 0003). The provider is a swap,
+// not a commitment; valuation depends only on these shapes, never on Finnhub. ---
+
+/**
+ * A source of current market prices for tickers. The Finnhub free-tier
+ * implementation is the first, but valuation logic must never depend on it —
+ * only on this interface (ADR 0003). Tickers the source can't quote are omitted
+ * from the returned map (they fall to a manual override or read as unpriced).
+ */
+export interface PriceProvider {
+  getQuotes(tickers: string[]): Promise<Map<string, number>>;
+}
+
+/** A cached market quote: the price and when it was fetched (ISO datetime). */
+export type CachedQuote = {
+  ticker: string;
+  price: number;
+  asOf: string;
+};
+
+/**
+ * The persistence seam behind the stale-refresh policy — implemented over Mongo
+ * in production, faked in tests. App-global (a price is not household data), so
+ * its implementation uses the raw db rather than a household-scoped collection.
+ */
+export interface QuoteCache {
+  read(tickers: string[]): Promise<Map<string, CachedQuote>>;
+  write(quotes: CachedQuote[]): Promise<void>;
+}

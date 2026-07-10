@@ -8,6 +8,8 @@ export const COLLECTIONS = {
   // Net Worth (#109 chunk 2). Accounts + their valuation snapshots.
   accounts: "accounts",
   snapshots: "snapshots",
+  // App-global market-quote cache (#109 chunk 3) — not household data.
+  quotes: "quotes",
   // Auth + tenancy (#111 chunk 2). See ADR 0004.
   users: "users",
   households: "households",

@@ -63,6 +63,22 @@ describe("accounts repository — create / read", () => {
       createAccount({ name: "Bad", class: "liability", kind: "cash" }),
     ).rejects.toThrow(/liability account must not have a kind/);
   });
+
+  it("rejects an invalid holding on create and on update", async () => {
+    await expect(
+      createAccount({
+        name: "Brokerage",
+        class: "asset",
+        kind: "investment",
+        holdings: [{ ticker: "VOO", quantity: -3 }],
+      }),
+    ).rejects.toThrow(/quantity/);
+
+    const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
+    await expect(
+      updateAccount(a.id, { holdings: [{ ticker: "VOO", quantity: 1, priceOverride: -1 }] }),
+    ).rejects.toThrow(/price override/);
+  });
 });
 
 describe("updateAccount", () => {
