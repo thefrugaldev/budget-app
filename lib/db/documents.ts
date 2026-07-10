@@ -2,7 +2,7 @@
 // Keep fields simple and portable across Atlas and Cosmos DB Mongo API.
 
 import type { CategoryKind, IncomeFrequency, PayCadence } from "@/types/budget";
-import type { AccountClass, AssetKind, Holding } from "@/types/net-worth";
+import type { AccountClass, AssetKind, Holding, SnapshotComposition } from "@/types/net-worth";
 import type { InvitableRole, InviteStatus, Role } from "@/types/auth";
 
 // Household ownership stamp (#111 ADR 0004). Added to every user-data
@@ -101,10 +101,14 @@ export type SnapshotDocument = HouseholdOwned & {
   date: string; // ISO "YYYY-MM-DD"
   // The account's own value as a non-negative magnitude; the account's `class`
   // supplies the sign in aggregation. Closing an account records a final
-  // `value: 0` snapshot. The composition behind the value (resolved
-  // holdings/prices, or the manual balance) is added by the check-in write path
-  // (#109 chunk 5) — chunk 2 records the value only.
+  // `value: 0` snapshot.
   value: number;
+  // What the value was made of at record time (the check-in write path, #109
+  // chunk 5): resolved holdings/prices, or the manual balance. Absent on the
+  // chunk-2 close snapshot (value 0, no composition to keep). Persisted because
+  // history is never reconstructed from past prices (ADR 0003) — the trajectory
+  // series ignores it; it's kept for a future composition breakdown.
+  composition?: SnapshotComposition;
   createdAt: Date;
 };
 

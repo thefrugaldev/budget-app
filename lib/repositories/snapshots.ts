@@ -5,7 +5,7 @@ import type { SnapshotDocument } from "@/lib/db/documents";
 import { scopedCollection } from "@/lib/db/household-scope";
 import { toSnapshot } from "@/lib/db/mappers";
 import { assertNonNegativeSnapshotValue, assertValidIsoDate } from "@/lib/net-worth/validate";
-import type { Snapshot } from "@/types/net-worth";
+import type { Snapshot, SnapshotComposition } from "@/types/net-worth";
 
 /** Every recorded snapshot for the household, in date order — feeds the history series. */
 export async function listSnapshots(): Promise<Snapshot[]> {
@@ -24,13 +24,16 @@ export async function listSnapshotsForAccount(accountId: string): Promise<Snapsh
 /**
  * Record a single valuation snapshot. `value` is a non-negative magnitude —
  * the account's class supplies the sign in aggregation — enforced here at the
- * write boundary. Used by `closeAccount` (the final `value: 0` snapshot); the
- * check-in write path (chunk 5) records the full set at once.
+ * write boundary. The optional `composition` (chunk 5) persists what the value
+ * was made of at record time (resolved holdings/prices or the manual balance);
+ * `closeAccount`'s final `value: 0` snapshot passes none. Used by both that
+ * close path and the check-in write path, which records the full set at once.
  */
 export async function createSnapshot(input: {
   accountId: string;
   date: string;
   value: number;
+  composition?: SnapshotComposition;
 }): Promise<Snapshot> {
   assertValidIsoDate(input.date);
   assertNonNegativeSnapshotValue(input.value);
@@ -40,10 +43,53 @@ export async function createSnapshot(input: {
     accountId: input.accountId,
     date: input.date,
     value: input.value,
+    // Written only when provided, so the close snapshot stays composition-free
+    // and a leaked `null` never reaches a reader — same discipline as the
+    // optional account fields (see createAccount).
+    ...(input.composition !== undefined ? { composition: input.composition } : {}),
     createdAt: new Date(),
   };
   await snapshots.insertOne(doc);
   return toSnapshot(doc);
+}
+
+/**
+ * Record a whole check-in's worth of snapshots in one write (#109 chunk 5). The
+ * check-in records one snapshot per open account, so this batches them into a
+ * single `insertMany` round trip rather than N sequential inserts. Every input
+ * is validated *before* any write, so a single bad value fails the batch cleanly
+ * instead of leaving a partial set committed. Returns the number written.
+ *
+ * (Idempotency across a retried/double-submitted check-in — one row per
+ * `(accountId, date)` — is a separate follow-up: it needs a partial unique index
+ * plus an upsert path, which the singular-insert `closeAccount` also has to
+ * account for. See the PR follow-up note.)
+ */
+export async function createSnapshots(
+  inputs: {
+    accountId: string;
+    date: string;
+    value: number;
+    composition?: SnapshotComposition;
+  }[],
+): Promise<number> {
+  if (inputs.length === 0) return 0;
+  for (const input of inputs) {
+    assertValidIsoDate(input.date);
+    assertNonNegativeSnapshotValue(input.value);
+  }
+  const snapshots = await scopedCollection<SnapshotDocument>(COLLECTIONS.snapshots);
+  const now = new Date();
+  const docs: SnapshotDocument[] = inputs.map((input) => ({
+    _id: randomUUID(),
+    accountId: input.accountId,
+    date: input.date,
+    value: input.value,
+    ...(input.composition !== undefined ? { composition: input.composition } : {}),
+    createdAt: now,
+  }));
+  await snapshots.insertMany(docs);
+  return docs.length;
 }
 
 /** How many snapshots an account has — the "is this account empty?" test for hard-delete. */
