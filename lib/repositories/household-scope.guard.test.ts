@@ -21,6 +21,8 @@ const HOUSEHOLD_SCOPED_MODULES = [
   "./categoryTargets.ts",
   "./transactions.ts",
   "./monthly-spend.ts",
+  "./accounts.ts",
+  "./snapshots.ts",
   "../db/reset.ts",
 ];
 
