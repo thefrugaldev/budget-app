@@ -83,6 +83,40 @@ idempotent per file:
 Re-running an unchanged workbook is a no-op (deterministic ids, preserved
 `createdAt`), so a re-run is always safe.
 
+## Cutover readiness (what gates the switchover)
+
+Cutover retires `2026.xlsx` entirely, so the app must be able to hold **every**
+data type the workbook holds *and* offer a go-forward entry path for each. Three
+of the four are already live (transactions, income, category estimates — imported
+in chunks 1–6, entered in-app via the existing surfaces). The fourth is the
+`DebtsEquity` liability/balance history, and it sets the gate:
+
+- **Net Worth (#109) is the gate — not FIRE (#110).** Two reasons: chunk 7 writes
+  liability history into #109's `Snapshot`/`Account` document types (so those must
+  exist), and #109's monthly **check-in flow** is the only in-app place to *enter*
+  balances going forward. Until it ships, the `DebtsEquity` half of the workbook
+  has nowhere to live in the app, so the sheet can't be fully retired.
+- **FIRE (#110) does not gate cutover.** It's a *derived* page (nest egg + budget
+  actuals + planning knobs) and migrates **no** spreadsheet data — nothing is
+  stranded if you switch over before it exists. Wait for it only if you want Net
+  Worth *and* FIRE both live for the switchover as a product/ceremony call, not
+  because any data depends on it.
+- **Chunk 7 must be merged and validated *before* the final apply**, since the
+  cutover apply is what brings the liability history over. On a dev/preview DB,
+  confirm imported snapshots (a) render in the trajectory chart's carry-forward
+  series (#109 story 10) and (b) are spared by the danger-zone reset — i.e. the
+  chunk-5 `importRef` protection extends to the snapshot collection.
+
+**Until cutover, keep the workbook the *sole* working system — do not dual-enter.**
+Re-applying interim `2026.xlsx` saves is free (idempotent), and interim liability
+edits sit safely in the archive until chunk 7's final apply. But hand-entering
+*new* data directly in the app before cutover creates app-side data the archive
+can't reproduce — which forfeits the "no backup needed before first apply" safety
+and muddies parity. Treat the app as read-only preview until the final apply.
+
+Recommended order: ship #109 (its check-in is the go-forward path) → run + validate
+chunk 7 against the real types → *optionally* #110 → cutover (below).
+
 ## Cutover checklist
 
 The one-way switch from spreadsheet to app as system of record:
