@@ -83,6 +83,31 @@ export type SnapshotComposition =
  */
 export type PriceLookup = (ticker: string) => number | undefined;
 
+/**
+ * Whether the live prices behind the headline can be trusted (#109 chunk 6,
+ * story 19) — derived by `pricingStatus` from the resolved prices + their cache
+ * timestamps, consumed by the page and its staleness banner. Only feed-priced
+ * tickers matter; a manual override is never stale.
+ */
+export type PricingStatus = {
+  /**
+   * The oldest `asOf` among the priced needed tickers (ISO datetime), or `null`
+   * when nothing needs a live quote — the honest "prices are at least this
+   * fresh" stamp for the page.
+   */
+  pricedAt: string | null;
+  /**
+   * A needed ticker's shown price is older than the TTL — the feed couldn't
+   * refresh it and we're displaying a cached value.
+   */
+  stale: boolean;
+  /**
+   * Needed tickers with no price at all (feed failed and never cached). Their
+   * holdings contribute 0, so any account holding one is understated.
+   */
+  unpriced: string[];
+};
+
 /** The live net-worth headline: both subtotals plus the signed net figure. */
 export type NetWorthHeadline = {
   /** Sum of open asset-account values. */

@@ -31,3 +31,24 @@ export async function getQuotes(tickers: string[]): Promise<Map<string, number>>
     ttlMs: DEFAULT_QUOTE_TTL_MS,
   });
 }
+
+/**
+ * Live prices **plus their cache timestamps** — for the Net Worth page's
+ * staleness indicator (#109 chunk 6, story 19). `getQuotes` refreshes stale
+ * entries on read, so the `asOf` map read straight after reflects the post-fetch
+ * state: a ticker the feed refreshed carries a `now`-ish stamp, while one the
+ * feed couldn't refresh keeps its older cached stamp (or is absent from
+ * `prices`). Feed the pair to `pricingStatus` to derive the banner. Values-only
+ * callers (the check-in) stay on `getQuotes`.
+ */
+export async function getQuotesWithAsOf(
+  tickers: string[],
+): Promise<{ prices: Map<string, number>; asOf: Map<string, string> }> {
+  const prices = await getQuotes(tickers);
+  const asOf = new Map<string, string>();
+  if (tickers.length > 0) {
+    const cached = await mongoQuoteCache.read(tickers);
+    for (const [ticker, quote] of cached) asOf.set(ticker, quote.asOf);
+  }
+  return { prices, asOf };
+}
