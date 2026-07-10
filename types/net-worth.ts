@@ -62,6 +62,20 @@ export type Snapshot = {
 };
 
 /**
+ * What a snapshot's value was made of at record time (#109 chunk 5, story 8):
+ * the manual `balance` for a cash/property/liability account, or the resolved
+ * `holdings` (each with the exact `price` used) for an investment account.
+ * Recorded because history is never reconstructed from historical prices — the
+ * composition can't be recovered later, so we persist it now (ADR 0003). It's a
+ * persisted audit detail, not history math: `buildCheckInSnapshots` produces it
+ * and the document layer stores it, but the trajectory series reads only
+ * `value`. `Σ quantity × price === value` for the holdings form, by construction.
+ */
+export type SnapshotComposition =
+  | { balance: number }
+  | { holdings: { ticker: string; quantity: number; price: number }[] };
+
+/**
  * Resolves a ticker to its current price (in dollars), or `undefined` when no
  * price is available. The valuation math stays pure and network-free by taking
  * this lookup as a parameter; chunk 3's price layer (feed + cache + manual
