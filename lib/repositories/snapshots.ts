@@ -53,6 +53,45 @@ export async function createSnapshot(input: {
   return toSnapshot(doc);
 }
 
+/**
+ * Record a whole check-in's worth of snapshots in one write (#109 chunk 5). The
+ * check-in records one snapshot per open account, so this batches them into a
+ * single `insertMany` round trip rather than N sequential inserts. Every input
+ * is validated *before* any write, so a single bad value fails the batch cleanly
+ * instead of leaving a partial set committed. Returns the number written.
+ *
+ * (Idempotency across a retried/double-submitted check-in — one row per
+ * `(accountId, date)` — is a separate follow-up: it needs a partial unique index
+ * plus an upsert path, which the singular-insert `closeAccount` also has to
+ * account for. See the PR follow-up note.)
+ */
+export async function createSnapshots(
+  inputs: {
+    accountId: string;
+    date: string;
+    value: number;
+    composition?: SnapshotComposition;
+  }[],
+): Promise<number> {
+  if (inputs.length === 0) return 0;
+  for (const input of inputs) {
+    assertValidIsoDate(input.date);
+    assertNonNegativeSnapshotValue(input.value);
+  }
+  const snapshots = await scopedCollection<SnapshotDocument>(COLLECTIONS.snapshots);
+  const now = new Date();
+  const docs: SnapshotDocument[] = inputs.map((input) => ({
+    _id: randomUUID(),
+    accountId: input.accountId,
+    date: input.date,
+    value: input.value,
+    ...(input.composition !== undefined ? { composition: input.composition } : {}),
+    createdAt: now,
+  }));
+  await snapshots.insertMany(docs);
+  return docs.length;
+}
+
 /** How many snapshots an account has — the "is this account empty?" test for hard-delete. */
 export async function countSnapshotsForAccount(accountId: string): Promise<number> {
   const snapshots = await scopedCollection<SnapshotDocument>(COLLECTIONS.snapshots);

@@ -19,6 +19,12 @@ import { accountValue } from "./valuation";
  * records its manual `balance`. Recording this now is the point — history is
  * never reconstructed from past prices (ADR 0003), so the makeup of a past
  * valuation is only knowable if captured at record time.
+ *
+ * **Contract:** the caller must have resolved a price for every non-override
+ * holding before calling — enforce it with {@link unpricedTickers} and refuse
+ * the check-in otherwise. The `?? 0` below is only a defensive floor for that
+ * already-rejected case; a snapshot must never silently under-record an unpriced
+ * holding as $0, because that undershoot would be baked into history forever.
  */
 export function buildCheckInSnapshots(
   accounts: Account[],
@@ -75,4 +81,17 @@ export function tickersNeedingQuotes(accounts: Account[]): string[] {
     }
   }
   return [...tickers];
+}
+
+/**
+ * The needed tickers a check-in could **not** get a price for: needed (see
+ * {@link tickersNeedingQuotes}) but absent from the resolved `prices` map. This
+ * only happens when a holding has no override, no cached price ever, and the
+ * feed can't quote it — at which point recording the account would undershoot
+ * its value and bake a wrong point into history (never reconstructed, ADR 0003).
+ * The action refuses the check-in when this is non-empty and points the user at
+ * a manual override (story 12) rather than silently recording $0.
+ */
+export function unpricedTickers(accounts: Account[], prices: Map<string, number>): string[] {
+  return tickersNeedingQuotes(accounts).filter((ticker) => !prices.has(ticker));
 }

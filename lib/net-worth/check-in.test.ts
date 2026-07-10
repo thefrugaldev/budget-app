@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Account, PriceLookup } from "@/types/net-worth";
 
-import { buildCheckInSnapshots, tickersNeedingQuotes } from "./check-in";
+import { buildCheckInSnapshots, tickersNeedingQuotes, unpricedTickers } from "./check-in";
 
 const prices: Record<string, number> = { VTI: 100, AAPL: 200 };
 const priceFor: PriceLookup = (t) => prices[t];
@@ -140,5 +140,33 @@ describe("tickersNeedingQuotes", () => {
       closedAt: "2026-06-01",
     });
     expect(tickersNeedingQuotes([cash, closed])).toEqual([]);
+  });
+});
+
+describe("unpricedTickers", () => {
+  const brokerage = account({
+    id: "b",
+    class: "asset",
+    kind: "investment",
+    holdings: [{ ticker: "VTI", quantity: 1 }, { ticker: "MYSTERY", quantity: 1 }],
+  });
+
+  it("is empty when every needed ticker is priced", () => {
+    expect(unpricedTickers([brokerage], new Map([["VTI", 100], ["MYSTERY", 5]]))).toEqual([]);
+  });
+
+  it("reports a needed ticker missing from the resolved prices", () => {
+    expect(unpricedTickers([brokerage], new Map([["VTI", 100]]))).toEqual(["MYSTERY"]);
+  });
+
+  it("ignores holdings with an override — they need no quote", () => {
+    const acct = account({
+      id: "b",
+      class: "asset",
+      kind: "investment",
+      holdings: [{ ticker: "OVR", quantity: 1, priceOverride: 5 }],
+    });
+    // OVR is priced by its override, so an empty prices map is still fine.
+    expect(unpricedTickers([acct], new Map())).toEqual([]);
   });
 });

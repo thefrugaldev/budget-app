@@ -79,6 +79,13 @@ describe("parseBalanceAmount", () => {
     expect(() => parseBalanceAmount("")).toThrow(/required/i);
     expect(() => parseBalanceAmount(null)).toThrow(/required/i);
   });
+
+  it("rejects scientific notation and other malformed shapes (no silent coercion)", () => {
+    // A `[^0-9.-]` strip would turn "1e5" into 15; the whitelist rejects it.
+    expect(() => parseBalanceAmount("1e5")).toThrow(/number/i);
+    expect(() => parseBalanceAmount("5.5.5")).toThrow(/number/i);
+    expect(() => parseBalanceAmount("--5")).toThrow(/number/i);
+  });
 });
 
 describe("parseTicker", () => {

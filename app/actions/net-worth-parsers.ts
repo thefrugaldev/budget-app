@@ -29,11 +29,15 @@ function finiteNonNegative(raw: unknown, label: string): number {
   if (typeof raw === "number") {
     n = raw;
   } else if (typeof raw === "string" && raw.trim() !== "") {
-    const cleaned = raw.replace(/[^0-9.\-]/g, "");
-    if (cleaned === "" || !/[0-9]/.test(cleaned)) {
+    // Strip only currency formatting ($, thousands separators, whitespace), then
+    // require a plain decimal. A whitelist (not a blacklist) so `"1e5"` and other
+    // odd shapes fail with a clear error instead of silently coercing (`"1e5"`
+    // would drop the `e` and become 15 under a `[^0-9.-]` strip).
+    const stripped = raw.replace(/[$,\s]/g, "");
+    if (!/^-?\d+(\.\d+)?$/.test(stripped)) {
       throw new Error(`${label} must be a number`);
     }
-    n = Number(cleaned);
+    n = Number(stripped);
   } else {
     throw new Error(`${label} is required`);
   }

@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth/require-role";
-import { buildCheckInSnapshots, tickersNeedingQuotes } from "@/lib/net-worth/check-in";
+import {
+  buildCheckInSnapshots,
+  tickersNeedingQuotes,
+  unpricedTickers,
+} from "@/lib/net-worth/check-in";
 import { getQuotes } from "@/lib/net-worth/price/get-quotes";
 import {
   closeAccount,
@@ -13,7 +17,7 @@ import {
   listAccounts,
   updateAccount,
 } from "@/lib/repositories/accounts";
-import { createSnapshot } from "@/lib/repositories/snapshots";
+import { createSnapshots } from "@/lib/repositories/snapshots";
 import type { Account, Holding, PriceLookup } from "@/types/net-worth";
 
 import {
@@ -51,7 +55,14 @@ function revalidateNetWorth(): void {
   revalidatePath("/net-worth");
 }
 
-/** Today as an ISO date, the default a check-in / close is recorded under. */
+/**
+ * Today as a UTC ISO date — the **last-resort fallback** when no date is passed.
+ * A live check-in should record against the user's *local* calendar day, which
+ * the server can't know; the caller (chunk 8's edit mode) passes the client's
+ * local date via `input.date` and this fallback only covers a caller that omits
+ * it. UTC here would misfile a late-evening check-in in a behind-UTC timezone as
+ * tomorrow — hence the caller-supplied date is the real path.
+ */
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -310,6 +321,12 @@ export async function removeHoldingAction(
  * series rather than cratering the chart). Investment values resolve through the
  * cached price feed; per-account editing is the create/edit/holding actions above.
  *
+ * **Refuses rather than under-records.** If a needed ticker can't be priced (no
+ * override, no cached price ever, and the feed can't quote it), the check-in is
+ * rejected naming those tickers — recording them would bake a $0 undershoot into
+ * history, which is never reconstructed (ADR 0003). The user adds a manual price
+ * override (story 12) and retries. All-or-nothing keeps the monthly point honest.
+ *
  * Fire-and-forget (typed input, not `useActionState`) — chunk 8's single-page
  * edit mode invokes it after applying the per-account edits, then reports
  * `recorded` in a toast. Defends its own boundary with `requireRole`.
@@ -324,15 +341,21 @@ export async function submitCheckInAction(
 
     const tickers = tickersNeedingQuotes(openAccounts);
     const prices = tickers.length > 0 ? await getQuotes(tickers) : new Map<string, number>();
-    const priceFor: PriceLookup = (ticker) => prices.get(ticker);
 
-    const snapshots = buildCheckInSnapshots(openAccounts, priceFor, date);
-    for (const snapshot of snapshots) {
-      await createSnapshot(snapshot);
+    const missing = unpricedTickers(openAccounts, prices);
+    if (missing.length > 0) {
+      return {
+        error: `Couldn't get a live price for ${missing.join(", ")}. Add a manual price override for those holdings, then check in again.`,
+        recorded: 0,
+      };
     }
 
+    const priceFor: PriceLookup = (ticker) => prices.get(ticker);
+    const snapshots = buildCheckInSnapshots(openAccounts, priceFor, date);
+    const recorded = await createSnapshots(snapshots);
+
     revalidateNetWorth();
-    return { error: null, recorded: snapshots.length };
+    return { error: null, recorded };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Check-in failed", recorded: 0 };
   }
