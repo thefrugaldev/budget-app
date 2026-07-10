@@ -2,6 +2,7 @@
 // Keep fields simple and portable across Atlas and Cosmos DB Mongo API.
 
 import type { CategoryKind, IncomeFrequency, PayCadence } from "@/types/budget";
+import type { AccountClass, AssetKind, Holding } from "@/types/net-worth";
 import type { InvitableRole, InviteStatus, Role } from "@/types/auth";
 
 // Household ownership stamp (#111 ADR 0004). Added to every user-data
@@ -71,6 +72,40 @@ export type TransactionDocument = HouseholdOwned & Imported & {
 export type MetaDocument = HouseholdOwned & {
   _id: string;
   clearedAt?: Date;
+};
+
+// --- Net Worth (#109 chunk 2, ADR 0003). Accounts + valuation snapshots — a
+// distinct entity set from budget Categories that never reconciles against them.
+// Household-owned like all user data; the domain mappers project these to the
+// `@/types/net-worth` shapes. ---
+
+export type AccountDocument = HouseholdOwned & {
+  _id: string;
+  name: string;
+  class: AccountClass;
+  // Asset accounts only; absent for liabilities (always manual-balance).
+  kind?: AssetKind;
+  // Manual balance in dollars for cash / property / liability accounts.
+  balance?: number;
+  // Positions for an investment account.
+  holdings?: Holding[];
+  // ISO date the account was closed; absent while open. A closed account leaves
+  // the live headline / nest egg / check-in but keeps its snapshot history.
+  closedAt?: string;
+  createdAt: Date;
+};
+
+export type SnapshotDocument = HouseholdOwned & {
+  _id: string;
+  accountId: string;
+  date: string; // ISO "YYYY-MM-DD"
+  // The account's own value as a non-negative magnitude; the account's `class`
+  // supplies the sign in aggregation. Closing an account records a final
+  // `value: 0` snapshot. The composition behind the value (resolved
+  // holdings/prices, or the manual balance) is added by the check-in write path
+  // (#109 chunk 5) — chunk 2 records the value only.
+  value: number;
+  createdAt: Date;
 };
 
 // --- Auth collections (#111 chunk 2). Clerk-agnostic by design (ADR 0004): no

@@ -5,6 +5,9 @@ export const COLLECTIONS = {
   // App-level state that is not user data — e.g. the auto-seed marker the
   // danger-zone reset sets so a deliberately-emptied DB is not re-seeded.
   meta: "meta",
+  // Net Worth (#109 chunk 2). Accounts + their valuation snapshots.
+  accounts: "accounts",
+  snapshots: "snapshots",
   // Auth + tenancy (#111 chunk 2). See ADR 0004.
   users: "users",
   households: "households",

@@ -95,6 +95,14 @@ function buildIndexes(db: Db): Promise<void> {
     // full-history reads, which always pair the household with a date sort.
     db.collection(COLLECTIONS.categories).createIndex({ householdId: 1, name: 1 }),
     db.collection(COLLECTIONS.transactions).createIndex({ householdId: 1, date: 1 }),
+    // Net Worth (#109 chunk 2). Accounts list per household sorted by name;
+    // snapshots read per household per account in date order (the carry-forward
+    // history series and per-account queries), which the compound key serves
+    // and its `householdId` prefix also covers the household-only filter.
+    db.collection(COLLECTIONS.accounts).createIndex({ householdId: 1, name: 1 }),
+    db
+      .collection(COLLECTIONS.snapshots)
+      .createIndex({ householdId: 1, accountId: 1, date: 1 }),
     // Auth collections (#111 chunk 2). A user has exactly one identity record
     // and at most one membership in v1, so both lookups are unique. Invites
     // are listed per household (matching is in-app via `matchInvite`).

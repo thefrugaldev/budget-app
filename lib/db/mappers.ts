@@ -1,11 +1,14 @@
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+import type { Account, Snapshot } from "@/types/net-worth";
 import type { Household, Invite, Member, User } from "@/types/auth";
 import type {
+  AccountDocument,
   CategoryDocument,
   CategoryTargetDocument,
   HouseholdDocument,
   InviteDocument,
   MemberDocument,
+  SnapshotDocument,
   TransactionDocument,
   UserDocument,
 } from "./documents";
@@ -56,6 +59,32 @@ export function toTransaction(doc: TransactionDocument): Transaction {
     date: doc.date,
     vendor: doc.vendor,
     note: doc.note,
+  };
+}
+
+// --- Net Worth mappers (#109 chunk 2). `householdId` is a tenancy concern and
+// stays off the domain shapes; the snapshot's composition is a document-only
+// detail the history math doesn't read, so `toSnapshot` projects value alone. ---
+
+export function toAccount(doc: AccountDocument): Account {
+  return {
+    id: doc._id,
+    name: doc.name,
+    class: doc.class,
+    // `?? undefined` normalises both an absent field and a leaked Mongo null,
+    // so the `?: T` optionals read literally (a `null` would be truthy-wrong).
+    kind: doc.kind ?? undefined,
+    balance: doc.balance ?? undefined,
+    holdings: doc.holdings ?? undefined,
+    closedAt: doc.closedAt ?? undefined,
+  };
+}
+
+export function toSnapshot(doc: SnapshotDocument): Snapshot {
+  return {
+    accountId: doc.accountId,
+    date: doc.date,
+    value: doc.value,
   };
 }
 
