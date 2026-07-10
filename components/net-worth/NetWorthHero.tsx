@@ -24,22 +24,25 @@ export function NetWorthHero({ headline }: { headline: NetWorthHeadline }) {
       </h1>
       <p
         className={cn(
-          "mt-3 font-heading text-hero font-semibold tracking-tight tabular-nums",
+          "mt-2 font-heading text-hero font-bold tracking-tight tabular-nums",
           net < 0 ? "text-signal-bad-foreground" : "text-foreground",
         )}
       >
         {fmt(net)}
       </p>
-      <p className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-base text-muted-foreground">
+      {/* Supporting split — deliberately a step down in size/weight from the net
+          so the marquee figure reads first; the good/bad tones stay to keep the
+          two sides legible at a glance. */}
+      <p className="mt-4 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm text-muted-foreground">
         <span>
           Assets{" "}
-          <span className="font-medium tabular-nums text-signal-good-foreground">
+          <span className="font-semibold tabular-nums text-signal-good-foreground">
             {fmt(assets)}
           </span>
         </span>
         <span>
           Liabilities{" "}
-          <span className="font-medium tabular-nums text-signal-bad-foreground">
+          <span className="font-semibold tabular-nums text-signal-bad-foreground">
             {fmt(liabilities)}
           </span>
         </span>

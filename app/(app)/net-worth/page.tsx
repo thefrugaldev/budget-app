@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import { AccountCard } from "@/components/net-worth/AccountCard";
+import { AccountCardActions } from "@/components/net-worth/AccountCardActions";
+import { AddAccountButton } from "@/components/net-worth/AddAccountButton";
 import { NetWorthEmptyState } from "@/components/net-worth/NetWorthEmptyState";
 import { NetWorthHero } from "@/components/net-worth/NetWorthHero";
 import { PriceStalenessNotice } from "@/components/net-worth/PriceStalenessNotice";
@@ -36,11 +38,12 @@ const GROUPS: { key: string; label: string; match: (a: Account) => boolean }[] =
 export default async function NetWorthPage() {
   const [accounts, snapshots] = await Promise.all([listAccounts(), listSnapshots()]);
 
-  // Nothing set up yet — walk the user into their first account (story 17).
+  // Nothing set up yet — walk the user into their first account (story 17). The
+  // Add button is role-gated (absent for viewers, who just read the copy).
   if (accounts.length === 0) {
     return (
       <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
-        <NetWorthEmptyState />
+        <NetWorthEmptyState action={<AddAccountButton variant="cta" />} />
       </div>
     );
   }
@@ -54,6 +57,8 @@ export default async function NetWorthPage() {
   const tickers = tickersNeedingQuotes(openAccounts);
   const { prices, asOf } = await getQuotesWithAsOf(tickers);
   const priceFor: PriceLookup = (ticker) => prices.get(ticker);
+  // Plain lookup for the client edit sheet's per-holding values (Map → Record).
+  const priceByTicker = Object.fromEntries(prices);
   const status = pricingStatus({
     neededTickers: tickers,
     prices,
@@ -64,6 +69,9 @@ export default async function NetWorthPage() {
 
   const headline = netWorthHeadline(openAccounts, priceFor);
   const lastUpdated = latestSnapshotDates(snapshots);
+  // An account with any snapshot has history — it can be closed but not deleted,
+  // and its class is locked. Drives the edit sheet's affordances.
+  const accountsWithHistory = new Set(snapshots.map((s) => s.accountId));
 
   const toGroup = (key: string, label: string, accts: Account[]) => {
     const items = accts.map((account) => ({ account, value: accountValue(account, priceFor) }));
@@ -84,7 +92,10 @@ export default async function NetWorthPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
-      <NetWorthHero headline={headline} />
+      <div className="flex items-start justify-between gap-4">
+        <NetWorthHero headline={headline} />
+        <AddAccountButton />
+      </div>
       <PriceStalenessNotice status={status} />
 
       <div className="space-y-8">
@@ -102,6 +113,13 @@ export default async function NetWorthPage() {
                     account={account}
                     value={value}
                     lastUpdated={lastUpdated.get(account.id)}
+                    action={
+                      <AccountCardActions
+                        account={account}
+                        hasHistory={accountsWithHistory.has(account.id)}
+                        prices={priceByTicker}
+                      />
+                    }
                   />
                 ))}
               </div>

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { dayLabel, fmt } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { Account } from "@/types/net-worth";
@@ -16,30 +18,36 @@ export function AccountCard({
   account,
   value,
   lastUpdated,
+  action,
 }: {
   account: Account;
   /** The account's current value as a non-negative magnitude (class supplies the sign). */
   value: number;
   /** ISO date of the account's most recent snapshot; absent if never recorded. */
   lastUpdated?: string;
+  /** Edit affordance rendered top-right (a client component, role-gated). */
+  action?: ReactNode;
 }) {
   const isLiability = account.class === "liability";
   const holdingsCount = account.holdings?.length ?? 0;
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-card p-4 ring-1 ring-border">
-      <div className="flex items-start gap-3">
-        <AccountIcon account={account} />
-        <div className="min-w-0">
-          <p className="truncate font-medium leading-tight">{account.name}</p>
-          {account.kind === "investment" && (
-            <p className="text-xs text-muted-foreground">
-              {holdingsCount === 0
-                ? "No holdings"
-                : `${holdingsCount} ${holdingsCount === 1 ? "holding" : "holdings"}`}
-            </p>
-          )}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-3">
+          <AccountIcon account={account} />
+          <div className="min-w-0">
+            <p className="truncate font-medium leading-tight">{account.name}</p>
+            {account.kind === "investment" && (
+              <p className="text-xs text-muted-foreground">
+                {holdingsCount === 0
+                  ? "No holdings"
+                  : `${holdingsCount} ${holdingsCount === 1 ? "holding" : "holdings"}`}
+              </p>
+            )}
+          </div>
         </div>
+        {action}
       </div>
 
       <div className="flex items-baseline justify-between gap-2">
