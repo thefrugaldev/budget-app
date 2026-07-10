@@ -26,6 +26,9 @@ export function HoldingsEditor({
   prices: Record<string, number>;
 }) {
   const holdings = account.holdings ?? [];
+  // Initial-only: open the add form when there's nothing to show, otherwise
+  // start collapsed. Deliberately not synced afterward — once mounted, the
+  // user's expand/collapse toggle wins.
   const [adding, setAdding] = useState(holdings.length === 0);
 
   return (

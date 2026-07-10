@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 
 import { addHoldingAction } from "@/app/actions/net-worth";
 import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
-import { useNotify } from "@/hooks/useNotify";
+import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 
 /**
  * Add a position to an investment account (#109 chunk 7, story 4). Ticker +
@@ -23,7 +23,6 @@ export function AddHoldingForm({
   onCancel?: () => void;
 }) {
   const [state, formAction] = useActionState(addHoldingAction, NET_WORTH_ACTION_INITIAL);
-  const notify = useNotify();
   const [ticker, setTicker] = useState("");
   const [quantity, setQuantity] = useState("");
   const [priceOverride, setPriceOverride] = useState("");
@@ -31,17 +30,12 @@ export function AddHoldingForm({
   // ticker + quantity and the manual price reads as a deliberate exception.
   const [showOverride, setShowOverride] = useState(false);
 
-  const lastOk = useRef(state.ok);
-  useEffect(() => {
-    if (state.ok > lastOk.current && !state.error) {
-      lastOk.current = state.ok;
-      notify.success("Holding added");
-      setTicker("");
-      setQuantity("");
-      setPriceOverride("");
-      setShowOverride(false);
-    }
-  }, [state, notify]);
+  useActionSuccessToast(state, () => "Holding added", () => {
+    setTicker("");
+    setQuantity("");
+    setPriceOverride("");
+    setShowOverride(false);
+  });
 
   return (
     <form action={formAction} className="space-y-2 rounded-lg bg-muted/50 p-3">
@@ -52,12 +46,12 @@ export function AddHoldingForm({
           <input
             name="ticker"
             value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
+            onChange={(e) => setTicker(e.target.value.toUpperCase())}
             placeholder="VTI"
             required
             aria-label="Ticker"
             autoComplete="off"
-            className="w-full rounded-md bg-background px-2 py-1.5 text-sm uppercase ring-1 ring-border outline-none focus:ring-ring"
+            className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
           />
         </label>
         <label className="flex-1 space-y-1">

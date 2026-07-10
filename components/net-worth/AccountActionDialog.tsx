@@ -30,6 +30,7 @@ export function AccountActionDialog({
   pendingLabel,
   successMessage,
   action,
+  dateValue,
   onSuccess,
 }: {
   open: boolean;
@@ -41,6 +42,13 @@ export function AccountActionDialog({
   pendingLabel: string;
   successMessage: string;
   action: AccountAction;
+  /**
+   * When set, submitted as `date` — the client's *local* calendar day, so a
+   * close records its final snapshot under the user's today, not the server's
+   * UTC one (chunk 5 reserves the UTC `todayIso()` as a last resort for callers
+   * that omit this). Only the close variant passes it; delete needs no date.
+   */
+  dateValue?: string;
   onSuccess?: () => void;
 }) {
   const [state, formAction] = useActionState(action, NET_WORTH_ACTION_INITIAL);
@@ -60,6 +68,7 @@ export function AccountActionDialog({
           </Dialog.Description>
           <form action={formAction} className="mt-5 flex justify-end gap-2">
             <input type="hidden" name="id" value={accountId} />
+            {dateValue && <input type="hidden" name="date" value={dateValue} />}
             <Dialog.Close className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
               Cancel
             </Dialog.Close>

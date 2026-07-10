@@ -10,6 +10,7 @@ import { AccountFields } from "@/components/net-worth/AccountFields";
 import { AccountLifecycleActions } from "@/components/net-worth/AccountLifecycleActions";
 import { HoldingsEditor } from "@/components/net-worth/HoldingsEditor";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
+import { useResyncOnChange } from "@/hooks/useResyncOnChange";
 import { cn } from "@/lib/utils";
 import type { Account, AccountClass, AssetKind } from "@/types/net-worth";
 
@@ -45,17 +46,19 @@ export function AccountEditSheet({
   const [kind, setKind] = useState<AssetKind>(account.kind ?? "cash");
   const [balance, setBalance] = useState(account.balance != null ? String(account.balance) : "");
 
-  const accountKey = `${account.name}|${account.class}|${account.kind ?? ""}|${account.balance ?? ""}`;
-  const [prev, setPrev] = useState({ key: accountKey, open });
-  if (prev.key !== accountKey || (open && !prev.open)) {
-    setPrev({ key: accountKey, open });
-    setName(account.name);
-    setAccountClass(account.class);
-    setKind(account.kind ?? "cash");
-    setBalance(account.balance != null ? String(account.balance) : "");
-  } else if (prev.open !== open) {
-    setPrev({ ...prev, open });
-  }
+  // Reset the inputs to the persisted account when it changes or the sheet
+  // (re)opens — `open` is folded into the key so each opening is a clean slate,
+  // while an in-flight edit survives an unrelated revalidation (e.g. adding a
+  // holding, which doesn't touch these fields).
+  useResyncOnChange(
+    `${account.name}|${account.class}|${account.kind ?? ""}|${account.balance ?? ""}|${open}`,
+    () => {
+      setName(account.name);
+      setAccountClass(account.class);
+      setKind(account.kind ?? "cash");
+      setBalance(account.balance != null ? String(account.balance) : "");
+    },
+  );
 
   const [state, formAction, isPending] = useActionState(updateAccountAction, NET_WORTH_ACTION_INITIAL);
   // Saving the details commits the primary edit, so it resolves by closing the

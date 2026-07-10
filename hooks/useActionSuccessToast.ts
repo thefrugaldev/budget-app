@@ -27,10 +27,10 @@ export type ActionState = {
  * Failures stay quiet here on purpose — the action's form is the right
  * surface for inline error copy, not the toast layer.
  */
-export function useActionSuccessToast(
-  state: ActionState,
+export function useActionSuccessToast<S extends ActionState>(
+  state: S,
   computeMessage: () => string,
-  onSuccess?: () => void,
+  onSuccess?: (state: S) => void,
 ): void {
   const notify = useNotify();
   const lastSeen = useRef(state.ok);
@@ -38,7 +38,7 @@ export function useActionSuccessToast(
     if (state.ok > lastSeen.current && !state.error) {
       lastSeen.current = state.ok;
       notify.success(computeMessage());
-      onSuccess?.();
+      onSuccess?.(state);
     }
   }, [state, notify, computeMessage, onSuccess]);
 }

@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 
 import { createAccountAction } from "@/app/actions/net-worth";
 import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AccountFields } from "@/components/net-worth/AccountFields";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
-import { useNotify } from "@/hooks/useNotify";
+import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import type { AccountClass, AssetKind } from "@/types/net-worth";
 
 /**
@@ -19,15 +19,11 @@ import type { AccountClass, AssetKind } from "@/types/net-worth";
  */
 export function AccountForm({ onSuccess }: { onSuccess?: (id: string) => void }) {
   const [state, formAction] = useActionState(createAccountAction, NET_WORTH_ACTION_INITIAL);
-  const notify = useNotify();
-  const lastOk = useRef(state.ok);
-  useEffect(() => {
-    if (state.ok > lastOk.current && !state.error && state.id) {
-      lastOk.current = state.ok;
-      notify.success("Account added");
-      onSuccess?.(state.id);
-    }
-  }, [state, notify, onSuccess]);
+  // Shared success idiom; the generic hook hands back the action state so we can
+  // forward the new account's id (createAccountAction always returns it on success).
+  useActionSuccessToast(state, () => "Account added", (s) => {
+    if (s.id) onSuccess?.(s.id);
+  });
 
   const [name, setName] = useState("");
   const [accountClass, setAccountClass] = useState<AccountClass>("asset");

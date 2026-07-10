@@ -8,6 +8,7 @@ import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
+import { useResyncOnChange } from "@/hooks/useResyncOnChange";
 import { fmt, fmtExact } from "@/lib/budget";
 import type { Holding } from "@/types/net-worth";
 
@@ -39,18 +40,19 @@ export function HoldingRow({
     holding.priceOverride !== undefined ? String(holding.priceOverride) : "",
   );
   const [showOverride, setShowOverride] = useState(holding.priceOverride !== undefined);
+  // A misclicked Trash irrecoverably drops the position (and any manual price the
+  // user set), so gate it behind a lightweight inline confirm — lighter than the
+  // account-level type-to-confirm, but no longer a one-click data loss.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   // Resync local inputs when the persisted holding actually changes (an update
-  // landed and the page revalidated) — compared by value, not identity, so an
-  // unrelated re-render doesn't clobber an in-progress edit.
-  const holdingKey = `${holding.ticker}|${holding.quantity}|${holding.priceOverride ?? ""}`;
-  const [prevKey, setPrevKey] = useState(holdingKey);
-  if (prevKey !== holdingKey) {
-    setPrevKey(holdingKey);
+  // landed and the page revalidated) — keyed by value, so an unrelated re-render
+  // doesn't clobber an in-progress edit.
+  useResyncOnChange(`${holding.ticker}|${holding.quantity}|${holding.priceOverride ?? ""}`, () => {
     setQuantity(String(holding.quantity));
     setPriceOverride(holding.priceOverride !== undefined ? String(holding.priceOverride) : "");
     setShowOverride(holding.priceOverride !== undefined);
-  }
+  });
 
   const [updateState, updateAction] = useActionState(updateHoldingAction, NET_WORTH_ACTION_INITIAL);
   const [removeState, removeAction] = useActionState(removeHoldingAction, NET_WORTH_ACTION_INITIAL);
@@ -78,25 +80,45 @@ export function HoldingRow({
               No price yet
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            aria-label={`Edit ${holding.ticker}`}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Pencil className="size-3.5" aria-hidden />
-          </button>
-          <form action={removeAction}>
-            <input type="hidden" name="accountId" value={accountId} />
-            <input type="hidden" name="ticker" value={holding.ticker} />
-            <button
-              type="submit"
-              aria-label={`Remove ${holding.ticker}`}
-              className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Trash2 className="size-3.5" aria-hidden />
-            </button>
-          </form>
+          {confirmingRemove ? (
+            <form action={removeAction} className="flex items-center gap-1">
+              <input type="hidden" name="accountId" value={accountId} />
+              <input type="hidden" name="ticker" value={holding.ticker} />
+              <span className="text-xs text-muted-foreground">Remove?</span>
+              <button
+                type="submit"
+                className="rounded-md px-1.5 py-0.5 text-xs font-medium text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingRemove(false)}
+                className="rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                No
+              </button>
+            </form>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                aria-label={`Edit ${holding.ticker}`}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Pencil className="size-3.5" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingRemove(true)}
+                aria-label={`Remove ${holding.ticker}`}
+                className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+              </button>
+            </>
+          )}
         </div>
         {removeState.error && (
           <p role="alert" className="text-xs text-destructive">

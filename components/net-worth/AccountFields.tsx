@@ -72,6 +72,10 @@ export function AccountFields({
         />
       </label>
 
+      {/* Submitted even when the picker is locked (read-only) below — not a
+          security concern: `updateAccountAction` refuses a class change once the
+          account has history, so tampering this value only reproduces the
+          current class. The server, not this input, is the gate. */}
       <input type="hidden" name="class" value={accountClass} />
       <div role="group" aria-label="Account type" className="space-y-1">
         <span className="block text-xs font-medium text-muted-foreground">Type</span>
