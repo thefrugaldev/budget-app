@@ -34,3 +34,26 @@ export function assertNonNegativeSnapshotValue(value: number): void {
     throw new Error(`A snapshot value must be a non-negative magnitude (got ${value}).`);
   }
 }
+
+/** An account (or any named entity) must have a non-blank name. */
+export function assertNonEmptyName(name: string): void {
+  if (name.trim().length === 0) {
+    throw new Error("A name must not be empty.");
+  }
+}
+
+/**
+ * A snapshot date must be a real ISO calendar date, `YYYY-MM-DD`. The round-trip
+ * through `Date` rejects impossible days (e.g. `2026-02-30`, `2026-13-01`), which
+ * a bare regex would let through — dates flow straight into month-keyed history
+ * math, so a malformed one would silently land in the wrong month or `Invalid`.
+ */
+export function assertValidIsoDate(date: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`A date must be an ISO calendar date (YYYY-MM-DD); got "${date}".`);
+  }
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+    throw new Error(`"${date}" is not a real calendar date.`);
+  }
+}

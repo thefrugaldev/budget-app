@@ -4,7 +4,7 @@ import { COLLECTIONS } from "@/lib/db/collections";
 import type { SnapshotDocument } from "@/lib/db/documents";
 import { scopedCollection } from "@/lib/db/household-scope";
 import { toSnapshot } from "@/lib/db/mappers";
-import { assertNonNegativeSnapshotValue } from "@/lib/net-worth/validate";
+import { assertNonNegativeSnapshotValue, assertValidIsoDate } from "@/lib/net-worth/validate";
 import type { Snapshot } from "@/types/net-worth";
 
 /** Every recorded snapshot for the household, in date order — feeds the history series. */
@@ -32,6 +32,7 @@ export async function createSnapshot(input: {
   date: string;
   value: number;
 }): Promise<Snapshot> {
+  assertValidIsoDate(input.date);
   assertNonNegativeSnapshotValue(input.value);
   const snapshots = await scopedCollection<SnapshotDocument>(COLLECTIONS.snapshots);
   const doc: SnapshotDocument = {

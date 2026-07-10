@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { assertNonNegativeSnapshotValue, assertValidAccountShape } from "./validate";
+import {
+  assertNonEmptyName,
+  assertNonNegativeSnapshotValue,
+  assertValidAccountShape,
+  assertValidIsoDate,
+} from "./validate";
 
 describe("assertValidAccountShape", () => {
   it("accepts an asset with a kind", () => {
@@ -37,5 +42,35 @@ describe("assertNonNegativeSnapshotValue", () => {
   it("rejects non-finite values", () => {
     expect(() => assertNonNegativeSnapshotValue(Number.NaN)).toThrow();
     expect(() => assertNonNegativeSnapshotValue(Number.POSITIVE_INFINITY)).toThrow();
+  });
+});
+
+describe("assertNonEmptyName", () => {
+  it("accepts a real name", () => {
+    expect(() => assertNonEmptyName("Brokerage")).not.toThrow();
+  });
+
+  it("rejects empty or whitespace-only names", () => {
+    expect(() => assertNonEmptyName("")).toThrow(/must not be empty/);
+    expect(() => assertNonEmptyName("   ")).toThrow(/must not be empty/);
+  });
+});
+
+describe("assertValidIsoDate", () => {
+  it("accepts a real ISO calendar date", () => {
+    expect(() => assertValidIsoDate("2026-02-28")).not.toThrow();
+    expect(() => assertValidIsoDate("2024-02-29")).not.toThrow(); // leap day
+  });
+
+  it("rejects the wrong shape", () => {
+    expect(() => assertValidIsoDate("2026-2-8")).toThrow(/ISO calendar date/);
+    expect(() => assertValidIsoDate("2026/02/28")).toThrow(/ISO calendar date/);
+    expect(() => assertValidIsoDate("")).toThrow(/ISO calendar date/);
+  });
+
+  it("rejects impossible days a bare regex would let through", () => {
+    expect(() => assertValidIsoDate("2026-02-30")).toThrow(/not a real calendar date/);
+    expect(() => assertValidIsoDate("2026-13-01")).toThrow(/not a real calendar date/);
+    expect(() => assertValidIsoDate("2025-02-29")).toThrow(/not a real calendar date/); // not a leap year
   });
 });
