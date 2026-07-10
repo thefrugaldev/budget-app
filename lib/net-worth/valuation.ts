@@ -3,15 +3,19 @@ import type { Account, AccountClass, NetWorthHeadline, PriceLookup } from "@/typ
 /**
  * An account's own value — a class-agnostic magnitude in dollars. Investment
  * accounts are Σ(quantity × price) across their holdings; every other account
- * (cash, property, liability) carries a manual `balance`. A holding whose price
- * the lookup can't resolve contributes 0: the math never invents a price, and
- * the UI surfaces the staleness instead (story 19).
+ * (cash, property, liability) carries a manual `balance`.
+ *
+ * A holding's price is its manual `priceOverride` when set, else the feed price
+ * from `priceFor` (#109 story 12) — so an override wins over the feed, covering a
+ * ticker the feed can't quote or quotes wrongly. A holding with neither an
+ * override nor a resolvable feed price contributes 0: the math never invents a
+ * price, and the UI surfaces the staleness instead (story 19).
  */
 export function accountValue(account: Account, priceFor: PriceLookup): number {
   if (account.kind === "investment") {
     let sum = 0;
     for (const h of account.holdings ?? []) {
-      const price = priceFor(h.ticker);
+      const price = h.priceOverride ?? priceFor(h.ticker);
       if (price !== undefined) sum += h.quantity * price;
     }
     return sum;

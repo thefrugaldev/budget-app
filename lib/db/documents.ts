@@ -108,6 +108,16 @@ export type SnapshotDocument = HouseholdOwned & {
   createdAt: Date;
 };
 
+// Cached market quote (#109 chunk 3, ADR 0003). **App-global, not household
+// data** — a price is the same for everyone — so this document carries no
+// `householdId` and its cache reaches Mongo via raw `getDb`, not the
+// household-scoped collection. `_id` is the ticker (one quote per symbol).
+export type QuoteDocument = {
+  _id: string; // ticker
+  price: number;
+  asOf: Date;
+};
+
 // --- Auth collections (#111 chunk 2). Clerk-agnostic by design (ADR 0004): no
 // document references a Clerk id except the User's provider link below. Domain
 // mappers in `mappers.ts` project these to the `@/types/auth` shapes. ---

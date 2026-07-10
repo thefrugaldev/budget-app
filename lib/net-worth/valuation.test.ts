@@ -46,6 +46,24 @@ describe("accountValue", () => {
     expect(accountValue(account({ class: "asset", kind: "investment" }), priceFor)).toBe(0);
     expect(accountValue(account({ class: "asset", kind: "cash" }), priceFor)).toBe(0);
   });
+
+  it("prefers a holding's manual price override over the feed price (story 12)", () => {
+    const brokerage = account({
+      class: "asset",
+      kind: "investment",
+      holdings: [{ ticker: "VOO", quantity: 10, priceOverride: 450 }], // feed says 500
+    });
+    expect(accountValue(brokerage, priceFor)).toBe(4_500); // 10 × 450, not 5_000
+  });
+
+  it("uses the override to price a ticker the feed can't quote", () => {
+    const brokerage = account({
+      class: "asset",
+      kind: "investment",
+      holdings: [{ ticker: "PRIVATECO", quantity: 100, priceOverride: 12.5 }], // no feed price
+    });
+    expect(accountValue(brokerage, priceFor)).toBe(1_250);
+  });
 });
 
 describe("signedContribution", () => {
