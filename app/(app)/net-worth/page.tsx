@@ -57,6 +57,8 @@ export default async function NetWorthPage() {
   const tickers = tickersNeedingQuotes(openAccounts);
   const { prices, asOf } = await getQuotesWithAsOf(tickers);
   const priceFor: PriceLookup = (ticker) => prices.get(ticker);
+  // Plain lookup for the client edit sheet's per-holding values (Map → Record).
+  const priceByTicker = Object.fromEntries(prices);
   const status = pricingStatus({
     neededTickers: tickers,
     prices,
@@ -115,6 +117,7 @@ export default async function NetWorthPage() {
                       <AccountCardActions
                         account={account}
                         hasHistory={accountsWithHistory.has(account.id)}
+                        prices={priceByTicker}
                       />
                     }
                   />

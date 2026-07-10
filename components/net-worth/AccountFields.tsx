@@ -52,6 +52,10 @@ export function AccountFields({
 }) {
   const isAsset = accountClass === "asset";
   const showBalance = !isAsset || kind !== "investment";
+  // "Balance" is wrong for a house — a property is valued at its market value,
+  // and the mortgage is a separate liability (ADR 0003). Kind-specific labels
+  // remove the "equity vs. market value vs. amount owed" ambiguity.
+  const balanceLabel = !isAsset ? "Amount owed" : kind === "property" ? "Estimated value" : "Balance";
 
   return (
     <div className="space-y-3">
@@ -127,9 +131,7 @@ export function AccountFields({
 
       {showBalance ? (
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">
-            {isAsset ? "Balance" : "Amount owed"}
-          </span>
+          <span className="text-xs font-medium text-muted-foreground">{balanceLabel}</span>
           <AmountInput
             name="balance"
             precision="cents"
@@ -137,8 +139,13 @@ export function AccountFields({
             value={balance}
             onChange={onBalance}
             allowZero
-            ariaLabel={isAsset ? "Balance" : "Amount owed"}
+            ariaLabel={balanceLabel}
           />
+          {isAsset && kind === "property" && (
+            <span className="block text-[11px] text-muted-foreground">
+              What it&rsquo;d sell for today — track the mortgage as a separate liability.
+            </span>
+          )}
         </label>
       ) : (
         <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">

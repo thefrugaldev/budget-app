@@ -9,7 +9,6 @@ import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AccountFields } from "@/components/net-worth/AccountFields";
 import { AccountLifecycleActions } from "@/components/net-worth/AccountLifecycleActions";
 import { HoldingsEditor } from "@/components/net-worth/HoldingsEditor";
-import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { cn } from "@/lib/utils";
 import type { Account, AccountClass, AssetKind } from "@/types/net-worth";
@@ -30,11 +29,14 @@ import type { Account, AccountClass, AssetKind } from "@/types/net-worth";
 export function AccountEditSheet({
   account,
   hasHistory,
+  prices,
   open,
   onOpenChange,
 }: {
   account: Account;
   hasHistory: boolean;
+  /** Resolved live prices (ticker → price) for the holdings editor's values. */
+  prices: Record<string, number>;
   open: boolean;
   onOpenChange: (next: boolean) => void;
 }) {
@@ -55,8 +57,11 @@ export function AccountEditSheet({
     setPrev({ ...prev, open });
   }
 
-  const [state, formAction] = useActionState(updateAccountAction, NET_WORTH_ACTION_INITIAL);
-  useActionSuccessToast(state, () => `${account.name} updated`);
+  const [state, formAction, isPending] = useActionState(updateAccountAction, NET_WORTH_ACTION_INITIAL);
+  // Saving the details commits the primary edit, so it resolves by closing the
+  // sheet (the earlier silent stay-open read as "nothing happened"). Holdings
+  // and lifecycle are incremental and keep the sheet open on their own.
+  useActionSuccessToast(state, () => `${account.name} updated`, () => onOpenChange(false));
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -86,7 +91,10 @@ export function AccountEditSheet({
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
             <div className="space-y-5 text-sm">
-              <form action={formAction} className="space-y-3">
+              {/* The details form carries an id so the footer Save can submit it
+                  from outside — it can't wrap the whole sheet, as the holdings
+                  and lifecycle forms below would then be illegally nested. */}
+              <form id="account-details-form" action={formAction} className="space-y-3">
                 <input type="hidden" name="id" value={account.id} />
                 <AccountFields
                   name={name}
@@ -104,9 +112,6 @@ export function AccountEditSheet({
                     {state.error}
                   </p>
                 )}
-                <div className="flex justify-end">
-                  <FormSubmitButton label="Save changes" pendingLabel="Saving…" variant="compact" />
-                </div>
               </form>
 
               {/* Gate on the *persisted* kind, not the unsaved picker — holdings
@@ -116,7 +121,7 @@ export function AccountEditSheet({
               {account.kind === "investment" && (
                 <>
                   <hr className="border-border" />
-                  <HoldingsEditor account={account} />
+                  <HoldingsEditor account={account} prices={prices} />
                 </>
               )}
 
@@ -128,6 +133,20 @@ export function AccountEditSheet({
               />
             </div>
           </div>
+
+          <footer className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+            <Dialog.Close className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+              Close
+            </Dialog.Close>
+            <button
+              type="submit"
+              form="account-details-form"
+              disabled={isPending}
+              className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background disabled:opacity-50"
+            >
+              {isPending ? "Saving…" : "Save changes"}
+            </button>
+          </footer>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

@@ -15,12 +15,21 @@ import { useNotify } from "@/hooks/useNotify";
  * feed"). Clears itself on success so a second position can be added straight
  * away. Wraps chunk 5's `addHoldingAction`, which rejects a duplicate ticker.
  */
-export function AddHoldingForm({ accountId }: { accountId: string }) {
+export function AddHoldingForm({
+  accountId,
+  onCancel,
+}: {
+  accountId: string;
+  onCancel?: () => void;
+}) {
   const [state, formAction] = useActionState(addHoldingAction, NET_WORTH_ACTION_INITIAL);
   const notify = useNotify();
   const [ticker, setTicker] = useState("");
   const [quantity, setQuantity] = useState("");
   const [priceOverride, setPriceOverride] = useState("");
+  // Override is opt-in: hidden until asked for, so the common path is just
+  // ticker + quantity and the manual price reads as a deliberate exception.
+  const [showOverride, setShowOverride] = useState(false);
 
   const lastOk = useRef(state.ok);
   useEffect(() => {
@@ -30,6 +39,7 @@ export function AddHoldingForm({ accountId }: { accountId: string }) {
       setTicker("");
       setQuantity("");
       setPriceOverride("");
+      setShowOverride(false);
     }
   }, [state, notify]);
 
@@ -65,20 +75,30 @@ export function AddHoldingForm({ accountId }: { accountId: string }) {
           />
         </label>
       </div>
-      <label className="block space-y-1">
-        <span className="block text-[11px] font-medium text-muted-foreground">
-          Price override <span className="font-normal">(optional — blank uses the live feed)</span>
-        </span>
-        <AmountInput
-          name="priceOverride"
-          precision="cents"
-          variant="field"
-          value={priceOverride}
-          onChange={setPriceOverride}
-          ariaLabel="Manual price override (optional)"
-          placeholder="Feed price"
-        />
-      </label>
+      {showOverride ? (
+        <label className="block space-y-1">
+          <span className="block text-[11px] font-medium text-muted-foreground">
+            Manual price — use when the feed can&rsquo;t quote this ticker
+          </span>
+          <AmountInput
+            name="priceOverride"
+            precision="cents"
+            variant="field"
+            value={priceOverride}
+            onChange={setPriceOverride}
+            ariaLabel="Manual price override"
+            autoFocus
+          />
+        </label>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowOverride(true)}
+          className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          + Set a manual price
+        </button>
+      )}
 
       {state.error && (
         <p role="alert" className="text-xs text-destructive">
@@ -86,7 +106,16 @@ export function AddHoldingForm({ accountId }: { accountId: string }) {
         </p>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            Cancel
+          </button>
+        )}
         <FormSubmitButton label="Add holding" pendingLabel="Adding…" variant="compact" />
       </div>
     </form>

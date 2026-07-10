@@ -16,9 +16,12 @@ import type { Account } from "@/types/net-worth";
 export function AccountCardActions({
   account,
   hasHistory,
+  prices,
 }: {
   account: Account;
   hasHistory: boolean;
+  /** Resolved live prices (ticker → price), for the edit sheet's holdings values. */
+  prices: Record<string, number>;
 }) {
   const canEdit = useCanEdit();
   const [open, setOpen] = useState(false);
@@ -37,6 +40,7 @@ export function AccountCardActions({
       <AccountEditSheet
         account={account}
         hasHistory={hasHistory}
+        prices={prices}
         open={open}
         onOpenChange={setOpen}
       />

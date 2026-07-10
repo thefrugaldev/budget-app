@@ -13,17 +13,32 @@ import type { Holding } from "@/types/net-worth";
 
 /**
  * One holding in the edit sheet's holdings editor (#109 chunk 7, story 18): a
- * read row (ticker · quantity · override) with inline Edit and Remove. Ticker is
+ * read row (ticker · quantity · value) with inline Edit and Remove. Ticker is
  * the identity key, so editing changes quantity / override only — to rename a
- * position, remove it and add the new one. Each control is its own tiny form
- * wired to chunk 5's `updateHoldingAction` / `removeHoldingAction`.
+ * position, remove it and add the new one.
+ *
+ * The row shows its **current value** (quantity × the price actually used: a
+ * manual override, else the live feed) so the list is informative, not just
+ * share counts. A holding the feed can't price and that has no override shows
+ * "No price yet" — the per-position half of the staleness story (story 19),
+ * pointing at the override. `feedPrice` is the resolved live price for the
+ * ticker, threaded from the page.
  */
-export function HoldingRow({ accountId, holding }: { accountId: string; holding: Holding }) {
+export function HoldingRow({
+  accountId,
+  holding,
+  feedPrice,
+}: {
+  accountId: string;
+  holding: Holding;
+  feedPrice?: number;
+}) {
   const [editing, setEditing] = useState(false);
   const [quantity, setQuantity] = useState(String(holding.quantity));
   const [priceOverride, setPriceOverride] = useState(
     holding.priceOverride !== undefined ? String(holding.priceOverride) : "",
   );
+  const [showOverride, setShowOverride] = useState(holding.priceOverride !== undefined);
 
   // Resync local inputs when the persisted holding actually changes (an update
   // landed and the page revalidated) — compared by value, not identity, so an
@@ -34,6 +49,7 @@ export function HoldingRow({ accountId, holding }: { accountId: string; holding:
     setPrevKey(holdingKey);
     setQuantity(String(holding.quantity));
     setPriceOverride(holding.priceOverride !== undefined ? String(holding.priceOverride) : "");
+    setShowOverride(holding.priceOverride !== undefined);
   }
 
   const [updateState, updateAction] = useActionState(updateHoldingAction, NET_WORTH_ACTION_INITIAL);
@@ -42,16 +58,25 @@ export function HoldingRow({ accountId, holding }: { accountId: string; holding:
   useActionSuccessToast(removeState, () => `${holding.ticker} removed`);
 
   if (!editing) {
+    const effectivePrice = holding.priceOverride ?? feedPrice;
+    const value = effectivePrice !== undefined ? holding.quantity * effectivePrice : undefined;
     return (
-      <div className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5">
+      <div className="flex items-center justify-between gap-2 py-2">
         <div className="min-w-0">
           <span className="font-medium">{holding.ticker}</span>
           <span className="ml-2 text-xs text-muted-foreground tabular-nums">
             {holding.quantity} shares
-            {holding.priceOverride !== undefined && ` · ${fmt(holding.priceOverride)} override`}
+            {holding.priceOverride !== undefined && ` · ${fmt(holding.priceOverride)} manual`}
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
+          {value !== undefined ? (
+            <span className="text-sm font-medium tabular-nums">{fmt(value)}</span>
+          ) : (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-signal-warn-foreground">
+              No price yet
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setEditing(true)}
@@ -85,25 +110,25 @@ export function HoldingRow({ accountId, holding }: { accountId: string; holding:
     <form action={updateAction} className="space-y-2 rounded-md bg-muted/50 p-2">
       <input type="hidden" name="accountId" value={accountId} />
       <input type="hidden" name="ticker" value={holding.ticker} />
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{holding.ticker}</span>
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex-1 space-y-1">
-          <span className="block text-[11px] font-medium text-muted-foreground">Quantity</span>
-          <input
-            name="quantity"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            inputMode="decimal"
-            required
-            aria-label={`${holding.ticker} quantity`}
-            autoComplete="off"
-            className="w-full rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
-          />
-        </label>
-        <label className="flex-1 space-y-1">
-          <span className="block text-[11px] font-medium text-muted-foreground">Override</span>
+      <span className="font-medium">{holding.ticker}</span>
+      <label className="block space-y-1">
+        <span className="block text-[11px] font-medium text-muted-foreground">Quantity</span>
+        <input
+          name="quantity"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          inputMode="decimal"
+          required
+          aria-label={`${holding.ticker} quantity`}
+          autoComplete="off"
+          className="w-full rounded-md bg-background px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-border outline-none focus:ring-ring"
+        />
+      </label>
+      {showOverride ? (
+        <label className="block space-y-1">
+          <span className="block text-[11px] font-medium text-muted-foreground">
+            Manual price — blank clears it and returns to the live feed
+          </span>
           <AmountInput
             name="priceOverride"
             precision="cents"
@@ -111,10 +136,17 @@ export function HoldingRow({ accountId, holding }: { accountId: string; holding:
             value={priceOverride}
             onChange={setPriceOverride}
             ariaLabel={`${holding.ticker} price override`}
-            placeholder="Feed price"
           />
         </label>
-      </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowOverride(true)}
+          className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          + Set a manual price
+        </button>
+      )}
       {updateState.error && (
         <p role="alert" className="text-xs text-destructive">
           {updateState.error}
