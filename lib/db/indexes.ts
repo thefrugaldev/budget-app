@@ -106,6 +106,11 @@ function buildIndexes(db: Db): Promise<void> {
     // by-(accountId, date) filter (#109 chunk 8). Migrated in place — see
     // ensureUniqueSnapshotIndex.
     ensureUniqueSnapshotIndex(db),
+    // FIRE assumptions (#110 chunk 3). Exactly one document per household — the
+    // singleton the get/upsert path targets with an empty (household-scoped)
+    // filter — so `householdId` is the unique key, backstopping a concurrent
+    // double-save from creating a second row past the by-household upsert filter.
+    db.collection(COLLECTIONS.fireAssumptions).createIndex({ householdId: 1 }, { unique: true }),
     // Auth collections (#111 chunk 2). A user has exactly one identity record
     // and at most one membership in v1, so both lookups are unique. Invites
     // are listed per household (matching is in-app via `matchInvite`).

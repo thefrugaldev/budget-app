@@ -112,6 +112,25 @@ export type SnapshotDocument = HouseholdOwned & {
   createdAt: Date;
 };
 
+// FIRE assumptions (#110 chunk 3, ADR 0003). **Exactly one document per
+// household** (unique index on `householdId`) holding only the knobs the user has
+// explicitly overridden — an absent field tracks its data-derived / constant
+// default at resolution time (`resolveAssumptions`), so an untouched knob follows
+// the budget data as it changes. Rate fields are percentages, matching the domain
+// type. No `_id` meaning beyond identity; the household is the real key.
+export type FireAssumptionsDocument = HouseholdOwned & {
+  _id: string;
+  monthlyRetirementSpend?: number;
+  monthlyContribution?: number;
+  nominalReturn?: number;
+  inflation?: number;
+  safeWithdrawalRate?: number;
+  // Four-digit birth year. The one knob with no default — absent until the user sets it.
+  birthYear?: number;
+  traditionalRetirementAge?: number;
+  updatedAt: Date;
+};
+
 // Cached market quote (#109 chunk 3, ADR 0003). **App-global, not household
 // data** — a price is the same for everyone — so this document carries no
 // `householdId` and its cache reaches Mongo via raw `getDb`, not the
