@@ -77,10 +77,13 @@ export function spreadX(count: number, extentPx: number, startPx = 0) {
  */
 export function extentScale(min: number, max: number, extentPx: number) {
   const span = max - min;
-  // `_value` is spelled out (not dropped) so the degenerate branch has the same
-  // shape callers expect from the normal one.
-  if (span <= 0) return { y: (_value: number) => extentPx / 2 };
-  return { y: (value: number) => ((max - value) / span) * extentPx };
+  // One `y` closure with the degenerate guard inside: a `min === max` domain
+  // maps everything to the vertical middle instead of dividing by zero, while a
+  // real domain scales normally. Keeping it a single arrow (rather than two
+  // return shapes) avoids an unused parameter on the degenerate branch.
+  return {
+    y: (value: number) => (span <= 0 ? extentPx / 2 : ((max - value) / span) * extentPx),
+  };
 }
 
 // Round `value` to a "nice" number (1/2/5 × 10ⁿ) — the human-friendly step sizes

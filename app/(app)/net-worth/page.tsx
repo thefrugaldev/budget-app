@@ -114,7 +114,7 @@ export default async function NetWorthPage() {
           setup isn't fronted by an empty chart (the check-in button is the cue). */}
       {trajectory.length > 0 && (
         <div className="mb-8">
-          <NetWorthTrajectory series={trajectory} currentYm={new Date().toISOString().slice(0, 7)} />
+          <NetWorthTrajectory series={trajectory} />
         </div>
       )}
 
