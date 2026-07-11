@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { AccountCard } from "@/components/net-worth/AccountCard";
 import { AccountCardActions } from "@/components/net-worth/AccountCardActions";
 import { AddAccountButton } from "@/components/net-worth/AddAccountButton";
+import { CheckInButton } from "@/components/net-worth/CheckInButton";
 import { NetWorthEmptyState } from "@/components/net-worth/NetWorthEmptyState";
 import { NetWorthHero } from "@/components/net-worth/NetWorthHero";
 import { PriceStalenessNotice } from "@/components/net-worth/PriceStalenessNotice";
@@ -92,9 +93,14 @@ export default async function NetWorthPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <NetWorthHero headline={headline} />
-        <AddAccountButton />
+        <div className="flex items-center gap-2">
+          {openAccounts.length > 0 && (
+            <CheckInButton accounts={openAccounts} prices={priceByTicker} />
+          )}
+          <AddAccountButton />
+        </div>
       </div>
       <PriceStalenessNotice status={status} />
 

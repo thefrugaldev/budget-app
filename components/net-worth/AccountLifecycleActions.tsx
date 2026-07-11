@@ -5,18 +5,8 @@ import { useState } from "react";
 import { closeAccountAction, deleteAccountAction } from "@/app/actions/net-worth";
 import { AccountActionDialog } from "@/components/net-worth/AccountActionDialog";
 import { useCanEdit } from "@/hooks/useCanEdit";
-import { useHydrated } from "@/hooks/useHydrated";
+import { useLocalTodayIso } from "@/hooks/useLocalTodayIso";
 import type { Account } from "@/types/net-worth";
-
-/** Today in the *browser's* local calendar (YYYY-MM-DD) — composed by parts to
- *  avoid locale/format surprises. Used so a close records under the user's today,
- *  not the server's UTC day. */
-function localTodayIso(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
 
 /**
  * The Status section of an account's edit sheet (#109 chunk 7, story 16). Close
@@ -42,11 +32,9 @@ export function AccountLifecycleActions({
   const canEdit = useCanEdit();
   const [closeOpen, setCloseOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  // Only read the browser's local day once hydrated, so the hidden `date` never
-  // differs between the server (UTC) render and the client — avoids both a
-  // hydration mismatch and the forbidden setState-in-effect. Empty pre-hydration
-  // is fine: the dialog is only submittable after the user opens it.
-  const today = useHydrated() ? localTodayIso() : "";
+  // Client's local day (SSR-safe; "" until hydrated) for the close snapshot's
+  // date. Empty pre-hydration is fine — the dialog is only opened post-mount.
+  const today = useLocalTodayIso();
 
   // The edit sheet is unreachable for viewers (the pencil is hidden), but guard
   // the destructive lifecycle actions here too so they never render (story 9).

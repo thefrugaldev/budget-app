@@ -134,6 +134,14 @@ export function AccountEditSheet({
                 hasHistory={hasHistory}
                 onDone={() => onOpenChange(false)}
               />
+
+              {/* Clarify the edit-vs-record split the check-in flow introduced:
+                  editing moves the live figure; only a record writes history. */}
+              <p className="text-xs text-muted-foreground">
+                Editing updates your current net worth now. Use{" "}
+                <span className="font-medium text-foreground">Record this month</span> on the Net
+                Worth page to save it to your history.
+              </p>
             </div>
           </div>
 

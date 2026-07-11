@@ -314,12 +314,12 @@ export async function removeHoldingAction(
 }
 
 /**
- * Submit a check-in (stories 7/8, recording half): record one dated snapshot per
- * open account at its current value, plus the composition behind it. Every open
- * account is snapshotted — even one untouched this month — so each check-in is a
- * complete monthly data point (an un-updated account carries forward in the
- * series rather than cratering the chart). Investment values resolve through the
- * cached price feed; per-account editing is the create/edit/holding actions above.
+ * Submit a check-in (stories 7/8): record one dated snapshot per open account at
+ * its current value — a complete monthly data point, so an untouched account
+ * carries forward rather than cratering the chart. This is purely the *history*
+ * write: the account values it captures are edited individually on the page
+ * (the single source of truth); the check-in just stamps them. Snapshots are
+ * day-grain (see `createSnapshots`), so re-recording a day replaces it.
  *
  * **Refuses rather than under-records.** If a needed ticker can't be priced (no
  * override, no cached price ever, and the feed can't quote it), the check-in is
@@ -327,9 +327,8 @@ export async function removeHoldingAction(
  * history, which is never reconstructed (ADR 0003). The user adds a manual price
  * override (story 12) and retries. All-or-nothing keeps the monthly point honest.
  *
- * Fire-and-forget (typed input, not `useActionState`) — chunk 8's single-page
- * edit mode invokes it after applying the per-account edits, then reports
- * `recorded` in a toast. Defends its own boundary with `requireRole`.
+ * Fire-and-forget (typed input); `date` is the client's local day. Reports
+ * `recorded` for the flow's toast. Defends its own boundary with `requireRole`.
  */
 export async function submitCheckInAction(
   input: { date?: string } = {},

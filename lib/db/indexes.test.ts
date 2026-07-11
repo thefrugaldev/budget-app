@@ -13,11 +13,13 @@ import { describe, expect, it, vi } from "vitest";
  */
 
 // A Db test double whose only observable behavior is index creation: it counts
-// build attempts and can be told to fail the current attempt. `dropIndex`
-// always resolves (the real one's only concern is the absent-index code path).
+// build attempts and can be told to fail the current attempt. `dropIndex` and
+// `indexes` always resolve trivially (empty index list → the snapshot migration
+// takes its create-only path; the real drop's only concern is the absent code).
 function mockDb(opts: { failWhile: () => boolean; onCreate?: () => void }): Db {
   const collection = () => ({
     dropIndex: () => Promise.resolve(),
+    indexes: () => Promise.resolve([]),
     createIndex: () => {
       opts.onCreate?.();
       return opts.failWhile()

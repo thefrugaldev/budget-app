@@ -12,6 +12,7 @@ import { scopedCollection } from "@/lib/db/household-scope";
 import {
   countSnapshotsForAccount,
   createSnapshot,
+  createSnapshots,
   deleteSnapshotsForAccount,
   listSnapshots,
   listSnapshotsForAccount,
@@ -34,9 +35,9 @@ beforeEach(() => mongo.reset());
 
 describe("snapshots repository", () => {
   it("creates a snapshot and stamps the household", async () => {
-    const snap = await createSnapshot({ accountId: "a1", date: "2026-01-31", value: 1_234.56 });
-    expect(snap).toEqual({ accountId: "a1", date: "2026-01-31", value: 1_234.56 });
+    await createSnapshot({ accountId: "a1", date: "2026-01-31", value: 1_234.56 });
     const raw = await mongo.db.collection("snapshots").findOne({ accountId: "a1" });
+    expect(raw?.value).toBe(1_234.56);
     expect(raw?.householdId).toBe(HH);
   });
 
@@ -60,6 +61,40 @@ describe("snapshots repository", () => {
       "2026-03-31",
     ]);
     expect((await listSnapshotsForAccount("a1")).map((s) => s.value)).toEqual([1, 3]);
+  });
+
+  it("replaces a same-day re-record rather than duplicating (day-grain)", async () => {
+    await createSnapshot({ accountId: "a1", date: "2026-01-31", value: 1 });
+    await createSnapshot({ accountId: "a1", date: "2026-01-31", value: 5 });
+    expect(await countSnapshotsForAccount("a1")).toBe(1);
+    expect((await listSnapshotsForAccount("a1")).map((s) => s.value)).toEqual([5]);
+  });
+
+  it("clears a stale composition when a re-record drops it", async () => {
+    await createSnapshot({
+      accountId: "a1",
+      date: "2026-01-31",
+      value: 100,
+      composition: { balance: 100 },
+    });
+    // A close's zero snapshot lands over the same day without a composition.
+    await createSnapshot({ accountId: "a1", date: "2026-01-31", value: 0 });
+    const raw = await mongo.db
+      .collection("snapshots")
+      .findOne({ accountId: "a1", date: "2026-01-31" });
+    expect(raw?.value).toBe(0);
+    expect(raw?.composition).toBeUndefined();
+  });
+
+  it("createSnapshots records one per account and dedups a same-day re-run", async () => {
+    await createSnapshots([
+      { accountId: "a1", date: "2026-01-31", value: 1 },
+      { accountId: "a2", date: "2026-01-31", value: 2 },
+    ]);
+    expect(await countSnapshotsForAccount("a1")).toBe(1);
+    await createSnapshots([{ accountId: "a1", date: "2026-01-31", value: 9 }]);
+    expect((await listSnapshotsForAccount("a1")).map((s) => s.value)).toEqual([9]);
+    expect(await countSnapshotsForAccount("a2")).toBe(1);
   });
 
   it("counts and deletes an account's snapshots", async () => {
