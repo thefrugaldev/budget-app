@@ -100,9 +100,12 @@ function buildIndexes(db: Db): Promise<void> {
     // history series and per-account queries), which the compound key serves
     // and its `householdId` prefix also covers the household-only filter.
     db.collection(COLLECTIONS.accounts).createIndex({ householdId: 1, name: 1 }),
-    db
-      .collection(COLLECTIONS.snapshots)
-      .createIndex({ householdId: 1, accountId: 1, date: 1 }),
+    // Snapshots are day-grain — at most one per (household, account, date). The
+    // createSnapshots upsert dedups logically; this UNIQUE index enforces it at
+    // the DB, so a concurrent double-submit can't slip a second row past the
+    // by-(accountId, date) filter (#109 chunk 8). Migrated in place — see
+    // ensureUniqueSnapshotIndex.
+    ensureUniqueSnapshotIndex(db),
     // Auth collections (#111 chunk 2). A user has exactly one identity record
     // and at most one membership in v1, so both lookups are unique. Invites
     // are listed per household (matching is in-app via `matchInvite`).
@@ -125,4 +128,27 @@ function buildIndexes(db: Db): Promise<void> {
         { unique: true, partialFilterExpression: { status: "pending" } },
       ),
   ]).then(() => undefined);
+}
+
+/**
+ * Ensure the snapshots `(householdId, accountId, date)` index is **unique**,
+ * migrating in place from the non-unique form chunk 2 shipped. Only drops the
+ * index when it exists *and* isn't already unique — so a DB that never had it
+ * (fresh prod) just creates the unique one, and one already migrated skips the
+ * drop, avoiding an index rebuild on every cold start (a plain drop-then-create
+ * of the same key would churn, unlike the differently-keyed migrations above).
+ */
+async function ensureUniqueSnapshotIndex(db: Db): Promise<void> {
+  const snapshots = db.collection(COLLECTIONS.snapshots);
+  const name = "householdId_1_accountId_1_date_1";
+  const existing = (await snapshots
+    .indexes()
+    .catch(() => [])) as { name?: string; unique?: boolean }[];
+  const current = existing.find((index) => index.name === name);
+  if (current && !current.unique) {
+    await snapshots.dropIndex(name).catch((err: { code?: number }) => {
+      if (err?.code !== 27) throw err; // 27 = IndexNotFound (already gone)
+    });
+  }
+  await snapshots.createIndex({ householdId: 1, accountId: 1, date: 1 }, { unique: true });
 }

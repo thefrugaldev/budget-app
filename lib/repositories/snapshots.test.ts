@@ -35,9 +35,9 @@ beforeEach(() => mongo.reset());
 
 describe("snapshots repository", () => {
   it("creates a snapshot and stamps the household", async () => {
-    const snap = await createSnapshot({ accountId: "a1", date: "2026-01-31", value: 1_234.56 });
-    expect(snap).toEqual({ accountId: "a1", date: "2026-01-31", value: 1_234.56 });
+    await createSnapshot({ accountId: "a1", date: "2026-01-31", value: 1_234.56 });
     const raw = await mongo.db.collection("snapshots").findOne({ accountId: "a1" });
+    expect(raw?.value).toBe(1_234.56);
     expect(raw?.householdId).toBe(HH);
   });
 

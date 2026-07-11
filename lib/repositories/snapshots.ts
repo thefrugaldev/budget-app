@@ -26,15 +26,16 @@ export async function listSnapshotsForAccount(accountId: string): Promise<Snapsh
  * Record a single valuation snapshot (used by `closeAccount`'s final `value: 0`
  * write). Day-grain upsert via {@link createSnapshots}, so closing on a day the
  * account was already recorded replaces that day rather than duplicating it.
+ * Returns nothing — the persisted doc isn't read back, and the sole caller
+ * ignores it (a synthesized return would only risk misleading a future one).
  */
 export async function createSnapshot(input: {
   accountId: string;
   date: string;
   value: number;
   composition?: SnapshotComposition;
-}): Promise<Snapshot> {
+}): Promise<void> {
   await createSnapshots([input]);
-  return { accountId: input.accountId, date: input.date, value: input.value };
 }
 
 /**
@@ -46,6 +47,14 @@ export async function createSnapshot(input: {
  * double-submit — recording updates the *live* account values elsewhere; this
  * is purely the history write (ADR 0003). Every input is validated before any
  * write. Returns the number of accounts recorded.
+ *
+ * The per-account upserts fire **concurrently**: each targets a distinct
+ * `(accountId, date)`, so they don't collide, and N concurrent round trips beat
+ * N sequential ones for a 20-account check-in (bounded by the driver pool). Day
+ * grain forced the move off chunk 5's single `insertMany`; this collapses back
+ * to one write if `ScopedCollection` ever grows a `bulkWrite`. The unique index
+ * on `(householdId, accountId, date)` (see `indexes.ts`) backs the dedup so a
+ * concurrent double-submit can't race a second row past the filter.
  */
 export async function createSnapshots(
   inputs: {
@@ -62,22 +71,24 @@ export async function createSnapshots(
   }
   const snapshots = await scopedCollection<SnapshotDocument>(COLLECTIONS.snapshots);
   const now = new Date();
-  for (const input of inputs) {
-    const update: UpdateFilter<SnapshotDocument> = {
-      $set:
-        input.composition !== undefined
-          ? { value: input.value, composition: input.composition }
-          : { value: input.value },
-      $setOnInsert: { _id: randomUUID(), createdAt: now },
-      // A re-record that drops the composition (e.g. a close's zero snapshot
-      // landing over an earlier record) clears the stale one rather than
-      // leaving it attached to a now-different value.
-      ...(input.composition === undefined ? { $unset: { composition: "" } } : {}),
-    };
-    await snapshots.updateOne({ accountId: input.accountId, date: input.date }, update, {
-      upsert: true,
-    });
-  }
+  await Promise.all(
+    inputs.map((input) => {
+      const update: UpdateFilter<SnapshotDocument> = {
+        $set:
+          input.composition !== undefined
+            ? { value: input.value, composition: input.composition }
+            : { value: input.value },
+        $setOnInsert: { _id: randomUUID(), createdAt: now },
+        // A re-record that drops the composition (e.g. a close's zero snapshot
+        // landing over an earlier record) clears the stale one rather than
+        // leaving it attached to a now-different value.
+        ...(input.composition === undefined ? { $unset: { composition: "" } } : {}),
+      };
+      return snapshots.updateOne({ accountId: input.accountId, date: input.date }, update, {
+        upsert: true,
+      });
+    }),
+  );
   return inputs.length;
 }
 

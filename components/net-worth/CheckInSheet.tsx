@@ -6,10 +6,9 @@ import { useState, useTransition } from "react";
 
 import { submitCheckInAction } from "@/app/actions/net-worth";
 import { AccountIcon } from "@/components/net-worth/AccountIcon";
-import { useHydrated } from "@/hooks/useHydrated";
+import { useLocalTodayIso } from "@/hooks/useLocalTodayIso";
 import { useNotify } from "@/hooks/useNotify";
 import { fmt, longDateLabel, monthLabel } from "@/lib/budget";
-import { localTodayIso } from "@/lib/net-worth/local-today";
 import { accountValue, netWorthHeadline } from "@/lib/net-worth/valuation";
 import { cn } from "@/lib/utils";
 import type { Account, AssetKind, PriceLookup } from "@/types/net-worth";
@@ -49,7 +48,7 @@ export function CheckInSheet({
   prices: Record<string, number>;
 }) {
   const notify = useNotify();
-  const today = useHydrated() ? localTodayIso() : "";
+  const today = useLocalTodayIso();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -156,7 +155,9 @@ export function CheckInSheet({
             <button
               type="button"
               onClick={handleRecord}
-              disabled={pending}
+              // `!today` disables until hydrated, so a record never falls back to
+              // the server's UTC day (the whole reason the local date is threaded).
+              disabled={pending || !today}
               className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {pending ? "Recording…" : "Record"}
