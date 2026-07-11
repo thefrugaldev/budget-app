@@ -6,13 +6,14 @@ import { AddAccountButton } from "@/components/net-worth/AddAccountButton";
 import { CheckInButton } from "@/components/net-worth/CheckInButton";
 import { NetWorthEmptyState } from "@/components/net-worth/NetWorthEmptyState";
 import { NetWorthHero } from "@/components/net-worth/NetWorthHero";
+import { NetWorthTrajectory } from "@/components/net-worth/NetWorthTrajectory";
 import { PriceStalenessNotice } from "@/components/net-worth/PriceStalenessNotice";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { fmt } from "@/lib/budget";
 import { tickersNeedingQuotes } from "@/lib/net-worth/check-in";
 import { DEFAULT_QUOTE_TTL_MS, getQuotesWithAsOf } from "@/lib/net-worth/price/get-quotes";
 import { pricingStatus } from "@/lib/net-worth/pricing-status";
-import { latestSnapshotDates } from "@/lib/net-worth/series";
+import { latestSnapshotDates, monthlyNetWorthSeries } from "@/lib/net-worth/series";
 import { accountValue, netWorthHeadline } from "@/lib/net-worth/valuation";
 import { listAccounts } from "@/lib/repositories/accounts";
 import { listSnapshots } from "@/lib/repositories/snapshots";
@@ -70,6 +71,11 @@ export default async function NetWorthPage() {
 
   const headline = netWorthHeadline(openAccounts, priceFor);
   const lastUpdated = latestSnapshotDates(snapshots);
+  // Recorded history for the trajectory chart (story 9). Built over *all*
+  // accounts, not just open ones: a closed account's snapshots stay in the
+  // series (its closing $0 keeps it flat rather than dropping it), so history
+  // never silently rewrites itself (ADR 0003; story 16).
+  const trajectory = monthlyNetWorthSeries(accounts, snapshots);
   // An account with any snapshot has history — it can be closed but not deleted,
   // and its class is locked. Drives the edit sheet's affordances.
   const accountsWithHistory = new Set(snapshots.map((s) => s.accountId));
@@ -103,6 +109,14 @@ export default async function NetWorthPage() {
         </div>
       </div>
       <PriceStalenessNotice status={status} />
+
+      {/* Recorded history — omitted until the first check-in exists, so a fresh
+          setup isn't fronted by an empty chart (the check-in button is the cue). */}
+      {trajectory.length > 0 && (
+        <div className="mb-8">
+          <NetWorthTrajectory series={trajectory} />
+        </div>
+      )}
 
       <div className="space-y-8">
         {groups.map((group) => {
