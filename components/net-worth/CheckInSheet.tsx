@@ -5,16 +5,14 @@ import { X } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { submitCheckInAction } from "@/app/actions/net-worth";
-import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { AccountIcon } from "@/components/net-worth/AccountIcon";
 import { useHydrated } from "@/hooks/useHydrated";
 import { useNotify } from "@/hooks/useNotify";
-import { useResyncOnChange } from "@/hooks/useResyncOnChange";
 import { fmt, longDateLabel } from "@/lib/budget";
 import { localTodayIso } from "@/lib/net-worth/local-today";
-import { accountValue } from "@/lib/net-worth/valuation";
+import { accountValue, netWorthHeadline } from "@/lib/net-worth/valuation";
 import { cn } from "@/lib/utils";
-import type { Account, AssetKind } from "@/types/net-worth";
+import type { Account, AssetKind, PriceLookup } from "@/types/net-worth";
 
 const TYPE_LABEL: Record<AssetKind | "liability", string> = {
   cash: "Cash",
@@ -27,25 +25,17 @@ function typeLabel(account: Account): string {
   return account.class === "liability" ? "Liability" : TYPE_LABEL[account.kind ?? "cash"];
 }
 
-function initialBalances(accounts: Account[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const a of accounts) {
-    if (a.kind === "investment") continue; // valued from prices, not edited here
-    out[a.id] = a.balance != null ? String(a.balance) : "";
-  }
-  return out;
-}
-
 /**
- * The single-page check-in (#109 chunk 8, stories 7/8/22): one screen listing
- * every open account, editable in one pass, saved once. Cash / property /
- * liability accounts get an editable balance; investment accounts show their
- * live-priced value read-only (holdings are managed from the account card).
- * Save applies the balance edits and records the snapshot set in a single
- * `submitCheckInAction` call, dated to the user's local day.
+ * The monthly record step (#109 chunk 8, stories 7/8/22): a one-screen **review
+ * and record**, not an editor. Account values are edited individually on the
+ * page (the single source of truth); this stamps the current figures into
+ * history as one dated point. Read-only by design — that removes the "which
+ * value wins?" ambiguity of editing balances in two places.
  *
- * A11y: each balance field has a real `<label htmlFor>`, the sheet is a focus-
- * trapped dialog (Base UI), and the outcome is announced via the toast layer.
+ * A11y: a focus-trapped dialog (Base UI) with a titled/described purpose; the
+ * outcome is announced via the toast layer. Investment values are live-priced;
+ * an unpriceable holding makes the server refuse the record (chunk 5 guard),
+ * surfaced inline here.
  */
 export function CheckInSheet({
   open,
@@ -60,37 +50,21 @@ export function CheckInSheet({
 }) {
   const notify = useNotify();
   const today = useHydrated() ? localTodayIso() : "";
-  const [balances, setBalances] = useState<Record<string, string>>(() => initialBalances(accounts));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Reset the inputs to the persisted balances whenever the sheet (re)opens or a
-  // persisted balance changes, keyed by value so typing doesn't get clobbered.
-  useResyncOnChange(
-    `${open}|${accounts.map((a) => `${a.id}:${a.balance ?? ""}`).join(",")}`,
-    () => setBalances(initialBalances(accounts)),
-  );
+  const priceFor: PriceLookup = (ticker) => prices[ticker];
+  const net = netWorthHeadline(accounts, priceFor).net;
 
-  function handleSave() {
+  function handleRecord() {
     setError(null);
-    // Send only genuinely-changed, non-empty balances; a cleared field is left
-    // as-is rather than silently zeroing an account.
-    const edits = accounts
-      .filter((a) => a.kind !== "investment")
-      .filter((a) => {
-        const original = a.balance != null ? String(a.balance) : "";
-        const next = balances[a.id] ?? "";
-        return next !== "" && next !== original;
-      })
-      .map((a) => ({ accountId: a.id, balance: balances[a.id] }));
-
     startTransition(async () => {
-      const res = await submitCheckInAction({ date: today || undefined, balances: edits });
+      const res = await submitCheckInAction({ date: today || undefined });
       if (res.error) {
         setError(res.error);
         return;
       }
-      notify.success(`Checked in — ${res.recorded} account${res.recorded === 1 ? "" : "s"} recorded`);
+      notify.success(`Recorded — ${res.recorded} account${res.recorded === 1 ? "" : "s"}`);
       onOpenChange(false);
     });
   }
@@ -111,9 +85,12 @@ export function CheckInSheet({
         >
           <header className="flex items-start justify-between gap-2 border-b border-border px-5 py-4">
             <div>
-              <Dialog.Title className="font-heading text-lg font-semibold">Check in</Dialog.Title>
+              <Dialog.Title className="font-heading text-lg font-semibold">
+                Record this month
+              </Dialog.Title>
               <Dialog.Description className="mt-0.5 text-xs text-muted-foreground">
-                Update each balance, then save once{today && ` — recorded as of ${longDateLabel(today)}`}.
+                Saves today&rsquo;s values as a point on your trajectory
+                {today && ` — ${longDateLabel(today)}`}.
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -125,49 +102,40 @@ export function CheckInSheet({
           </header>
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="mb-4 rounded-xl bg-muted px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Net worth to record
+              </p>
+              <p className="font-heading text-2xl font-bold tabular-nums">{fmt(net)}</p>
+            </div>
+
             <ul className="divide-y divide-border">
               {accounts.map((account) => {
-                const isInvestment = account.kind === "investment";
-                const inputId = `checkin-${account.id}`;
+                const value = accountValue(account, priceFor);
+                const isLiability = account.class === "liability";
                 return (
                   <li key={account.id} className="flex items-center gap-3 py-2.5">
                     <AccountIcon account={account} />
                     <div className="min-w-0 flex-1">
-                      {isInvestment ? (
-                        <p className="truncate font-medium leading-tight">{account.name}</p>
-                      ) : (
-                        <label htmlFor={inputId} className="block truncate font-medium leading-tight">
-                          {account.name}
-                        </label>
-                      )}
+                      <p className="truncate font-medium leading-tight">{account.name}</p>
                       <span className="text-xs text-muted-foreground">{typeLabel(account)}</span>
                     </div>
-                    {isInvestment ? (
-                      <div className="shrink-0 text-right">
-                        <span className="text-sm font-medium tabular-nums">
-                          {fmt(accountValue(account, (t) => prices[t]))}
-                        </span>
-                        <span className="block text-[10px] text-muted-foreground">Live price</span>
-                      </div>
-                    ) : (
-                      <div className="w-32 shrink-0">
-                        <AmountInput
-                          id={inputId}
-                          precision="cents"
-                          variant="field"
-                          value={balances[account.id] ?? ""}
-                          onChange={(v) => setBalances((prev) => ({ ...prev, [account.id]: v }))}
-                          ariaLabel={`${account.name} balance`}
-                        />
-                      </div>
-                    )}
+                    <span
+                      className={cn(
+                        "shrink-0 text-sm font-medium tabular-nums",
+                        isLiability ? "text-signal-bad-foreground" : "text-foreground",
+                      )}
+                    >
+                      {fmt(isLiability ? -value : value)}
+                    </span>
                   </li>
                 );
               })}
             </ul>
+
             <p className="mt-4 text-xs text-muted-foreground">
-              Investment values update automatically from live prices — manage their holdings from the
-              account card. Every open account is recorded, even ones you didn&rsquo;t change.
+              Every open account is recorded, even ones you didn&rsquo;t change. To adjust a value,
+              edit the account on the page first, then record.
             </p>
           </div>
 
@@ -183,11 +151,11 @@ export function CheckInSheet({
             </Dialog.Close>
             <button
               type="button"
-              onClick={handleSave}
+              onClick={handleRecord}
               disabled={pending}
               className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {pending ? "Saving…" : "Save check-in"}
+              {pending ? "Recording…" : "Record"}
             </button>
           </footer>
         </Dialog.Popup>

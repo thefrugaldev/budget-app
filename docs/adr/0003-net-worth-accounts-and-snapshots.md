@@ -14,7 +14,7 @@ Phase 3 adds a Net Worth page and a FIRE page. ADR 0001 already reserved the sha
 
 2. **Investment value is quantities × live market prices.** Prices come from a `PriceProvider` interface (first implementation: Finnhub free tier, `FINNHUB_API_KEY`) with a Mongo-backed quote cache and a per-holding manual price override. The provider is a swap, not a commitment.
 
-3. **History is valuation snapshots, not reconstruction.** Updating an account records a dated `Snapshot` (computed value + the holdings/prices or balance behind it). The trajectory chart plots recorded snapshots; a month's net worth is the signed sum of each account's latest snapshot on or before month-end (carry-forward). We do **not** reconstruct past values from historical price data. The live headline (current quantities × current prices) is separate from history.
+3. **History is deliberate valuation snapshots, not reconstruction.** Editing an account updates its live value only — *editing is not recording*. A deliberate **record** (the monthly check-in) writes a dated `Snapshot` per open account (computed value + the holdings/prices or balance behind it). Snapshots are **day-grain**: one per account per day, so re-recording the same day *replaces* it while distinct days accrue as retained history (chosen over a destructive one-per-month replace so a future finer-grained view stays possible; #109 chunk 8). The trajectory derives a month's net worth as the signed sum of each account's latest snapshot on or before month-end (carry-forward). We do **not** reconstruct past values from historical price data. The live headline (current quantities × current prices) is separate from recorded history.
 
 4. **The FIRE nest egg is automatic: cash + investment assets.** Property and liabilities are excluded with no per-account setting. A house is not withdrawable, and debt payments already appear in monthly expenses — counting a mortgage against the nest egg would double-count it.
 
@@ -22,7 +22,7 @@ Phase 3 adds a Net Worth page and a FIRE page. ADR 0001 already reserved the sha
 
 ## Consequences
 
-- Net-worth history is append-only user-recorded data: it survives a price-provider swap, never retroactively changes, and needs no time-series API. The cost: the chart has points only where the user recorded snapshots (monthly cadence in practice), and market drift between snapshots is invisible in history.
+- Net-worth history is user-recorded and retained (day-grain: a same-day re-record replaces, distinct days accrue): it survives a price-provider swap, never retroactively changes from market data, and needs no time-series API. The cost: the chart has points only where the user recorded (monthly cadence in practice), and market drift between records is invisible in history.
 - Adding a "House" account is safe — the `property` kind keeps it in net worth and out of the FIRE date automatically.
 - All FIRE math runs in today's dollars (real growth rate = nominal return − inflation), so the FIRE number stays sanity-checkable against current spending.
 - The quote cache is app-global (a price is not user data); accounts, snapshots, and FIRE assumptions are user data — relevant when auth lands.
