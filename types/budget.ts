@@ -120,6 +120,22 @@ export type MonthlyTrendPoint = {
   saved: number;
 };
 
+/**
+ * Trailing-full-month budget averages that seed the FIRE assumptions (#110
+ * chunk 1): mean monthly expense (→ retirement-spend default) and mean monthly
+ * savings net contribution (→ contribution default), over the full calendar
+ * months before the current, in-progress one. `months` is how many full months
+ * were actually averaged — 12 with a year+ of history, fewer when history is
+ * shorter, and 0 (with both averages 0) when there's no expense/savings history
+ * yet. Both averages are signed sums ÷ `months`, so refund-/withdrawal-heavy
+ * history pulls them down just like the monthly trend.
+ */
+export type TrailingActuals = {
+  months: number;
+  monthlyExpense: number;
+  monthlySavings: number;
+};
+
 /** YTD summary for a one-time income source: total received + last receipt. */
 export type OneTimeReceiptSummary = {
   received: number;

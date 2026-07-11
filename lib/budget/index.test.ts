@@ -29,6 +29,7 @@ import {
   thresholdColor,
   thresholdDescriptor,
   thresholdFor,
+  trailingActuals,
   vendorSuggestionsForCategory,
   ytdTotalsByCategory,
 } from ".";
@@ -1239,5 +1240,68 @@ describe("barTone", () => {
   it("reads savings as good for any contribution, bad for a net withdrawal", () => {
     expect(barTone("savings", 1000, 200)).toBe("good");
     expect(barTone("savings", 1000, -50)).toBe("bad");
+  });
+});
+
+describe("trailingActuals", () => {
+  const cats = [
+    expenseCat({ id: "groc", kind: "expense" }),
+    savingsCat({ id: "hysa", kind: "savings" }),
+    incomeCat({ id: "salary", kind: "income" }),
+  ];
+  // July 15 2026 → last full month is June 2026; the window is Jul 2025–Jun 2026.
+  const now = new Date(Date.UTC(2026, 6, 15));
+
+  it("averages the full 12 months and excludes the current partial month", () => {
+    const txns: Transaction[] = [
+      // Activity at the window's start makes it a full 12-month history.
+      tx({ id: "old", categoryId: "groc", amount: 100, date: "2025-07-10" }),
+      tx({ id: "e2", categoryId: "groc", amount: 2300, date: "2026-06-05" }),
+      tx({ id: "s1", categoryId: "hysa", amount: 1200, date: "2026-01-15" }),
+      // Current (partial) month — must not count toward the full-month average.
+      tx({ id: "partial", categoryId: "groc", amount: 9999, date: "2026-07-02" }),
+    ];
+    expect(trailingActuals(txns, cats, now)).toEqual({
+      months: 12,
+      monthlyExpense: 200, // (100 + 2300) / 12
+      monthlySavings: 100, // 1200 / 12
+    });
+  });
+
+  it("falls back to fewer months when history is shorter, counting interior zero months", () => {
+    const txns: Transaction[] = [
+      tx({ id: "a", categoryId: "groc", amount: 100, date: "2026-04-10" }), // first activity
+      tx({ id: "b", categoryId: "groc", amount: 100, date: "2026-06-10" }), // May has none
+    ];
+    const a = trailingActuals(txns, cats, now);
+    expect(a.months).toBe(3); // Apr, May, Jun — May is a real $0 month, still counted
+    expect(a.monthlyExpense).toBeCloseTo(200 / 3, 6);
+    expect(a.monthlySavings).toBe(0);
+  });
+
+  it("returns zeros with no full-month expense/savings history (income and partial month ignored)", () => {
+    const txns: Transaction[] = [
+      tx({ id: "pay", categoryId: "salary", amount: 5000, date: "2026-03-01" }), // income ignored
+      tx({ id: "thismonth", categoryId: "groc", amount: 500, date: "2026-07-03" }), // partial only
+    ];
+    expect(trailingActuals(txns, cats, now)).toEqual({
+      months: 0,
+      monthlyExpense: 0,
+      monthlySavings: 0,
+    });
+  });
+
+  it("nets refunds and withdrawals into the averages and ignores income", () => {
+    const txns: Transaction[] = [
+      tx({ id: "e", categoryId: "groc", amount: 200, date: "2026-05-02" }),
+      tx({ id: "r", categoryId: "groc", amount: -50, date: "2026-05-20" }), // refund
+      tx({ id: "d", categoryId: "hysa", amount: 400, date: "2026-05-10" }),
+      tx({ id: "w", categoryId: "hysa", amount: -100, date: "2026-06-15" }), // withdrawal
+      tx({ id: "pay", categoryId: "salary", amount: 5000, date: "2026-05-01" }), // ignored
+    ];
+    const a = trailingActuals(txns, cats, now);
+    expect(a.months).toBe(2); // May, Jun
+    expect(a.monthlyExpense).toBe(75); // (200 - 50) / 2
+    expect(a.monthlySavings).toBe(150); // (400 - 100) / 2
   });
 });

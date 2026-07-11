@@ -38,7 +38,13 @@ export function isRangePreset(value: unknown): value is RangePreset {
   return typeof value === "string" && (RANGE_PRESETS as readonly string[]).includes(value);
 }
 
-function shiftMonth(ym: string, offset: number): string {
+/**
+ * Shift a "YYYY-MM" key by `offset` months (negative to go back), e.g.
+ * `shiftMonth("2026-01", -1) === "2025-12"`. JS Date normalizes month
+ * overflow/underflow, so any offset is safe. The month-arithmetic primitive
+ * behind `nextMonth`, the range presets, and trailing-window aggregation.
+ */
+export function shiftMonth(ym: string, offset: number): string {
   const [y, m] = ym.split("-").map(Number);
   // JS Date normalizes overflow/underflow in month indices, which is what we want here.
   const d = new Date(Date.UTC(y, m - 1 + offset, 1));
