@@ -86,4 +86,35 @@ describe("fire-assumptions repository", () => {
     await expect(clearFireAssumptions()).resolves.toBeUndefined();
     expect(await getFireAssumptionOverrides()).toBeNull();
   });
+
+  it("retries once past a lost first-save insert race (duplicate-key backstop)", async () => {
+    // Simulate the losing racer: the first updateOne throws E11000 (the winner
+    // already inserted the singleton), the retry then resolves as a plain update.
+    const spy = vi
+      .spyOn(ScopedCollection.prototype, "updateOne")
+      .mockImplementationOnce(() => {
+        throw Object.assign(new Error("E11000 duplicate key error"), { code: 11000 });
+      });
+
+    await expect(saveFireAssumptionOverrides({ nominalReturn: 7 })).resolves.toBeUndefined();
+    expect(spy).toHaveBeenCalledTimes(2); // threw once, retried once
+    expect(await getFireAssumptionOverrides()).toEqual({ nominalReturn: 7 });
+
+    spy.mockRestore();
+  });
+
+  it("does not retry a non-duplicate-key error", async () => {
+    const spy = vi
+      .spyOn(ScopedCollection.prototype, "updateOne")
+      .mockImplementationOnce(() => {
+        throw Object.assign(new Error("connection reset"), { code: 6 });
+      });
+
+    await expect(saveFireAssumptionOverrides({ nominalReturn: 7 })).rejects.toThrow(
+      /connection reset/,
+    );
+    expect(spy).toHaveBeenCalledTimes(1); // surfaced, not retried
+
+    spy.mockRestore();
+  });
 });

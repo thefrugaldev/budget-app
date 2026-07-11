@@ -33,7 +33,10 @@ function parseNumber(
     n = raw;
   } else if (typeof raw === "string") {
     const stripped = raw.replace(/[$,%\s]/g, "");
-    if (!/^-?\d+(\.\d+)?$/.test(stripped)) {
+    // Accept a bare/leading/trailing-dot decimal ("3", "3.5", "3.", ".5") so a
+    // mid-typed value survives to the range check; still a whitelist, so odd
+    // shapes ("1e5", "1.2.3") fail loudly rather than silently coercing.
+    if (!/^-?(\d+(\.\d*)?|\.\d+)$/.test(stripped)) {
       throw new Error(`${label} must be a number`);
     }
     n = Number(stripped);
@@ -110,17 +113,22 @@ export function parseAssumptionOverrides(
   get: (name: string) => unknown,
   currentYear = new Date().getUTCFullYear(),
 ): FireAssumptionOverrides {
-  const overrides: FireAssumptionOverrides = {
-    monthlyRetirementSpend: parseMonthlyRetirementSpend(get("monthlyRetirementSpend")),
-    monthlyContribution: parseMonthlyContribution(get("monthlyContribution")),
-    nominalReturn: parseNominalReturn(get("nominalReturn")),
-    inflation: parseInflation(get("inflation")),
-    safeWithdrawalRate: parseSafeWithdrawalRate(get("safeWithdrawalRate")),
-    birthYear: parseBirthYear(get("birthYear"), currentYear),
-    traditionalRetirementAge: parseTraditionalRetirementAge(get("traditionalRetirementAge")),
-  };
-  // Drop the undefined knobs so the result is exactly the user's overrides.
-  return Object.fromEntries(
-    Object.entries(overrides).filter(([, v]) => v !== undefined),
-  ) as FireAssumptionOverrides;
+  // Assemble directly: a blank knob parses to `undefined` and is simply not added,
+  // so the result is exactly the user's overrides (no build-then-filter pass).
+  const overrides: FireAssumptionOverrides = {};
+  const spend = parseMonthlyRetirementSpend(get("monthlyRetirementSpend"));
+  if (spend !== undefined) overrides.monthlyRetirementSpend = spend;
+  const contribution = parseMonthlyContribution(get("monthlyContribution"));
+  if (contribution !== undefined) overrides.monthlyContribution = contribution;
+  const nominalReturn = parseNominalReturn(get("nominalReturn"));
+  if (nominalReturn !== undefined) overrides.nominalReturn = nominalReturn;
+  const inflation = parseInflation(get("inflation"));
+  if (inflation !== undefined) overrides.inflation = inflation;
+  const swr = parseSafeWithdrawalRate(get("safeWithdrawalRate"));
+  if (swr !== undefined) overrides.safeWithdrawalRate = swr;
+  const birthYear = parseBirthYear(get("birthYear"), currentYear);
+  if (birthYear !== undefined) overrides.birthYear = birthYear;
+  const retirementAge = parseTraditionalRetirementAge(get("traditionalRetirementAge"));
+  if (retirementAge !== undefined) overrides.traditionalRetirementAge = retirementAge;
+  return overrides;
 }

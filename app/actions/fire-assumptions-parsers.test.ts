@@ -34,9 +34,16 @@ describe("optional-knob parsers", () => {
     expect(parseNominalReturn("7%")).toBe(7);
   });
 
+  it("accept mid-typed leading/trailing-dot decimals", () => {
+    expect(parseMonthlyRetirementSpend("3.")).toBe(3);
+    expect(parseNominalReturn(".5")).toBe(0.5);
+  });
+
   it("reject non-numeric / silently-coercing shapes", () => {
     expect(() => parseMonthlyRetirementSpend("1e5")).toThrow(/must be a number/i);
     expect(() => parseNominalReturn("abc")).toThrow(/must be a number/i);
+    expect(() => parseNominalReturn("1.2.3")).toThrow(/must be a number/i);
+    expect(() => parseMonthlyRetirementSpend(".")).toThrow(/must be a number/i);
   });
 });
 

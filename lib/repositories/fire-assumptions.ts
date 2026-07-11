@@ -28,6 +28,11 @@ const OVERRIDE_KEYS = [
   "traditionalRetirementAge",
 ] as const satisfies readonly (keyof FireAssumptionOverrides)[];
 
+/** A Mongo duplicate-key error (unique-index violation) — code 11000, whatever the driver wraps it in. */
+function isDuplicateKeyError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: number }).code === 11000;
+}
+
 /** The household's stored overrides, or `null` when it has never saved any (tracks all defaults). */
 export async function getFireAssumptionOverrides(): Promise<FireAssumptionOverrides | null> {
   const assumptions = await scopedCollection<FireAssumptionsDocument>(COLLECTIONS.fireAssumptions);
@@ -40,7 +45,18 @@ export async function getFireAssumptionOverrides(): Promise<FireAssumptionOverri
  * set, absent ones are **unset** so they revert to tracking their default (an
  * omitted knob is "not overridden", not "unchanged"). Upserts the singleton by the
  * scoped household filter, so the first save creates it and later saves overwrite
- * it — the unique `householdId` index backstops a concurrent double-create.
+ * it.
+ *
+ * Saving `{}` (a form with every knob blanked) persists a real document carrying
+ * only `_id / householdId / updatedAt` — an "empty overrides" state that resolves
+ * identically to "never saved" (`toFireAssumptionOverrides` → `{}`), but is a
+ * distinct persisted row. Reset-to-defaults deliberately routes through
+ * {@link clearFireAssumptions} (a true delete) rather than an empty save.
+ *
+ * The unique `householdId` index makes a *first* save that loses the upsert-insert
+ * race throw a duplicate-key error; the winner has created the doc by then, so a
+ * single retry resolves to a plain update. Single-user app, so last-write-wins on
+ * the (identical-form) racing writes is correct.
  */
 export async function saveFireAssumptionOverrides(
   overrides: FireAssumptionOverrides,
@@ -63,7 +79,14 @@ export async function saveFireAssumptionOverrides(
   };
   if (Object.keys(unset).length > 0) update.$unset = unset;
 
-  await assumptions.updateOne({}, update, { upsert: true });
+  try {
+    await assumptions.updateOne({}, update, { upsert: true });
+  } catch (err) {
+    // Lost the first-save insert race against the unique householdId index; the
+    // doc now exists, so this retry is a plain update, not an insert.
+    if (!isDuplicateKeyError(err)) throw err;
+    await assumptions.updateOne({}, update, { upsert: true });
+  }
 }
 
 /**
