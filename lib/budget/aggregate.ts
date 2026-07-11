@@ -2,6 +2,7 @@ import type {
   Category,
   CategoryTarget,
   MonthlyTrendPoint,
+  TrailingActuals,
   Transaction,
 } from "@/types/budget";
 // Imported from the cycle-free cadence module (not the `@/lib/income` barrel) so
@@ -13,7 +14,7 @@ import {
   perPaycheckFromMonthly,
 } from "@/lib/income/cadence";
 
-import { currentMonthKey, currentYearStart, monthsInRange } from "./range";
+import { currentMonthKey, currentYearStart, monthsInRange, shiftMonth } from "./range";
 
 export function ytdTotalsByCategory(
   transactions: Transaction[],
@@ -98,6 +99,61 @@ export function monthlyTrend(
     out.push({ ym, spent, saved });
   }
   return out;
+}
+
+/**
+ * Trailing-full-month expense and savings averages — the data-derived defaults
+ * for the FIRE assumptions (#110 chunk 1, stories 7/8). Averages the signed
+ * expense and savings-contribution totals over the full calendar months ending
+ * with the last **complete** month; the current, in-progress month is excluded
+ * so a partial month can't drag the average. Same expense/savings-by-kind split
+ * as {@link monthlyTrend} (income ignored, refunds/withdrawals net out).
+ *
+ * Fewer-months fallback: the denominator is the number of full months from the
+ * user's earliest expense/savings activity through the last complete month,
+ * capped at 12 — so a shorter history averages over what exists rather than
+ * diluting against a fixed 12. With no expense/savings history the window is
+ * empty and both averages are 0. Pure; no I/O.
+ */
+export function trailingActuals(
+  transactions: Transaction[],
+  categories: Category[],
+  today = new Date(),
+): TrailingActuals {
+  const lastFull = shiftMonth(currentMonthKey(today), -1); // last complete month
+  const windowStart = shiftMonth(lastFull, -11); // 12 full months back, inclusive
+
+  const expenseIds = new Set(categories.filter((c) => c.kind === "expense").map((c) => c.id));
+  const savingsIds = new Set(categories.filter((c) => c.kind === "savings").map((c) => c.id));
+
+  let expenseSum = 0;
+  let savingsSum = 0;
+  let firstActivity: string | undefined; // earliest expense/savings month, any date
+  for (const t of transactions) {
+    const isExpense = expenseIds.has(t.categoryId);
+    const isSavings = savingsIds.has(t.categoryId);
+    if (!isExpense && !isSavings) continue;
+    const ym = t.date.slice(0, 7);
+    if (firstActivity === undefined || ym < firstActivity) firstActivity = ym;
+    if (ym < windowStart || ym > lastFull) continue; // outside the full-month window
+    if (isExpense) expenseSum += t.amount;
+    else savingsSum += t.amount;
+  }
+
+  // Denominator: full months from first activity (clamped into the window)
+  // through the last complete month. Zero when history starts at/after the
+  // current partial month, or when there's no expense/savings history at all.
+  let months = 0;
+  if (firstActivity !== undefined) {
+    const start = firstActivity > windowStart ? firstActivity : windowStart;
+    months = [...monthsInRange(start, lastFull)].length;
+  }
+
+  return {
+    months,
+    monthlyExpense: months > 0 ? expenseSum / months : 0,
+    monthlySavings: months > 0 ? savingsSum / months : 0,
+  };
 }
 
 /**
