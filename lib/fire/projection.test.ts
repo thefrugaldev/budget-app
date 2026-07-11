@@ -9,6 +9,7 @@ import {
   fireNumber,
   monthlyRate,
   monthsToReach,
+  monthsToReachEach,
   projectSeries,
   realRate,
 } from "./projection";
@@ -102,6 +103,24 @@ describe("monthsToReach", () => {
   });
 });
 
+describe("monthsToReachEach", () => {
+  it("solves several targets in one walk, index-aligned", () => {
+    // A lower target is reached no later than a higher one.
+    const [low, high] = monthsToReachEach(100_000, 2000, 0.04, [300_000, 1_200_000]);
+    expect(low).not.toBeNull();
+    expect(high).not.toBeNull();
+    expect(low!).toBeLessThan(high!);
+    // Matches the single-target solve for each.
+    expect(low).toBe(monthsToReach(100_000, 2000, 0.04, 300_000));
+    expect(high).toBe(monthsToReach(100_000, 2000, 0.04, 1_200_000));
+  });
+
+  it("mixes already-met, reachable, infinite, and never-reached targets", () => {
+    // start 100k, flat (zero contrib, zero rate): only the already-met target resolves.
+    expect(monthsToReachEach(100_000, 0, 0, [50_000, 200_000, Infinity])).toEqual([0, null, null]);
+  });
+});
+
 describe("ageInYear", () => {
   it("maps a birth year and a calendar year to an age", () => {
     expect(ageInYear(1990, 2037)).toBe(47);
@@ -133,9 +152,11 @@ describe("computeFireProjection", () => {
     expect(p.monthsToCoast).not.toBeNull();
     // Coast is a lower target than FIRE, so it's reached no later.
     expect(p.monthsToCoast!).toBeLessThan(p.monthsToFire!);
-    // Date + age are self-consistent (age = FIRE-date year − birth year).
+    // Date + age are self-consistent (age = date year − birth year), both targets.
     expect(p.fireDate).toMatch(/^\d{4}-\d{2}$/);
     expect(p.fireAge).toBe(Number(p.fireDate!.slice(0, 4)) - 1990);
+    expect(p.coastDate).toMatch(/^\d{4}-\d{2}$/);
+    expect(p.coastAge).toBe(Number(p.coastDate!.slice(0, 4)) - 1990);
   });
 
   it("reports today with the current age when already past the FIRE number", () => {
@@ -144,6 +165,10 @@ describe("computeFireProjection", () => {
     expect(p.fireDate).toBe("2026-07");
     expect(p.fireAge).toBe(36); // 2026 − 1990
     expect(p.progress).toBeCloseTo(1.25, 10);
+    // Well past the (lower) coast target too, so coast reads today as well.
+    expect(p.monthsToCoast).toBe(0);
+    expect(p.coastDate).toBe("2026-07");
+    expect(p.coastAge).toBe(36);
   });
 
   it("yields null date/age when the target is never reached", () => {
@@ -153,5 +178,8 @@ describe("computeFireProjection", () => {
     expect(p.monthsToFire).toBeNull();
     expect(p.fireDate).toBeNull();
     expect(p.fireAge).toBeNull();
+    // Coast target equals FIRE at a zero real rate, so it's unreachable too.
+    expect(p.coastDate).toBeNull();
+    expect(p.coastAge).toBeNull();
   });
 });

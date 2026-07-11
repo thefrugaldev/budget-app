@@ -12,7 +12,14 @@ import type { FireAssumptions, FireProjection } from "@/types/fire";
  * page; the smaller helpers are exported so each piece is independently testable.
  */
 
-/** Derived real annual rate as a decimal: (nominal − inflation) percentages → e.g. (7, 3) → 0.04. */
+/**
+ * Derived real annual rate as a decimal: (nominal − inflation) percentages →
+ * e.g. (7, 3) → 0.04. This is the **linear approximation** ADR 0003 chose, not
+ * the geometric Fisher rate `(1 + n) / (1 + i) − 1` (which gives 3.88% here) —
+ * the ~0.12pp difference is immaterial for a planning tool, and subtraction is
+ * the documented model. Not a bug; don't "fix" it to Fisher without revisiting
+ * the ADR.
+ */
 export function realRate(nominalReturnPct: number, inflationPct: number): number {
   return (nominalReturnPct - inflationPct) / 100;
 }
@@ -76,9 +83,40 @@ export function projectSeries(
 }
 
 /**
- * Months from now until the compounding nest egg first reaches `target`:
- * `0` if it's already there, `null` if it never does within `capMonths` (a
- * declining or flat projection that can't catch a target, or an infinite target).
+ * Months from now until the compounding nest egg first reaches each `target`,
+ * in a **single** walk (index-aligned to `targets`): `0` if already there,
+ * `null` if never within `capMonths` (a flat/declining projection that can't
+ * catch it, or an infinite target). One pass keeps the FIRE + coast solve to a
+ * single loop on the live-recompute path rather than one loop per target.
+ */
+export function monthsToReachEach(
+  startNestEgg: number,
+  monthlyContribution: number,
+  annualRealRate: number,
+  targets: number[],
+  capMonths = 1200,
+): (number | null)[] {
+  const result: (number | null)[] = targets.map((t) =>
+    Number.isFinite(t) && startNestEgg >= t ? 0 : null,
+  );
+  const unsolved = () => result.some((r, i) => r === null && Number.isFinite(targets[i]));
+  if (!unsolved()) return result;
+
+  const mr = monthlyRate(annualRealRate);
+  let value = startNestEgg;
+  for (let t = 1; t <= capMonths; t++) {
+    value = value * (1 + mr) + monthlyContribution;
+    for (let i = 0; i < targets.length; i++) {
+      if (result[i] === null && Number.isFinite(targets[i]) && value >= targets[i]) result[i] = t;
+    }
+    if (!unsolved()) break; // all finite targets crossed — stop early
+  }
+  return result;
+}
+
+/**
+ * Months from now until the nest egg first reaches a single `target` — a thin
+ * wrapper over {@link monthsToReachEach}. `0` if already there, `null` if never.
  */
 export function monthsToReach(
   startNestEgg: number,
@@ -87,15 +125,7 @@ export function monthsToReach(
   target: number,
   capMonths = 1200,
 ): number | null {
-  if (!Number.isFinite(target)) return null;
-  if (startNestEgg >= target) return 0;
-  const mr = monthlyRate(annualRealRate);
-  let value = startNestEgg;
-  for (let t = 1; t <= capMonths; t++) {
-    value = value * (1 + mr) + monthlyContribution;
-    if (value >= target) return t;
-  }
-  return null;
+  return monthsToReachEach(startNestEgg, monthlyContribution, annualRealRate, [target], capMonths)[0];
 }
 
 /** Calendar-year age: the age the user turns during `year` (birth month unknown). */
@@ -105,9 +135,15 @@ export function ageInYear(birthYear: number, year: number): number {
 
 /**
  * Compose the full projection for an assumption set + starting nest egg. `today`
- * is injectable so the date/age mapping is deterministic in tests. Reaching
- * either target is solved by month-stepping; an unreachable target yields a null
- * date/age rather than a fabricated one.
+ * is injectable so the date/age mapping is deterministic in tests. Both targets
+ * are solved in one walk; an unreachable target yields a null date/age rather
+ * than a fabricated one.
+ *
+ * `yearsToRetirement` is a calendar-year integer (retirement year − current
+ * year), ignoring birth month — the same approximation as {@link ageInYear},
+ * since the assumption set has no birth month. A late-year user is credited up
+ * to ~11 fewer months of coast runway than an early-year one; immaterial for a
+ * planning tool, but a documented approximation rather than an oversight.
  */
 export function computeFireProjection(
   assumptions: FireAssumptions,
@@ -125,11 +161,18 @@ export function computeFireProjection(
   );
   const coast = coastNumber(fire, r, yearsToRetirement);
 
-  const monthsToFire = monthsToReach(nestEgg, assumptions.monthlyContribution, r, fire);
-  const monthsToCoast = monthsToReach(nestEgg, assumptions.monthlyContribution, r, coast);
+  // One walk for both thresholds (coast is usually reached first, but not when a
+  // negative real rate pushes the coast target above the FIRE number).
+  const [monthsToCoast, monthsToFire] = monthsToReachEach(
+    nestEgg,
+    assumptions.monthlyContribution,
+    r,
+    [coast, fire],
+  );
   const fireDate = monthsToFire === null ? null : shiftMonth(nowYm, monthsToFire);
   const coastDate = monthsToCoast === null ? null : shiftMonth(nowYm, monthsToCoast);
-  const fireAge = fireDate === null ? null : ageInYear(assumptions.birthYear, Number(fireDate.slice(0, 4)));
+  const ageAtDate = (ym: string | null) =>
+    ym === null ? null : ageInYear(assumptions.birthYear, Number(ym.slice(0, 4)));
 
   return {
     realRate: r,
@@ -139,8 +182,9 @@ export function computeFireProjection(
     coastProgress: coast > 0 && Number.isFinite(coast) ? nestEgg / coast : 0,
     monthsToFire,
     fireDate,
-    fireAge,
+    fireAge: ageAtDate(fireDate),
     monthsToCoast,
     coastDate,
+    coastAge: ageAtDate(coastDate),
   };
 }

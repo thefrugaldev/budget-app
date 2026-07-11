@@ -56,4 +56,6 @@ export type FireProjection = {
   monthsToCoast: number | null;
   /** The coast date as "YYYY-MM", or null if never reached within the horizon. */
   coastDate: string | null;
+  /** The user's age at the coast date, or null if never reached. */
+  coastAge: number | null;
 };
