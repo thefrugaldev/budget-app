@@ -8,7 +8,7 @@ import { submitCheckInAction } from "@/app/actions/net-worth";
 import { AccountIcon } from "@/components/net-worth/AccountIcon";
 import { useHydrated } from "@/hooks/useHydrated";
 import { useNotify } from "@/hooks/useNotify";
-import { fmt, longDateLabel } from "@/lib/budget";
+import { fmt, longDateLabel, monthLabel } from "@/lib/budget";
 import { localTodayIso } from "@/lib/net-worth/local-today";
 import { accountValue, netWorthHeadline } from "@/lib/net-worth/valuation";
 import { cn } from "@/lib/utils";
@@ -64,7 +64,11 @@ export function CheckInSheet({
         setError(res.error);
         return;
       }
-      notify.success(`Recorded — ${res.recorded} account${res.recorded === 1 ? "" : "s"}`);
+      // Confirm the month it's filed under (matches the chart's monthly point),
+      // not the day-grain storage date — re-recording reads as "updated July".
+      notify.success(
+        today ? `Recorded your net worth for ${monthLabel(today.slice(0, 7))}` : "Net worth recorded",
+      );
       onOpenChange(false);
     });
   }
