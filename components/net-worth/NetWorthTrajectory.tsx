@@ -138,14 +138,26 @@ export function NetWorthTrajectory({
             formatPoint={(_point, i) => {
               const p = visible[i];
               const prev = visible[i - 1];
-              if (!prev) return { title: monthLabel(p.ym), detail: `${fmt(p.net)} · first month` };
+              // Row 1: the month and what it was worth. Row 2 (below): the change.
+              const title = `${monthLabel(p.ym)} · ${fmt(p.net)}`;
+              if (!prev) return { title, detail: "First recorded month" };
               const mom = p.net - prev.net;
               const msign = mom >= 0 ? "+" : "−";
               const mpct =
                 prev.net > 0 ? ` (${msign}${Math.abs((mom / prev.net) * 100).toFixed(0)}%)` : "";
+              // Up is good, down is bad — same mapping as the change headline; the
+              // sign carries direction as text, so color is enhancement, not the
+              // only cue. Flat stays muted.
+              const tone =
+                mom > 0
+                  ? "text-signal-good-foreground"
+                  : mom < 0
+                    ? "text-signal-bad-foreground"
+                    : undefined;
               return {
-                title: monthLabel(p.ym),
-                detail: `${fmt(p.net)} · ${msign}${fmt(Math.abs(mom))}${mpct} vs ${monthLabelShort(prev.ym)}`,
+                title,
+                detail: `${msign}${fmt(Math.abs(mom))}${mpct} vs ${monthLabelShort(prev.ym)}`,
+                detailClassName: tone,
               };
             }}
           />

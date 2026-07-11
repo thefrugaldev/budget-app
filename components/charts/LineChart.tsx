@@ -44,7 +44,9 @@ const compactFormat = (value: number): string =>
   });
 
 export type LinePoint = { label: string; value: number };
-export type PointDetail = { title: string; detail?: string };
+// `detailClassName` lets the caller tone the change line (e.g. a signal token) —
+// the primitive stays domain-agnostic and doesn't decide what "good" means.
+export type PointDetail = { title: string; detail?: string; detailClassName?: string };
 
 const W = 680;
 const H = 200;
@@ -223,8 +225,12 @@ export function LineChart({
                 transform: `translate(${anchor}, calc(-100% - 10px))`,
               }}
             >
-              <p className="font-medium">{d.title}</p>
-              {d.detail && <p className="mt-0.5 tabular-nums text-muted-foreground">{d.detail}</p>}
+              <p className="font-medium tabular-nums">{d.title}</p>
+              {d.detail && (
+                <p className={cn("mt-0.5 tabular-nums", d.detailClassName ?? "text-muted-foreground")}>
+                  {d.detail}
+                </p>
+              )}
             </div>
           );
         })()}
