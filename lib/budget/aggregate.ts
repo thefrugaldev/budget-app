@@ -114,6 +114,12 @@ export function monthlyTrend(
  * capped at 12 — so a shorter history averages over what exists rather than
  * diluting against a fixed 12. With no expense/savings history the window is
  * empty and both averages are 0. Pure; no I/O.
+ *
+ * Deliberate choice on stale history: a user with pre-window activity but
+ * nothing in the last 12 months reports `months: 12` at a $0 average — honest
+ * "you haven't spent in a year, so $0/mo is the average" — rather than treating
+ * no-in-window-activity as `months: 0` ("no data"). Don't flip this without
+ * revisiting how the FIRE default should read that case.
  */
 export function trailingActuals(
   transactions: Transaction[],
@@ -141,12 +147,15 @@ export function trailingActuals(
   }
 
   // Denominator: full months from first activity (clamped into the window)
-  // through the last complete month. Zero when history starts at/after the
-  // current partial month, or when there's no expense/savings history at all.
+  // through the last complete month, by direct arithmetic on the two keys.
+  // Zero when history starts at/after the current partial month, or when
+  // there's no expense/savings history at all.
   let months = 0;
   if (firstActivity !== undefined) {
     const start = firstActivity > windowStart ? firstActivity : windowStart;
-    months = [...monthsInRange(start, lastFull)].length;
+    const [sy, sm] = start.split("-").map(Number);
+    const [ly, lm] = lastFull.split("-").map(Number);
+    months = Math.max(0, (ly - sy) * 12 + (lm - sm) + 1);
   }
 
   return {
