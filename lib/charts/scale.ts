@@ -77,8 +77,63 @@ export function spreadX(count: number, extentPx: number, startPx = 0) {
  */
 export function extentScale(min: number, max: number, extentPx: number) {
   const span = max - min;
-  // `_value` is spelled out (not dropped) so the degenerate branch has the same
-  // shape callers expect from the normal one.
-  if (span <= 0) return { y: (_value: number) => extentPx / 2 };
-  return { y: (value: number) => ((max - value) / span) * extentPx };
+  // One `y` closure with the degenerate guard inside: a `min === max` domain
+  // maps everything to the vertical middle instead of dividing by zero, while a
+  // real domain scales normally. Keeping it a single arrow (rather than two
+  // return shapes) avoids an unused parameter on the degenerate branch.
+  return {
+    y: (value: number) => (span <= 0 ? extentPx / 2 : ((max - value) / span) * extentPx),
+  };
+}
+
+// Round `value` to a "nice" number (1/2/5 × 10ⁿ) — the human-friendly step sizes
+// axis gridlines land on. `round` snaps to the nearest nice number; otherwise it
+// rounds up so a computed range fully contains the data.
+function niceNumber(value: number, round: boolean): number {
+  if (value <= 0) return 0;
+  const exponent = Math.floor(Math.log10(value));
+  const fraction = value / 10 ** exponent;
+  let niceFraction: number;
+  if (round) {
+    niceFraction = fraction < 1.5 ? 1 : fraction < 3 ? 2 : fraction < 7 ? 5 : 10;
+  } else {
+    niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+  }
+  return niceFraction * 10 ** exponent;
+}
+
+/**
+ * A "nice" value axis for a signed `[min, max]` domain: expands the bounds out to
+ * round numbers and returns the gridline `ticks` between them. This is what lets
+ * a trend chart draw labelled horizontal gridlines a reader can map the line's
+ * height onto — and, in fit-to-data mode, gives a padded domain that fills the
+ * plot with the data's own range instead of flattening it against zero.
+ *
+ * `tickCount` is a target, not a guarantee (the nice-rounding decides the real
+ * step). A degenerate `min === max` domain is widened to a band around the value
+ * so a flat series still yields sane, non-duplicate ticks rather than dividing by
+ * zero. Pure — no rendering — so it unit-tests like the other scale helpers.
+ */
+export function niceScale(
+  min: number,
+  max: number,
+  tickCount = 4,
+): { niceMin: number; niceMax: number; ticks: number[]; step: number } {
+  if (min === max) {
+    // Widen a flat domain to ±10% (or ±1 at zero) so there's a range to divide.
+    const pad = Math.abs(min) > 0 ? Math.abs(min) * 0.1 : 1;
+    min -= pad;
+    max += pad;
+  }
+  const targetSteps = Math.max(1, tickCount - 1);
+  const range = niceNumber(max - min, false);
+  const step = niceNumber(range / targetSteps, true) || 1;
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  // Half-step slack absorbs float drift so the top tick isn't dropped.
+  for (let v = niceMin; v <= niceMax + step * 0.5; v += step) {
+    ticks.push(Math.round(v * 100) / 100);
+  }
+  return { niceMin, niceMax, ticks, step };
 }

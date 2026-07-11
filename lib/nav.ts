@@ -17,7 +17,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: "FIRE", href: "/fire", icon: Flame, mobileTab: "primary", placeholder: true },
   { label: "Income", href: "/income", icon: Wallet, mobileTab: "primary" },
   { label: "Transactions", href: "/transactions", icon: Receipt, mobileTab: "primary" },
-  { label: "Net worth", href: "/net-worth", icon: TrendingUp, mobileTab: "more", placeholder: true },
+  // Net Worth is live as of #109 — the "Soon" marker came off with chunk 9
+  // (the page now renders real accounts and a recorded-history trajectory).
+  { label: "Net worth", href: "/net-worth", icon: TrendingUp, mobileTab: "more" },
   { label: "Settings", href: "/settings", icon: Settings, mobileTab: "more" },
 ];
 

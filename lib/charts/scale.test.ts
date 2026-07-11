@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bandScale, domainMax, extentScale, linearScale, spreadX } from "./scale";
+import { bandScale, domainMax, extentScale, linearScale, niceScale, spreadX } from "./scale";
 
 describe("domainMax", () => {
   it("returns the largest value with no headroom", () => {
@@ -111,5 +111,44 @@ describe("extentScale", () => {
     const s = extentScale(50, 50, 200);
     expect(s.y(50)).toBe(100);
     expect(Number.isFinite(s.y(0))).toBe(true);
+  });
+});
+
+describe("niceScale", () => {
+  it("rounds the domain out to nice bounds that contain the data", () => {
+    const s = niceScale(97000, 210327, 4);
+    expect(s.niceMin).toBeLessThanOrEqual(97000);
+    expect(s.niceMax).toBeGreaterThanOrEqual(210327);
+    // Bounds and step land on round numbers, not raw data values.
+    expect(s.niceMin % s.step).toBe(0);
+    expect(s.niceMax % s.step).toBe(0);
+  });
+
+  it("returns ascending ticks spanning the nice bounds", () => {
+    const { ticks, niceMin, niceMax } = niceScale(0, 100, 5);
+    expect(ticks[0]).toBe(niceMin);
+    expect(ticks[ticks.length - 1]).toBe(niceMax);
+    for (let i = 1; i < ticks.length; i++) expect(ticks[i]).toBeGreaterThan(ticks[i - 1]);
+  });
+
+  it("uses a fit-to-data domain that need not start at zero", () => {
+    // A tight band of large values: the min floors to a round number well above
+    // zero, so the plot fills with the data's range instead of hugging zero.
+    const { niceMin } = niceScale(180000, 210000, 4);
+    expect(niceMin).toBeGreaterThan(0);
+  });
+
+  it("widens a flat domain instead of dividing by zero", () => {
+    const { ticks, niceMin, niceMax, step } = niceScale(500, 500, 4);
+    expect(step).toBeGreaterThan(0);
+    expect(niceMax).toBeGreaterThan(niceMin);
+    expect(ticks.length).toBeGreaterThan(1);
+    expect(ticks.every((t) => Number.isFinite(t))).toBe(true);
+  });
+
+  it("handles a zero-only domain without NaN", () => {
+    const { ticks, step } = niceScale(0, 0, 4);
+    expect(step).toBeGreaterThan(0);
+    expect(ticks.every((t) => Number.isFinite(t))).toBe(true);
   });
 });
