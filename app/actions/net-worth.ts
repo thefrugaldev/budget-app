@@ -314,12 +314,17 @@ export async function removeHoldingAction(
 }
 
 /**
- * Submit a check-in (stories 7/8, recording half): record one dated snapshot per
- * open account at its current value, plus the composition behind it. Every open
- * account is snapshotted — even one untouched this month — so each check-in is a
- * complete monthly data point (an un-updated account carries forward in the
- * series rather than cratering the chart). Investment values resolve through the
- * cached price feed; per-account editing is the create/edit/holding actions above.
+ * Submit a check-in (stories 7/8): apply the flow's inline balance edits, then
+ * record one dated snapshot per open account — a complete monthly data point,
+ * so an untouched account carries forward rather than cratering the chart.
+ *
+ * The single-page edit mode (chunk 8) sends the edited balances for cash /
+ * property / liability accounts; this applies them (so the live headline moves
+ * with them going forward) *and* the snapshots capture them — one atomic-ish
+ * save rather than the client firing N update actions then a snapshot.
+ * Investment values aren't edited here: they come from live prices, and holdings
+ * are managed via the account edit sheet. Balances are parsed/validated up front,
+ * so a bad value fails before any write.
  *
  * **Refuses rather than under-records.** If a needed ticker can't be priced (no
  * override, no cached price ever, and the feed can't quote it), the check-in is
@@ -327,16 +332,28 @@ export async function removeHoldingAction(
  * history, which is never reconstructed (ADR 0003). The user adds a manual price
  * override (story 12) and retries. All-or-nothing keeps the monthly point honest.
  *
- * Fire-and-forget (typed input, not `useActionState`) — chunk 8's single-page
- * edit mode invokes it after applying the per-account edits, then reports
- * `recorded` in a toast. Defends its own boundary with `requireRole`.
+ * Fire-and-forget (typed input, not `useActionState`); reports `recorded` for the
+ * flow's toast. Defends its own boundary with `requireRole`.
  */
 export async function submitCheckInAction(
-  input: { date?: string } = {},
+  input: { date?: string; balances?: { accountId: string; balance: string }[] } = {},
 ): Promise<{ error: string | null; recorded: number }> {
   try {
     await requireRole("editor");
     const date = parseCheckInDate(input.date) ?? todayIso();
+
+    // Validate every edit before writing any, so a bad balance fails cleanly.
+    const edits = (input.balances ?? []).map((e) => ({
+      id: parseAccountId(e.accountId),
+      balance: parseBalanceAmount(e.balance),
+    }));
+    for (const edit of edits) {
+      const account = await getAccountById(edit.id);
+      // Ignore stale/closed ids; investment value isn't balance-driven.
+      if (!account || account.closedAt || account.kind === "investment") continue;
+      await updateAccount(edit.id, { balance: edit.balance });
+    }
+
     const openAccounts = (await listAccounts()).filter((a) => !a.closedAt);
 
     const tickers = tickersNeedingQuotes(openAccounts);

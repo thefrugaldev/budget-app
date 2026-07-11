@@ -6,17 +6,8 @@ import { closeAccountAction, deleteAccountAction } from "@/app/actions/net-worth
 import { AccountActionDialog } from "@/components/net-worth/AccountActionDialog";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { useHydrated } from "@/hooks/useHydrated";
+import { localTodayIso } from "@/lib/net-worth/local-today";
 import type { Account } from "@/types/net-worth";
-
-/** Today in the *browser's* local calendar (YYYY-MM-DD) — composed by parts to
- *  avoid locale/format surprises. Used so a close records under the user's today,
- *  not the server's UTC day. */
-function localTodayIso(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
 
 /**
  * The Status section of an account's edit sheet (#109 chunk 7, story 16). Close
