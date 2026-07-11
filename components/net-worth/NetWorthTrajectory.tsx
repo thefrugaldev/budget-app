@@ -1,41 +1,109 @@
+"use client";
+
+import { Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { useState } from "react";
+
 import { LineChart } from "@/components/charts/LineChart";
 import { fmt, monthLabel, monthLabelShort } from "@/lib/budget";
+import { cn } from "@/lib/utils";
 import type { NetWorthPoint } from "@/types/net-worth";
 
 /**
- * The Net Worth trajectory (#109 chunk 9, story 9): the recorded monthly series
- * drawn as the shared area/line chart, in a Harvest card. This is *recorded*
- * history — the points you checked in — deliberately distinct from the live
- * headline that moves with the market (story 11 / ADR 0003). A skipped month
- * carries the last recorded value forward, so the line never craters (story 10,
- * handled upstream in `monthlyNetWorthSeries`).
+ * The Net Worth trajectory (#109 chunk 9, story 9): recorded monthly history as
+ * an *analytical* line chart, not a decorative sparkline. Its job is to let you
+ * answer, at a glance, "how much did I gain over this window?" and, on demand,
+ * "what happened month over month?" — so it leads with a **change** figure (the
+ * page hero already owns the current absolute), scopes to a window (YTD / 12M /
+ * All), and every point reveals its value and month-over-month delta on hover or
+ * keyboard focus.
  *
- * A single recorded month is **not** a trajectory — one vertex on an empty plot
- * reads as broken — so below two points we show the figure and invite the next
- * check-in instead of drawing a degenerate line. The chart (and its text
- * alternative) appears once there are at least two months to connect.
+ * This is *recorded* history — the points you checked in — deliberately distinct
+ * from the live headline that moves with the market (story 11 / ADR 0003), and
+ * carry-forward keeps a skipped month from cratering the line (story 10, handled
+ * upstream). Below two recorded months there's no trajectory to draw, so it
+ * invites the next check-in instead of rendering a degenerate one-point line.
  *
- * A11y (story 22): the chart is a labeled `role="img"` carrying a concise trend
- * summary, and the full per-month data is reachable as text through the
- * visually-hidden data table — a navigable alternative that scales to a long
- * history better than one enumerated label.
+ * A11y (story 22): the change carries a direction word for screen readers (not
+ * color/arrow alone); the chart is a labelled `role="img"` with focusable,
+ * individually-labelled points; and the visible series is mirrored in a
+ * visually-hidden data table.
  */
-export function NetWorthTrajectory({ series }: { series: NetWorthPoint[] }) {
+type Range = "ytd" | "12m" | "all";
+const RANGES: { key: Range; label: string }[] = [
+  { key: "ytd", label: "YTD" },
+  { key: "12m", label: "12M" },
+  { key: "all", label: "All" },
+];
+
+export function NetWorthTrajectory({
+  series,
+  currentYm,
+}: {
+  series: NetWorthPoint[];
+  currentYm: string;
+}) {
+  const [range, setRange] = useState<Range>("12m");
   if (series.length === 0) return null;
 
-  const first = series[0];
-  const last = series[series.length - 1];
+  const enoughForChart = series.length >= 2;
+  const visible = enoughForChart ? sliceByRange(series, range, currentYm) : series;
+  const hasTrend = enoughForChart && visible.length >= 2;
+
+  // Change over the visible window. Computed unconditionally (harmless on a
+  // one-point window: first === last, change 0); only rendered when `hasTrend`.
+  const first = visible[0];
+  const last = visible[visible.length - 1];
+  const change = last.net - first.net;
+  const pct = first.net > 0 ? (change / first.net) * 100 : null;
+  const dir = change > 0 ? "up" : change < 0 ? "down" : "flat";
+  const TrendIcon = dir === "up" ? TrendingUp : dir === "down" ? TrendingDown : Minus;
+  const signalClass =
+    dir === "up"
+      ? "text-signal-good-foreground"
+      : dir === "down"
+        ? "text-signal-bad-foreground"
+        : "text-muted-foreground";
+  const sign = change >= 0 ? "+" : "−";
+  const pctLabel =
+    pct === null ? null : `${sign}${Math.abs(pct).toFixed(Math.abs(pct) < 10 ? 1 : 0)}%`;
+  const dirWord = dir === "up" ? "Up" : dir === "down" ? "Down" : "No change,";
+  const summary =
+    `Net worth trajectory over ${visible.length} months, ${dir} from ` +
+    `${fmt(first.net)} in ${monthLabel(first.ym)} to ${fmt(last.net)} in ${monthLabel(last.ym)}.`;
 
   return (
     <section
       aria-labelledby="nw-trajectory-title"
       className="rounded-3xl bg-card p-5 ring-1 ring-border sm:p-6"
     >
-      <h2 id="nw-trajectory-title" className="font-heading text-xl font-semibold tracking-tight">
-        Trajectory
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="nw-trajectory-title" className="font-heading text-xl font-semibold tracking-tight">
+          Trajectory
+        </h2>
+        {enoughForChart && (
+          <div role="group" aria-label="Time range" className="flex items-center gap-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                aria-pressed={range === r.key}
+                onClick={() => setRange(r.key)}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  range === r.key
+                    ? "bg-foreground text-background ring-foreground"
+                    : "bg-card text-muted-foreground ring-border hover:text-foreground",
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {series.length < 2 ? (
+      {!enoughForChart ? (
         <div className="mt-3">
           <p className="text-2xl font-semibold tabular-nums">{fmt(first.net)}</p>
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">
@@ -43,26 +111,47 @@ export function NetWorthTrajectory({ series }: { series: NetWorthPoint[] }) {
             becomes a trend line.
           </p>
         </div>
+      ) : !hasTrend ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Only one month recorded in this range. Switch to 12M or All to see the trend.
+        </p>
       ) : (
         <>
-          <p className="mt-0.5 mb-4 text-sm text-muted-foreground">
-            Recorded net worth, month by month
-          </p>
+          <div className="mt-2 mb-4">
+            <div className={cn("flex items-center gap-2", signalClass)}>
+              <TrendIcon aria-hidden className="size-5 shrink-0" />
+              <span className="sr-only">{dirWord} </span>
+              <span className="text-2xl font-semibold tabular-nums">
+                {sign}
+                {fmt(Math.abs(change))}
+              </span>
+              {pctLabel && <span className="text-base font-medium tabular-nums">{pctLabel}</span>}
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">since {monthLabel(first.ym)}</p>
+          </div>
 
           <LineChart
-            points={series.map((p) => ({ label: monthLabelShort(p.ym), value: p.net }))}
+            points={visible.map((p) => ({ label: monthLabelShort(p.ym), value: p.net }))}
+            baseline="fit"
             area
-            // The direction is spoken as a word ("up"/"down"/"flat"), never left
-            // to the line's slope alone — the a11y "never by shape/color alone"
-            // rule applied to a trend.
-            ariaLabel={
-              `Net worth trajectory over ${series.length} months, ${trendWord(last.net - first.net)} ` +
-              `from ${fmt(first.net)} in ${monthLabel(first.ym)} to ${fmt(last.net)} in ${monthLabel(last.ym)}.`
-            }
+            ariaLabel={summary}
+            formatPoint={(_point, i) => {
+              const p = visible[i];
+              const prev = visible[i - 1];
+              if (!prev) return { title: monthLabel(p.ym), detail: `${fmt(p.net)} · first month` };
+              const mom = p.net - prev.net;
+              const msign = mom >= 0 ? "+" : "−";
+              const mpct =
+                prev.net > 0 ? ` (${msign}${Math.abs((mom / prev.net) * 100).toFixed(0)}%)` : "";
+              return {
+                title: monthLabel(p.ym),
+                detail: `${fmt(p.net)} · ${msign}${fmt(Math.abs(mom))}${mpct} vs ${monthLabelShort(prev.ym)}`,
+              };
+            }}
           />
 
           {/* The chart's data as text (story 22): a navigable table for screen
-              readers, kept out of the visual layout. */}
+              readers, mirroring the visible window. */}
           <table className="sr-only">
             <caption>Recorded net worth by month</caption>
             <thead>
@@ -72,7 +161,7 @@ export function NetWorthTrajectory({ series }: { series: NetWorthPoint[] }) {
               </tr>
             </thead>
             <tbody>
-              {series.map((p) => (
+              {visible.map((p) => (
                 <tr key={p.ym}>
                   <th scope="row">{monthLabel(p.ym)}</th>
                   <td>{fmt(p.net)}</td>
@@ -86,8 +175,12 @@ export function NetWorthTrajectory({ series }: { series: NetWorthPoint[] }) {
   );
 }
 
-function trendWord(delta: number): string {
-  if (delta > 0) return "up";
-  if (delta < 0) return "down";
-  return "flat";
+// Scope the series to a window. "12m" is the trailing twelve recorded points;
+// "ytd" is the current calendar year (by `currentYm`, passed from the server so
+// the year boundary doesn't depend on the client-vs-server clock); "all" is whole.
+function sliceByRange(series: NetWorthPoint[], range: Range, currentYm: string): NetWorthPoint[] {
+  if (range === "all") return series;
+  if (range === "12m") return series.slice(-12);
+  const year = currentYm.slice(0, 4);
+  return series.filter((p) => p.ym.slice(0, 4) === year);
 }
