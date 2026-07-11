@@ -1,10 +1,12 @@
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
+import type { FireAssumptionOverrides } from "@/types/fire";
 import type { Account, Snapshot } from "@/types/net-worth";
 import type { Household, Invite, Member, User } from "@/types/auth";
 import type {
   AccountDocument,
   CategoryDocument,
   CategoryTargetDocument,
+  FireAssumptionsDocument,
   HouseholdDocument,
   InviteDocument,
   MemberDocument,
@@ -85,6 +87,25 @@ export function toSnapshot(doc: SnapshotDocument): Snapshot {
     accountId: doc.accountId,
     date: doc.date,
     value: doc.value,
+  };
+}
+
+// --- FIRE mappers (#110 chunk 3). The document stores only overridden knobs; the
+// domain override set is the same partial with persistence fields (`_id`,
+// `householdId`, `updatedAt`) stripped and any leaked Mongo `null` normalised to
+// absent, so `resolveAssumptions` sees a clean `field ?? default`. ---
+
+export function toFireAssumptionOverrides(doc: FireAssumptionsDocument): FireAssumptionOverrides {
+  return {
+    ...(doc.monthlyRetirementSpend != null ? { monthlyRetirementSpend: doc.monthlyRetirementSpend } : {}),
+    ...(doc.monthlyContribution != null ? { monthlyContribution: doc.monthlyContribution } : {}),
+    ...(doc.nominalReturn != null ? { nominalReturn: doc.nominalReturn } : {}),
+    ...(doc.inflation != null ? { inflation: doc.inflation } : {}),
+    ...(doc.safeWithdrawalRate != null ? { safeWithdrawalRate: doc.safeWithdrawalRate } : {}),
+    ...(doc.birthYear != null ? { birthYear: doc.birthYear } : {}),
+    ...(doc.traditionalRetirementAge != null
+      ? { traditionalRetirementAge: doc.traditionalRetirementAge }
+      : {}),
   };
 }
 

@@ -30,6 +30,29 @@ export type FireAssumptions = {
 };
 
 /**
+ * The subset of the assumption set a user has **explicitly overridden**, persisted
+ * as one partial per household (#110 chunk 3). A knob absent here tracks its
+ * data-derived default (spend/contribution from the trailing-12 budget actuals) or
+ * constant default (7% / 3% / 4% / 65); resolution ({@link ResolvedAssumptions})
+ * layers this over those defaults. `birthYear` has no default, so an override is
+ * the *only* way it becomes set. Reset-to-defaults (story 16) clears the whole set.
+ */
+export type FireAssumptionOverrides = Partial<FireAssumptions>;
+
+/**
+ * The assumption set after resolution: stored overrides merged over defaults, so
+ * every knob has a live value (#110 chunk 3). Identical to {@link FireAssumptions}
+ * except `birthYear`, which stays **nullable** — it is the one knob with no
+ * data-derived or constant default, so it reads `null` until the user sets it, and
+ * the page degrades honestly (no fabricated age/coast date) rather than inventing
+ * a birth year. The engine input ({@link FireAssumptions}) is built from this only
+ * once `birthYear` is non-null.
+ */
+export type ResolvedAssumptions = Omit<FireAssumptions, "birthYear"> & {
+  birthYear: number | null;
+};
+
+/**
  * The pure engine's output for a given assumption set + starting nest egg. Money
  * in today's dollars; `realRate` is a decimal (0.04 = 4%); dates are "YYYY-MM"
  * relative to the `today` the projection was run against. A `null` date/age means
