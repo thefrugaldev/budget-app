@@ -1,6 +1,7 @@
+import { ValueGridlines } from "@/components/charts/ValueGridlines";
+import { fmt, fmtCompact, monthLabel } from "@/lib/budget";
 import { areaPath, linePath } from "@/lib/charts/path";
 import { extentScale, niceScale, spreadX } from "@/lib/charts/scale";
-import { fmt, monthLabel } from "@/lib/budget";
 import type { ProjectionChartData } from "@/types/fire";
 
 /**
@@ -23,16 +24,6 @@ import type { ProjectionChartData } from "@/types/fire";
  * pattern as the Net Worth trajectory). No motion, nothing for reduced-motion to
  * disable.
  */
-
-// Compact axis labels ("$210k", "$1.2M") keep the value gutter narrow; the
-// milestone table and the KPI strip carry the exact figures.
-const compact = (value: number): string =>
-  value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  });
 
 const W = 680;
 const H = 220;
@@ -121,22 +112,14 @@ export function ProjectionChart({ data }: { data: ProjectionChartData }) {
     <div className="touch-manipulation">
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary}>
         {/* Value gridlines + labels: the curve's height maps to real dollars. */}
-        {ticks.map((t) => {
-          const y = yAt(t);
-          return (
-            <g key={t}>
-              <line x1={PAD.l} x2={PAD.l + innerW} y1={y} y2={y} className="stroke-border" />
-              <text
-                x={PAD.l - 8}
-                y={y + 3}
-                textAnchor="end"
-                className="fill-muted-foreground text-[10px] tabular-nums"
-              >
-                {compact(t)}
-              </text>
-            </g>
-          );
-        })}
+        <ValueGridlines
+          ticks={ticks}
+          left={PAD.l}
+          right={PAD.l + innerW}
+          labelX={PAD.l - 8}
+          yAt={yAt}
+          format={fmtCompact}
+        />
 
         {/* Projected area fill under the dashed curve (subtle), then the two
             stroke segments — solid recorded, dashed projected. */}
@@ -181,7 +164,7 @@ export function ProjectionChart({ data }: { data: ProjectionChartData }) {
               y={coastY + 13}
               className="fill-muted-foreground text-[9px] tabular-nums"
             >
-              {compact(coastNumber!)}
+              {fmtCompact(coastNumber!)}
             </text>
           </g>
         )}
@@ -199,7 +182,7 @@ export function ProjectionChart({ data }: { data: ProjectionChartData }) {
               FIRE
             </text>
             <text x={PAD.l + innerW + 4} y={fireY + 7} className="fill-foreground text-[9px] tabular-nums">
-              {compact(fireNumber!)}
+              {fmtCompact(fireNumber!)}
             </text>
           </g>
         )}

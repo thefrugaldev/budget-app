@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 
+import { fmtCompact } from "@/lib/budget";
 import { areaPath, linePath } from "@/lib/charts/path";
 import { extentScale, niceScale, spreadX } from "@/lib/charts/scale";
 import { cn } from "@/lib/utils";
+
+import { ValueGridlines } from "./ValueGridlines";
 
 /**
  * Shared presentational line/area chart (#109 chunk 4, deepened in chunk 9), the
@@ -33,16 +36,6 @@ import { cn } from "@/lib/utils";
  * shown by the active guide + enlarged marker; the reveal carries no motion, so
  * there's nothing for reduced-motion to disable.
  */
-// Compact axis labels ("$210k", "$1.2M") keep the value gutter narrow; the
-// tooltip and the caller's table carry the exact figures.
-const compactFormat = (value: number): string =>
-  value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  });
-
 export type LinePoint = { label: string; value: number };
 // `detailClassName` lets the caller tone the change line (e.g. a signal token) —
 // the primitive stays domain-agnostic and doesn't decide what "good" means.
@@ -58,7 +51,7 @@ export function LineChart({
   area = false,
   baseline = "zero",
   className = "text-primary",
-  formatAxis = compactFormat,
+  formatAxis = fmtCompact,
   formatPoint,
 }: {
   points: LinePoint[];
@@ -112,30 +105,15 @@ export function LineChart({
     <div className="relative touch-manipulation">
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} className={className} role="img" aria-label={ariaLabel}>
         {/* Gridlines + value labels: the line's height maps to real numbers. */}
-        {ticks.map((t) => {
-          const y = yAt(t);
-          const isZero = t === 0 && showZeroLine;
-          return (
-            <g key={t}>
-              <line
-                x1={PAD.l}
-                x2={PAD.l + innerW}
-                y1={y}
-                y2={y}
-                className={isZero ? "stroke-muted-foreground/40" : "stroke-border"}
-                strokeDasharray={isZero ? "3 3" : undefined}
-              />
-              <text
-                x={PAD.l - 8}
-                y={y + 3}
-                textAnchor="end"
-                className="fill-muted-foreground text-[10px] tabular-nums"
-              >
-                {formatAxis(t)}
-              </text>
-            </g>
-          );
-        })}
+        <ValueGridlines
+          ticks={ticks}
+          left={PAD.l}
+          right={PAD.l + innerW}
+          labelX={PAD.l - 8}
+          yAt={yAt}
+          format={formatAxis}
+          zeroTick={showZeroLine}
+        />
 
         {area && <path d={areaPath(coords, baselineY)} fill="currentColor" fillOpacity={0.1} stroke="none" />}
         <path d={linePath(coords)} fill="none" stroke="currentColor" strokeWidth={2} />
