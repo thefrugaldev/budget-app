@@ -102,6 +102,12 @@ export function nestEggHistorySeries(
   accounts: Account[],
   snapshots: Snapshot[],
 ): NetWorthPoint[] {
+  // Both filters are load-bearing, not just belt-and-suspenders: `monthlyNet-
+  // WorthSeries` derives the series' month *range* from the snapshots it's given
+  // (and drops any whose account isn't in its class map). Passing only eligible
+  // accounts would still zero out property/liability contributions, but their
+  // snapshots would stretch the range and prepend spurious $0 months before the
+  // first nest-egg check-in — so the snapshot filter bounds the range too.
   const eligible = accounts.filter(isNestEggAccount);
   const eligibleIds = new Set(eligible.map((a) => a.id));
   const eligibleSnapshots = snapshots.filter((s) => eligibleIds.has(s.accountId));

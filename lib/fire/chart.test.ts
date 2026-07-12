@@ -99,7 +99,10 @@ describe("buildProjectionChart", () => {
       today,
     );
     expect(chart.fireCrossingYm).toBeNull();
-    // The FIRE line is still shown so the gap-to-target reads honestly.
+    // The FIRE line is still shown so the gap-to-target reads honestly...
     expect(chart.fireNumber).not.toBeNull();
+    // ...and the curve isn't capped short — it runs out to a multi-decade horizon
+    // (here driven by the retirement age), so the gap is actually visible.
+    expect(chart.points.filter((p) => p.projected).length).toBeGreaterThan(300);
   });
 });

@@ -67,16 +67,20 @@ export function ProjectionChart({ data }: { data: ProjectionChartData }) {
   const fireCrossing = crossingAt(fireCrossingYm);
   const coastCrossing = crossingAt(coastCrossingYm);
 
-  // Sparse x ticks (year, and age below when a birth year is set), deduped by
-  // year so a short horizon doesn't print the same year twice.
+  // Sparse x ticks (year, and age below when a birth year is set): evenly spaced
+  // indices, deduped by year so a short horizon doesn't print the same year twice
+  // (and a repeated index at a tiny point count collapses too).
   const TICK_COUNT = 6;
-  const tickYears = new Set<string>();
-  const xTicks = Array.from({ length: TICK_COUNT }, (_, k) =>
-    Math.round(((points.length - 1) * k) / (TICK_COUNT - 1)),
-  )
-    .filter((idx, i, arr) => arr.indexOf(idx) === i)
-    .map((idx) => ({ idx, year: points[idx].ym.slice(0, 4) }))
-    .filter(({ year }) => (tickYears.has(year) ? false : (tickYears.add(year), true)));
+  const xTicks: { idx: number; year: string }[] = [];
+  const seenYears = new Set<string>();
+  for (let k = 0; k < TICK_COUNT; k++) {
+    const idx = Math.round(((points.length - 1) * k) / (TICK_COUNT - 1));
+    const year = points[idx].ym.slice(0, 4);
+    if (!seenYears.has(year)) {
+      seenYears.add(year);
+      xTicks.push({ idx, year });
+    }
+  }
 
   // A reference line is drawable only when its value sits inside the axis range.
   const refY = (value: number | null): number | null =>
@@ -84,7 +88,10 @@ export function ProjectionChart({ data }: { data: ProjectionChartData }) {
   const fireY = refY(fireNumber);
   const coastY = refY(coastNumber);
 
-  const nowValue = points[firstProjectedIndex]?.value ?? points[0].value;
+  // "Now" is the first projected point at the live nest egg. Always present once
+  // the empty guard above has passed: the projection is never shorter than
+  // HORIZON_MIN_MONTHS, and `firstProjectedIndex` is exactly the recorded count.
+  const nowValue = points[firstProjectedIndex].value;
   const recorded = points.slice(0, firstProjectedIndex);
   const horizonYears = Math.round(
     (points.length - firstProjectedIndex) / 12,
@@ -133,6 +140,12 @@ export function ProjectionChart({ data }: { data: ProjectionChartData }) {
         )}
         {solidCoords.length > 1 && (
           <path d={linePath(solidCoords)} fill="none" className="stroke-primary" strokeWidth={2} />
+        )}
+        {/* A single recorded month has no segment to draw, so mark it with a dot
+            (mirroring the trajectory's one-point state) — otherwise the lone
+            recorded value would read as just the start of the dashed projection. */}
+        {solidCoords.length === 1 && (
+          <circle cx={solidCoords[0].x} cy={solidCoords[0].y} r={3.5} className="fill-primary" />
         )}
         {dashedCoords.length > 1 && (
           <path
