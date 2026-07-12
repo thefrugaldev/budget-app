@@ -1,7 +1,7 @@
 import { mongoQuoteCache } from "@/lib/repositories/quotes";
 
-import { FinnhubPriceProvider } from "./finnhub";
 import { resolveQuotes } from "./resolve";
+import { TiingoPriceProvider } from "./tiingo";
 
 /**
  * ~12h: quotes are refreshed on read once older than this. A monthly check-in
@@ -11,12 +11,14 @@ import { resolveQuotes } from "./resolve";
 export const DEFAULT_QUOTE_TTL_MS = 12 * 60 * 60 * 1000;
 
 // The API key and platform `fetch` are stable per process, so construct the
-// provider once (matching the single exported `mongoQuoteCache`).
-const provider = new FinnhubPriceProvider();
+// provider once (matching the single exported `mongoQuoteCache`). Tiingo is the
+// quote source (#143) — it prices mutual-fund NAVs, which Finnhub's free tier
+// doesn't; Finnhub is retained only for the future `/search` autocomplete.
+const provider = new TiingoPriceProvider();
 
 /**
  * The app's live-price entry point (#109 chunk 3): current prices for `tickers`,
- * served from the Mongo cache and refreshed from Finnhub only when stale. Wires
+ * served from the Mongo cache and refreshed from Tiingo only when stale. Wires
  * the production cache + provider into the pure {@link resolveQuotes} policy.
  * Holdings with a manual `priceOverride` don't need a quote — callers should
  * pass only the tickers they actually need priced (override precedence lives in
