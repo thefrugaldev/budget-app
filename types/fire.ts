@@ -72,6 +72,43 @@ export type FireView = {
 };
 
 /**
+ * A single monthly point on the FIRE projection chart (#110 chunk 5): the value
+ * (nest egg in today's dollars) at a "YYYY-MM", flagged `projected` so the chart
+ * renders recorded history and the projected curve as one trajectory with a
+ * non-color distinction — solid recorded, dashed projected (story 17).
+ */
+export type ProjectionChartPoint = {
+  ym: string; // "YYYY-MM"
+  value: number;
+  projected: boolean;
+};
+
+/**
+ * Everything the projection chart draws (#110 chunk 5), derived purely by
+ * `buildProjectionChart` from a resolved assumption set + nest egg + recorded
+ * history — so the client recomputes it per keystroke (story 14) and it
+ * unit-tests without a component. Recorded history flows into the projected
+ * curve; the FIRE (and, once a birth year is set, coast) reference lines and
+ * their crossings mark the projected dates (stories 17, 18).
+ */
+export type ProjectionChartData = {
+  /** History points (`projected: false`) then projection points (`projected: true`), in time order. */
+  points: ProjectionChartPoint[];
+  /** Index in `points` of the first projected point (equals the recorded length); 0 when there's no history. */
+  firstProjectedIndex: number;
+  /** Target nest-egg reference line; `null` when it isn't a finite positive value to draw (e.g. a zero withdrawal rate). */
+  fireNumber: number | null;
+  /** Coast reference line; `null` until a birth year is set (it needs the retirement horizon). */
+  coastNumber: number | null;
+  /** The projected FIRE crossing as "YYYY-MM" (a point in `points`), or `null` if not reached within the drawn horizon. */
+  fireCrossingYm: string | null;
+  /** The projected coast crossing as "YYYY-MM", or `null` if not reached within the drawn horizon. */
+  coastCrossingYm: string | null;
+  /** Birth year for the age axis (story 18); `null` renders a year-only axis. */
+  birthYear: number | null;
+};
+
+/**
  * The pure engine's output for a given assumption set + starting nest egg. Money
  * in today's dollars; `realRate` is a decimal (0.04 = 4%); dates are "YYYY-MM"
  * relative to the `today` the projection was run against. A `null` date/age means

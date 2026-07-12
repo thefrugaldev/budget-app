@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Account, Snapshot } from "@/types/net-worth";
 
-import { latestSnapshotDates, monthlyNetWorthSeries } from "./series";
+import { latestSnapshotDates, monthlyNetWorthSeries, nestEggHistorySeries } from "./series";
 
 function account(over: Partial<Account> & Pick<Account, "id" | "class">): Account {
   return { name: over.name ?? over.id, ...over };
@@ -112,6 +112,37 @@ describe("monthlyNetWorthSeries", () => {
       { ym: "2026-01", net: 18_000 },
       { ym: "2026-02", net: 18_000 }, // car's 8_000 carried forward despite closedAt
       { ym: "2026-03", net: 18_500 },
+    ]);
+  });
+});
+
+describe("nestEggHistorySeries", () => {
+  it("restricts the series to cash + investment assets, dropping property and liabilities", () => {
+    const accounts = [
+      account({ id: "hysa", class: "asset", kind: "cash" }),
+      account({ id: "brokerage", class: "asset", kind: "investment" }),
+      account({ id: "house", class: "asset", kind: "property" }),
+      account({ id: "mortgage", class: "liability" }),
+    ];
+    const snapshots: Snapshot[] = [
+      { accountId: "hysa", date: "2026-01-31", value: 10_000 },
+      { accountId: "brokerage", date: "2026-01-31", value: 40_000 },
+      { accountId: "house", date: "2026-01-31", value: 500_000 },
+      { accountId: "mortgage", date: "2026-01-31", value: 300_000 },
+    ];
+    // Only the cash + investment assets count: 10k + 40k, no property, no debt.
+    expect(nestEggHistorySeries(accounts, snapshots)).toEqual([{ ym: "2026-01", net: 50_000 }]);
+  });
+
+  it("keeps a closed nest-egg account's history, zeroed by its closing snapshot", () => {
+    const accounts = [account({ id: "hysa", class: "asset", kind: "cash", closedAt: "2026-02-10" })];
+    const snapshots: Snapshot[] = [
+      { accountId: "hysa", date: "2026-01-31", value: 10_000 },
+      { accountId: "hysa", date: "2026-02-10", value: 0 }, // closing snapshot
+    ];
+    expect(nestEggHistorySeries(accounts, snapshots)).toEqual([
+      { ym: "2026-01", net: 10_000 },
+      { ym: "2026-02", net: 0 },
     ]);
   });
 });

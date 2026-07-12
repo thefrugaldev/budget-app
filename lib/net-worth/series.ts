@@ -5,7 +5,7 @@
 import { monthEndDate, monthsInRange } from "@/lib/budget/range";
 import type { Account, NetWorthPoint, Snapshot } from "@/types/net-worth";
 
-import { signedContribution } from "./valuation";
+import { isNestEggAccount, signedContribution } from "./valuation";
 
 /**
  * The recorded net-worth history as a dense monthly series. For every month
@@ -82,6 +82,30 @@ export function monthlyNetWorthSeries(
     points.push({ ym, net });
   }
   return points;
+}
+
+/**
+ * The recorded **nest-egg** history as a dense monthly series (#110 chunk 5,
+ * story 17): the net-worth series restricted to nest-egg-eligible accounts (cash
+ * + investment assets, {@link isNestEggAccount}), so the FIRE projection chart's
+ * recorded segment plots the same subset the live nest egg values. Filtering
+ * lives here beside the net-worth series math rather than in the page, so the
+ * two histories share one carry-forward implementation.
+ *
+ * Like {@link monthlyNetWorthSeries}, this is defined purely over snapshots and
+ * does **not** drop closed accounts: a closed cash/investment account keeps its
+ * recorded history and stops contributing only via its closing `value: 0`
+ * snapshot — the same ADR-faithful invariant. All eligible accounts are assets,
+ * so every point is non-negative.
+ */
+export function nestEggHistorySeries(
+  accounts: Account[],
+  snapshots: Snapshot[],
+): NetWorthPoint[] {
+  const eligible = accounts.filter(isNestEggAccount);
+  const eligibleIds = new Set(eligible.map((a) => a.id));
+  const eligibleSnapshots = snapshots.filter((s) => eligibleIds.has(s.accountId));
+  return monthlyNetWorthSeries(eligible, eligibleSnapshots);
 }
 
 /**

@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { Account, PriceLookup } from "@/types/net-worth";
 
-import { accountValue, nestEgg, netWorthHeadline, signedContribution } from "./valuation";
+import {
+  accountValue,
+  isNestEggAccount,
+  nestEgg,
+  netWorthHeadline,
+  signedContribution,
+} from "./valuation";
 
 const prices: Record<string, number> = { VOO: 500, AAPL: 200 };
 const priceFor: PriceLookup = (ticker) => prices[ticker];
@@ -100,6 +106,15 @@ describe("netWorthHeadline", () => {
       account({ id: "old", class: "asset", kind: "cash", balance: 9_999, closedAt: "2025-01-31" }),
     ];
     expect(netWorthHeadline(withClosed, priceFor)).toEqual(netWorthHeadline(accounts, priceFor));
+  });
+});
+
+describe("isNestEggAccount", () => {
+  it("accepts cash and investment assets only", () => {
+    expect(isNestEggAccount({ class: "asset", kind: "cash" })).toBe(true);
+    expect(isNestEggAccount({ class: "asset", kind: "investment" })).toBe(true);
+    expect(isNestEggAccount({ class: "asset", kind: "property" })).toBe(false);
+    expect(isNestEggAccount({ class: "liability", kind: undefined })).toBe(false);
   });
 });
 

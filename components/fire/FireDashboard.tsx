@@ -15,12 +15,15 @@ import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { fmt } from "@/lib/budget";
 import { ASSUMPTION_CONSTANT_DEFAULTS, resolveAssumptions } from "@/lib/fire/assumptions";
+import { buildProjectionChart } from "@/lib/fire/chart";
 import { deriveFireView } from "@/lib/fire/view";
 import { cn } from "@/lib/utils";
 import type { TrailingActuals } from "@/types/budget";
 import type { FireAssumptionOverrides } from "@/types/fire";
+import type { NetWorthPoint } from "@/types/net-worth";
 
 import { FireKpiStrip } from "./FireKpiStrip";
+import { ProjectionChart } from "./ProjectionChart";
 
 const str = (n: number | undefined): string => (n != null ? String(n) : "");
 
@@ -37,11 +40,14 @@ export function FireDashboard({
   nestEgg,
   actuals,
   stored,
+  history,
   nowIso,
 }: {
   nestEgg: number;
   actuals: TrailingActuals;
   stored: FireAssumptionOverrides | null;
+  /** Recorded nest-egg history (cash + investment assets), for the chart's recorded segment. */
+  history: NetWorthPoint[];
   /** Server-stable "now" (ISO) — anchors the projection identically on SSR and client. */
   nowIso: string;
 }) {
@@ -81,7 +87,7 @@ export function FireDashboard({
     setSpendPeriod(next);
   }
 
-  const view = useMemo(() => {
+  const { view, chart } = useMemo(() => {
     // Same `coerceNumber` the server parser uses, so a value the preview accepts
     // is one the Save will accept too (and a rejected shape falls to the default
     // in both). A blank/invalid knob is simply "not overridden".
@@ -100,7 +106,14 @@ export function FireDashboard({
     if (by !== undefined) overrides.birthYear = by;
     const ra = coerceNumber(retirementAge);
     if (ra !== undefined) overrides.traditionalRetirementAge = ra;
-    return deriveFireView(resolveAssumptions(overrides, actuals), nestEgg, new Date(nowIso));
+    // Resolve once, then derive both the KPIs and the chart from the same set and
+    // the same server-stable "now", so they can never disagree.
+    const resolved = resolveAssumptions(overrides, actuals);
+    const today = new Date(nowIso);
+    return {
+      view: deriveFireView(resolved, nestEgg, today),
+      chart: buildProjectionChart(resolved, nestEgg, history, today),
+    };
   }, [
     spendMonthly,
     contribution,
@@ -111,6 +124,7 @@ export function FireDashboard({
     retirementAge,
     actuals,
     nestEgg,
+    history,
     nowIso,
   ]);
 
@@ -244,6 +258,16 @@ export function FireDashboard({
   return (
     <div className="space-y-8">
       <FireKpiStrip nestEgg={nestEgg} view={view} />
+
+      <section>
+        <SectionHeading>Projection</SectionHeading>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Your recorded nest egg (solid) flowing into the projected curve (dashed), in today&apos;s
+          dollars. The dashed lines mark your FIRE number and, once your birth year is set, your
+          coast number.
+        </p>
+        <ProjectionChart data={chart} />
+      </section>
 
       <section>
         <SectionHeading>Assumptions</SectionHeading>
