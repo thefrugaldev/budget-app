@@ -6,8 +6,10 @@ import {
   resetAssumptionsAction,
   saveAssumptionsAction,
 } from "@/app/actions/fire-assumptions";
+import { coerceNumber } from "@/app/actions/fire-assumptions-parsers";
 import { FIRE_ASSUMPTIONS_ACTION_INITIAL } from "@/app/actions/fire-assumptions-state";
 import { AmountInput } from "@/components/budget/amount/AmountInput";
+import { NumberField } from "@/components/ui/NumberField";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { useCanEdit } from "@/hooks/useCanEdit";
@@ -19,13 +21,6 @@ import type { TrailingActuals } from "@/types/budget";
 import type { FireAssumptionOverrides } from "@/types/fire";
 
 import { FireKpiStrip } from "./FireKpiStrip";
-import { NumberKnob } from "./NumberKnob";
-
-/** A raw field string → a number override, or `undefined` when blank/invalid (falls back to the default). */
-function toNum(raw: string): number | undefined {
-  const n = Number(raw);
-  return raw.trim() !== "" && Number.isFinite(n) ? n : undefined;
-}
 
 const str = (n: number | undefined): string => (n != null ? String(n) : "");
 
@@ -64,16 +59,22 @@ export function FireDashboard({
   // The canonical *monthly* spend the form submits and the preview uses — the
   // yearly toggle is entry-only (AmountInput carries no `name`; we emit the
   // converted value ourselves, per its documented yearly→monthly pattern).
-  const spendMonthly = spend === "" ? "" : String(Number(spend) / (spendPeriod === "yearly" ? 12 : 1));
+  // `coerceNumber` guards the interstitial NaN case (blank/garbage → "" not
+  // "NaN"), so the hidden field never submits a literal "NaN".
+  const spendEntered = coerceNumber(spend);
+  const spendMonthly =
+    spendEntered === undefined ? "" : String(spendEntered / (spendPeriod === "yearly" ? 12 : 1));
 
   // Toggling the period is a *unit* switch: keep the real (monthly) spend fixed
-  // and convert the displayed figure (×12 / ÷12, rounded to cents), so the KPIs
-  // don't lurch when you flip back and forth. Reinterpreting the same digits
-  // would silently change the value.
+  // and convert the displayed figure (×12 / ÷12), so the KPIs don't lurch when
+  // you flip back and forth. Reinterpreting the same digits would silently change
+  // the value. Cents-rounding here can drift a few cents on a non-divisible
+  // yearly figure across repeated toggles (e.g. $100,000/yr → $8,333.33/mo →
+  // $99,999.96/yr) — immaterial for a planning tool; round figures round-trip exactly.
   function changeSpendPeriod(next: "monthly" | "yearly") {
     if (next === spendPeriod) return;
-    const n = Number(spend);
-    if (spend.trim() !== "" && Number.isFinite(n)) {
+    const n = coerceNumber(spend);
+    if (n !== undefined) {
       const converted = next === "yearly" ? n * 12 : n / 12;
       setSpend(String(Math.round(converted * 100) / 100));
     }
@@ -81,20 +82,23 @@ export function FireDashboard({
   }
 
   const view = useMemo(() => {
+    // Same `coerceNumber` the server parser uses, so a value the preview accepts
+    // is one the Save will accept too (and a rejected shape falls to the default
+    // in both). A blank/invalid knob is simply "not overridden".
     const overrides: FireAssumptionOverrides = {};
-    const s = toNum(spendMonthly);
+    const s = coerceNumber(spendMonthly);
     if (s !== undefined) overrides.monthlyRetirementSpend = s;
-    const c = toNum(contribution);
+    const c = coerceNumber(contribution);
     if (c !== undefined) overrides.monthlyContribution = c;
-    const nr = toNum(nominalReturn);
+    const nr = coerceNumber(nominalReturn);
     if (nr !== undefined) overrides.nominalReturn = nr;
-    const inf = toNum(inflation);
+    const inf = coerceNumber(inflation);
     if (inf !== undefined) overrides.inflation = inf;
-    const sw = toNum(swr);
+    const sw = coerceNumber(swr);
     if (sw !== undefined) overrides.safeWithdrawalRate = sw;
-    const by = toNum(birthYear);
+    const by = coerceNumber(birthYear);
     if (by !== undefined) overrides.birthYear = by;
-    const ra = toNum(retirementAge);
+    const ra = coerceNumber(retirementAge);
     if (ra !== undefined) overrides.traditionalRetirementAge = ra;
     return deriveFireView(resolveAssumptions(overrides, actuals), nestEgg, new Date(nowIso));
   }, [
@@ -194,14 +198,14 @@ export function FireDashboard({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <NumberKnob
+        <NumberField
           label="Expected return (%)"
           name="nominalReturn"
           value={nominalReturn}
           onChange={setNominalReturn}
           placeholder={String(ASSUMPTION_CONSTANT_DEFAULTS.nominalReturn)}
         />
-        <NumberKnob
+        <NumberField
           label="Expected inflation (%)"
           name="inflation"
           value={inflation}
@@ -209,14 +213,14 @@ export function FireDashboard({
           placeholder={String(ASSUMPTION_CONSTANT_DEFAULTS.inflation)}
           hint={realRatePct}
         />
-        <NumberKnob
+        <NumberField
           label="Safe withdrawal rate (%)"
           name="safeWithdrawalRate"
           value={swr}
           onChange={setSwr}
           placeholder={String(ASSUMPTION_CONSTANT_DEFAULTS.safeWithdrawalRate)}
         />
-        <NumberKnob
+        <NumberField
           label="Traditional retirement age"
           name="traditionalRetirementAge"
           value={retirementAge}
@@ -224,7 +228,7 @@ export function FireDashboard({
           placeholder={String(ASSUMPTION_CONSTANT_DEFAULTS.traditionalRetirementAge)}
           inputMode="numeric"
         />
-        <NumberKnob
+        <NumberField
           label="Birth year"
           name="birthYear"
           value={birthYear}
