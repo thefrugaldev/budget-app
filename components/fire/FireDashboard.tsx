@@ -66,6 +66,20 @@ export function FireDashboard({
   // converted value ourselves, per its documented yearly→monthly pattern).
   const spendMonthly = spend === "" ? "" : String(Number(spend) / (spendPeriod === "yearly" ? 12 : 1));
 
+  // Toggling the period is a *unit* switch: keep the real (monthly) spend fixed
+  // and convert the displayed figure (×12 / ÷12, rounded to cents), so the KPIs
+  // don't lurch when you flip back and forth. Reinterpreting the same digits
+  // would silently change the value.
+  function changeSpendPeriod(next: "monthly" | "yearly") {
+    if (next === spendPeriod) return;
+    const n = Number(spend);
+    if (spend.trim() !== "" && Number.isFinite(n)) {
+      const converted = next === "yearly" ? n * 12 : n / 12;
+      setSpend(String(Math.round(converted * 100) / 100));
+    }
+    setSpendPeriod(next);
+  }
+
   const view = useMemo(() => {
     const overrides: FireAssumptionOverrides = {};
     const s = toNum(spendMonthly);
@@ -132,7 +146,7 @@ export function FireDashboard({
                 key={period}
                 type="button"
                 aria-pressed={spendPeriod === period}
-                onClick={() => setSpendPeriod(period)}
+                onClick={() => changeSpendPeriod(period)}
                 className={cn(
                   "rounded-md px-2 py-1 text-xs font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   spendPeriod === period
