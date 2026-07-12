@@ -16,6 +16,21 @@ export function fmtExact(amount: number): string {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
+/**
+ * Compact currency for tight spaces — `"$210k"`, `"$1.2M"`. The chart value-axis
+ * gutter's format (shared by the line/area charts) where the exact figure lives
+ * in the tooltip / data table instead. Keep the exact `fmt` for anywhere a
+ * precise amount matters.
+ */
+export function fmtCompact(amount: number): string {
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+}
+
 export function dayLabel(iso: string, today = new Date()): string {
   const todayIso = today.toISOString().slice(0, 10);
   if (iso === todayIso) return "Today";

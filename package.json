@@ -15,6 +15,7 @@
     "test": "vitest",
     "seed:perf": "node --env-file=.env.local scripts/seed-perf-fixture.mjs",
     "seed:networth": "node --env-file=.env.local scripts/seed-net-worth-history.mjs",
+    "seed:fire": "node --env-file=.env.local scripts/seed-fire-assumptions.mjs",
     "import:extract": "tsx scripts/import-sheets/extract.ts",
     "import:apply": "tsx scripts/import-sheets/apply.ts",
     "import:parity": "tsx scripts/import-sheets/parity.ts",

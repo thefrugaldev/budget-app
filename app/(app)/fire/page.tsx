@@ -5,10 +5,12 @@ import { FireDashboard } from "@/components/fire/FireDashboard";
 import { trailingActuals } from "@/lib/budget";
 import { tickersNeedingQuotes } from "@/lib/net-worth/check-in";
 import { getQuotesWithAsOf } from "@/lib/net-worth/price/get-quotes";
-import { nestEgg } from "@/lib/net-worth/valuation";
+import { nestEggHistorySeries } from "@/lib/net-worth/series";
+import { isNestEggAccount, nestEgg } from "@/lib/net-worth/valuation";
 import { getFireAssumptionOverrides } from "@/lib/repositories/fire-assumptions";
 import { listAccounts } from "@/lib/repositories/accounts";
 import { listCategories } from "@/lib/repositories/categories";
+import { listSnapshots } from "@/lib/repositories/snapshots";
 import { listAllTransactions } from "@/lib/repositories/transactions";
 import type { PriceLookup } from "@/types/net-worth";
 
@@ -20,10 +22,11 @@ const CONTAINER =
   "mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28";
 
 export default async function FirePage() {
-  const [accounts, categories, transactions, stored] = await Promise.all([
+  const [accounts, categories, transactions, snapshots, stored] = await Promise.all([
     listAccounts(),
     listCategories(),
     listAllTransactions(),
+    listSnapshots(),
     getFireAssumptionOverrides(),
   ]);
 
@@ -31,9 +34,7 @@ export default async function FirePage() {
   // The nest egg is cash + investment assets (ADR 0003). With none of those, it's
   // $0 and the whole projection is meaningless, so point the user at Net Worth
   // first rather than show a 0%-forever dashboard (story 19).
-  const hasNestEggAccounts = openAccounts.some(
-    (a) => a.class === "asset" && (a.kind === "cash" || a.kind === "investment"),
-  );
+  const hasNestEggAccounts = openAccounts.some(isNestEggAccount);
 
   if (!hasNestEggAccounts) {
     return (
@@ -71,6 +72,10 @@ export default async function FirePage() {
   const nestEggAmount = nestEgg(openAccounts, priceFor);
 
   const actuals = trailingActuals(transactions, categories);
+  // Recorded nest-egg history (all accounts, incl. closed — they keep their
+  // history and zero out via their closing snapshot) for the chart's recorded
+  // segment (story 17).
+  const history = nestEggHistorySeries(accounts, snapshots);
   // Server-stable "now": the client anchors the projection to this exact value,
   // so SSR and hydration compute identical dates (no month-boundary mismatch).
   const nowIso = new Date().toISOString();
@@ -81,6 +86,7 @@ export default async function FirePage() {
         nestEgg={nestEggAmount}
         actuals={actuals}
         stored={stored}
+        history={history}
         nowIso={nowIso}
       />
     </div>

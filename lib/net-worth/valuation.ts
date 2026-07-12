@@ -52,18 +52,32 @@ export function netWorthHeadline(accounts: Account[], priceFor: PriceLookup): Ne
 }
 
 /**
- * The FIRE nest egg: the sum of open cash + investment asset accounts at current
- * prices. Property and liabilities are excluded automatically, with no
- * per-account setting — a house isn't withdrawable, and debt payments already
+ * Whether an account counts toward the nest egg **by kind** — a cash or
+ * investment *asset*. Property and liabilities are excluded automatically, with
+ * no per-account setting: a house isn't withdrawable, and debt payments already
  * sit in monthly expenses, so counting a mortgage here would double-count it
- * (ADR 0003). Consumed by the FIRE page (#110).
+ * (ADR 0003).
+ *
+ * Deliberately does *not* consider `closedAt` — that's a *live-view* concern the
+ * callers layer on. The live nest egg drops closed accounts; the recorded
+ * history keeps them (they zero out via their closing snapshot, see
+ * {@link ./series.nestEggHistorySeries}), so the eligibility test itself is
+ * purely kind-based and shared by both.
+ */
+export function isNestEggAccount(account: Pick<Account, "class" | "kind">): boolean {
+  return account.class === "asset" && (account.kind === "cash" || account.kind === "investment");
+}
+
+/**
+ * The FIRE nest egg: the sum of open cash + investment asset accounts at current
+ * prices (story 1). Closed accounts drop out of this live figure; eligibility by
+ * kind is {@link isNestEggAccount}. Consumed by the FIRE page (#110).
  */
 export function nestEgg(accounts: Account[], priceFor: PriceLookup): number {
   let sum = 0;
   for (const account of accounts) {
     if (account.closedAt) continue;
-    if (account.class !== "asset") continue;
-    if (account.kind !== "cash" && account.kind !== "investment") continue;
+    if (!isNestEggAccount(account)) continue;
     sum += accountValue(account, priceFor);
   }
   return sum;
