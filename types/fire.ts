@@ -53,6 +53,25 @@ export type ResolvedAssumptions = Omit<FireAssumptions, "birthYear"> & {
 };
 
 /**
+ * What the FIRE page renders for a given resolved assumption set + nest egg
+ * (#110 chunk 4) — the always-available KPIs plus the birth-year-gated horizon.
+ * `realRate`, `fireNumber`, and `progress` need no birth year, so they show even
+ * before one is set; `projection` (FIRE date + age, coast) is `null` until
+ * `birthYear` is set, so the page prompts for it rather than fabricating an age.
+ * Derived client-side per keystroke by `deriveFireView` for live recompute.
+ */
+export type FireView = {
+  /** Derived real annual rate (nominal − inflation), decimal — shown by the return/inflation knobs (story 11). */
+  realRate: number;
+  /** Target nest egg (story 2); `Infinity` when the withdrawal rate is a non-positive live input. */
+  fireNumber: number;
+  /** Nest egg ÷ FIRE number (story 3); 0 when the target isn't a finite positive number. */
+  progress: number;
+  /** FIRE date/age + coast (stories 4, 5), or `null` until the birth year is set. */
+  projection: FireProjection | null;
+};
+
+/**
  * The pure engine's output for a given assumption set + starting nest egg. Money
  * in today's dollars; `realRate` is a decimal (0.04 = 4%); dates are "YYYY-MM"
  * relative to the `today` the projection was run against. A `null` date/age means
