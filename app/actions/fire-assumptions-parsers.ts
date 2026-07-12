@@ -19,31 +19,39 @@ function isBlank(raw: unknown): boolean {
 }
 
 /**
- * A finite number from a currency-ish string ("$4,200.50") or a bare number.
- * Whitelisted shape (not a blacklist strip) so `"1e5"` and other odd inputs fail
- * loudly instead of silently coercing. Range-checked against `[min, max]`.
+ * Coerce a field to a finite number, or `undefined` when it's blank or not a
+ * shape we accept. **Shared with the client live preview** (`FireDashboard`): the
+ * server turns `undefined` into a thrown "must be a number", the client treats it
+ * as "not overridden", so both agree on exactly which inputs are valid — the
+ * panel never previews a value the Save then rejects (nor vice-versa).
+ *
+ * Accepts a bare number, or a currency/percent-ish string ("$4,200.50", "5%")
+ * after stripping `$ , %` and whitespace, then a whitelisted decimal shape ("3",
+ * "3.5", "3.", ".5"). Odd shapes ("1e5", "1.2.3") coerce to `undefined` rather
+ * than silently becoming a wrong number.
  */
+export function coerceNumber(raw: unknown): number | undefined {
+  let n: number;
+  if (typeof raw === "number") {
+    n = raw;
+  } else if (typeof raw === "string" && raw.trim() !== "") {
+    const stripped = raw.replace(/[$,%\s]/g, "");
+    if (!/^-?(\d+(\.\d*)?|\.\d+)$/.test(stripped)) return undefined;
+    n = Number(stripped);
+  } else {
+    return undefined;
+  }
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** A finite number in `[min, max]` (optionally integer), throwing a field-labeled message otherwise. */
 function parseNumber(
   raw: unknown,
   label: string,
   { min, max, integer = false }: { min: number; max: number; integer?: boolean },
 ): number {
-  let n: number;
-  if (typeof raw === "number") {
-    n = raw;
-  } else if (typeof raw === "string") {
-    const stripped = raw.replace(/[$,%\s]/g, "");
-    // Accept a bare/leading/trailing-dot decimal ("3", "3.5", "3.", ".5") so a
-    // mid-typed value survives to the range check; still a whitelist, so odd
-    // shapes ("1e5", "1.2.3") fail loudly rather than silently coercing.
-    if (!/^-?(\d+(\.\d*)?|\.\d+)$/.test(stripped)) {
-      throw new Error(`${label} must be a number`);
-    }
-    n = Number(stripped);
-  } else {
-    throw new Error(`${label} must be a number`);
-  }
-  if (!Number.isFinite(n)) throw new Error(`${label} must be a number`);
+  const n = coerceNumber(raw);
+  if (n === undefined) throw new Error(`${label} must be a number`);
   if (integer && !Number.isInteger(n)) throw new Error(`${label} must be a whole number`);
   if (n < min || n > max) throw new Error(`${label} must be between ${min} and ${max}`);
   return n;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  coerceNumber,
   parseAssumptionOverrides,
   parseBirthYear,
   parseInflation,
@@ -10,6 +11,29 @@ import {
   parseSafeWithdrawalRate,
   parseTraditionalRetirementAge,
 } from "./fire-assumptions-parsers";
+
+describe("coerceNumber (shared client/server acceptance)", () => {
+  it("accepts bare, currency, and percent-suffixed numbers", () => {
+    expect(coerceNumber("3.5")).toBe(3.5);
+    expect(coerceNumber(3.5)).toBe(3.5);
+    expect(coerceNumber("$4,200.50")).toBe(4200.5);
+    expect(coerceNumber("5%")).toBe(5);
+    expect(coerceNumber("3.")).toBe(3);
+    expect(coerceNumber(".5")).toBe(0.5);
+    expect(coerceNumber("0")).toBe(0); // a deliberate zero, not "blank"
+  });
+
+  it("returns undefined for blank / odd / non-numeric shapes", () => {
+    expect(coerceNumber("")).toBeUndefined();
+    expect(coerceNumber("   ")).toBeUndefined();
+    expect(coerceNumber(null)).toBeUndefined();
+    expect(coerceNumber(undefined)).toBeUndefined();
+    expect(coerceNumber("1e5")).toBeUndefined(); // server rejects it → client must too
+    expect(coerceNumber("1.2.3")).toBeUndefined();
+    expect(coerceNumber("abc")).toBeUndefined();
+    expect(coerceNumber(NaN)).toBeUndefined();
+  });
+});
 
 describe("optional-knob parsers", () => {
   it("treat blank / absent as not-overridden (undefined)", () => {
