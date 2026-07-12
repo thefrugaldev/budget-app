@@ -50,17 +50,29 @@ describe("parseTiingoQuote", () => {
 
 // Exercises getQuotes with an injected fake fetch — real shapes, no network. The
 // ticker rides the URL *path* (`/tiingo/daily/<ticker>/prices`), not a query param.
-type FetchSpec = { ok?: boolean; status?: number; body?: unknown };
+type FetchSpec = {
+  ok?: boolean;
+  status?: number;
+  body?: unknown;
+  /** Simulate a 200 whose body fails to parse (e.g. a maintenance HTML page). */
+  jsonThrows?: boolean;
+  /** Simulate a network-level fetch rejection for this ticker. */
+  networkError?: boolean;
+};
 function fakeFetch(byTicker: Record<string, FetchSpec>): typeof fetch {
   return (async (input: string | URL | Request) => {
     const url = typeof input === "string" ? input : input.toString();
     const match = new URL(url).pathname.match(/\/tiingo\/daily\/([^/]+)\/prices/);
     const symbol = match ? decodeURIComponent(match[1]) : "";
     const spec = byTicker[symbol] ?? { ok: false, status: 404 };
+    if (spec.networkError) throw new TypeError("fetch failed");
     return {
       ok: spec.ok ?? true,
       status: spec.status ?? 200,
-      json: async () => spec.body,
+      json: async () => {
+        if (spec.jsonThrows) throw new SyntaxError("Unexpected token < in JSON");
+        return spec.body;
+      },
     } as Response;
   }) as typeof fetch;
 }
@@ -87,6 +99,26 @@ describe("TiingoPriceProvider.getQuotes", () => {
     expect(prices.has("AAPL")).toBe(false);
     expect(prices.has("GHOST")).toBe(false);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("AAPL")); // logged the 429
+  });
+
+  it("isolates a malformed 200 body / network error to its ticker, keeping siblings", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const provider = new TiingoPriceProvider(
+      "test-key",
+      fakeFetch({
+        VOO: { body: [{ close: 500 }] }, // healthy sibling
+        BADJSON: { ok: true, status: 200, jsonThrows: true }, // 200 maintenance page
+        DOWN: { networkError: true }, // fetch rejects
+      }),
+    );
+
+    const prices = await provider.getQuotes(["VOO", "BADJSON", "DOWN"]);
+
+    expect(prices.get("VOO")).toBe(500); // batch didn't fail-fast
+    expect(prices.has("BADJSON")).toBe(false);
+    expect(prices.has("DOWN")).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("BADJSON"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("DOWN"));
   });
 
   it("sends the API key as an Authorization: Token header", async () => {

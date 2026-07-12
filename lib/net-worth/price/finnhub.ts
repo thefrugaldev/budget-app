@@ -5,6 +5,13 @@ import type { PriceProvider } from "@/types/net-worth";
  * 60 calls/min is ample at the app's monthly check-in cadence. Behind
  * `FINNHUB_API_KEY`. The rest of the app depends on the {@link PriceProvider}
  * interface, never on this class, so the provider stays a swap.
+ *
+ * **Not wired to the live quote path** — Tiingo replaced it there (#143) because
+ * Finnhub's free `/quote` returns `c: 0` for mutual-fund NAVs. Retained per #143
+ * for the planned ticker `/search` autocomplete, which stays off Tiingo's quota.
+ * TODO(#143 follow-up): `/search` is a *different* Finnhub endpoint with a
+ * different response shape — it'll be a new `FinnhubSearchProvider`, not this
+ * quote class, so treat the code below as reference until that lands (or drop it).
  */
 const FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote";
 

@@ -18,9 +18,12 @@ const TIINGO_DAILY_URL = "https://api.tiingo.com/tiingo/daily";
  * rows in ascending date order; with no date params that's a single latest row,
  * so the last element is always the most recent. We read `close` (the raw close
  * / fund NAV — not `adjClose`, which is split/dividend-adjusted for return
- * series, not current market value). A non-positive or non-numeric close, an
- * empty array, or a non-array body all read as "no quote". Pure — the unit tests
- * exercise it against fixture JSON.
+ * series, not current market value). An empty array or a non-array body reads as
+ * "no quote". A non-positive close is **deliberately** unpriced too: a live fund
+ * NAV is always positive, so `0`/negative means no usable quote (a delisted or
+ * wound-up fund is then valued via the manual `priceOverride`) — not a leftover
+ * of the Finnhub `c: 0` workaround. Pure — the unit tests exercise it against
+ * fixture JSON.
  */
 export function parseTiingoQuote(body: unknown): number | undefined {
   if (!Array.isArray(body) || body.length === 0) return undefined;
@@ -57,19 +60,29 @@ export class TiingoPriceProvider implements PriceProvider {
     const entries = await Promise.all(
       tickers.map(async (ticker): Promise<readonly [string, number] | null> => {
         const url = `${TIINGO_DAILY_URL}/${encodeURIComponent(ticker)}/prices`;
-        const res = await this.fetchImpl(url, {
-          headers: { "Content-Type": "application/json", Authorization: `Token ${key}` },
-        });
-        if (!res.ok) {
-          // 404 (unknown ticker), 401 (bad key), 429 (rate-limited), 5xx all look
-          // like "no quote" to the caller; log the status so a Tiingo outage or a
-          // fund Tiingo can't price is distinguishable in ops (the manual price
-          // override is the fallback for the latter).
-          console.warn(`Tiingo quote failed for ${ticker}: HTTP ${res.status}`);
+        try {
+          const res = await this.fetchImpl(url, {
+            headers: { Accept: "application/json", Authorization: `Token ${key}` },
+          });
+          if (!res.ok) {
+            // 404 (unknown ticker), 401 (bad key), 429 (rate-limited), 5xx all look
+            // like "no quote" to the caller; log the status so a Tiingo outage or a
+            // fund Tiingo can't price is distinguishable in ops (the manual price
+            // override is the fallback for the latter).
+            console.warn(`Tiingo quote failed for ${ticker}: HTTP ${res.status}`);
+            return null;
+          }
+          const price = parseTiingoQuote(await res.json());
+          return price !== undefined ? [ticker, price] : null;
+        } catch (err) {
+          // Isolate per ticker: a network error or a malformed 200 body (e.g. a
+          // maintenance HTML page that fails `res.json()`) drops just this ticker
+          // to stale-cache fallback in resolveQuotes, rather than fail-fast'ing
+          // the whole batch through Promise.all and dropping the siblings too.
+          const detail = err instanceof Error ? err.message : String(err);
+          console.warn(`Tiingo quote failed for ${ticker}: ${detail}`);
           return null;
         }
-        const price = parseTiingoQuote(await res.json());
-        return price !== undefined ? [ticker, price] : null;
       }),
     );
     for (const entry of entries) if (entry) prices.set(entry[0], entry[1]);
