@@ -14,7 +14,7 @@ import { tickersNeedingQuotes } from "@/lib/net-worth/check-in";
 import { DEFAULT_QUOTE_TTL_MS, getQuotesWithAsOf } from "@/lib/net-worth/price/get-quotes";
 import { pricingStatus } from "@/lib/net-worth/pricing-status";
 import { latestSnapshotDates, monthlyNetWorthSeries } from "@/lib/net-worth/series";
-import { accountValue, netWorthHeadline } from "@/lib/net-worth/valuation";
+import { accountValue, netWorthHeadline, unpricedHoldingCount } from "@/lib/net-worth/valuation";
 import { listAccounts } from "@/lib/repositories/accounts";
 import { listSnapshots } from "@/lib/repositories/snapshots";
 import type { Account, PriceLookup } from "@/types/net-worth";
@@ -81,7 +81,11 @@ export default async function NetWorthPage() {
   const accountsWithHistory = new Set(snapshots.map((s) => s.accountId));
 
   const toGroup = (key: string, label: string, accts: Account[]) => {
-    const items = accts.map((account) => ({ account, value: accountValue(account, priceFor) }));
+    const items = accts.map((account) => ({
+      account,
+      value: accountValue(account, priceFor),
+      unpricedCount: unpricedHoldingCount(account, priceFor),
+    }));
     return { key, label, items, subtotal: items.reduce((sum, it) => sum + it.value, 0) };
   };
 
@@ -127,12 +131,13 @@ export default async function NetWorthPage() {
                 {group.label}
               </SectionHeading>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {group.items.map(({ account, value }) => (
+                {group.items.map(({ account, value, unpricedCount }) => (
                   <AccountCard
                     key={account.id}
                     account={account}
                     value={value}
                     lastUpdated={lastUpdated.get(account.id)}
+                    unpricedCount={unpricedCount}
                     action={
                       <AccountCardActions
                         account={account}
