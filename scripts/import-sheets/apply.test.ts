@@ -102,14 +102,58 @@ describe("applyManifests — first apply", () => {
   });
 
   it("spares hand-entered (non-seed) data when wiping the seed", async () => {
-    // Seed doc (namespaced key) + a hand-entered transaction (UUID key, no ref).
+    // Seed docs (namespaced keys) + a hand-entered category and transaction
+    // (UUID keys, UUID category ref — the shape the app's create paths write).
     await coll("categories").insertOne({ _id: `${HH}:groceries`, householdId: HH, name: "Groceries", kind: "expense", activeFrom: "2026-01", createdAt: NOW });
-    await coll("transactions").insertOne({ _id: "8f0e-uuid-manual", householdId: HH, categoryId: `${HH}:groceries`, amount: 12, date: "2026-07-01", createdAt: NOW });
+    await coll("categories").insertOne({ _id: "5e0a-uuid-cat", householdId: HH, name: "My Category", kind: "expense", activeFrom: "2026-06", createdAt: NOW });
+    await coll("transactions").insertOne({ _id: "8f0e-uuid-manual", householdId: HH, categoryId: "5e0a-uuid-cat", amount: 12, date: "2026-07-01", createdAt: NOW });
 
     const report = await apply({ firstApply: true });
     expect(report.seedWiped).toBe(1); // only the namespaced seed category
-    // The hand-entered transaction survives.
+    // The hand-entered category and transaction survive.
+    expect(await coll("categories").countDocuments({ _id: "5e0a-uuid-cat" })).toBe(1);
     expect(await coll("transactions").countDocuments({ _id: "8f0e-uuid-manual" })).toBe(1);
+  });
+
+  it("wipes a LEGACY-seeded household (bare ids, bare categoryId refs)", async () => {
+    // A pre-#111 database: seed docs carry bare slugs, not namespaced keys —
+    // categories like "groceries", transactions "t1"…, and target docs keyed
+    // `<categoryId>:<activeFrom>`. The namespaced-prefix regex alone matches
+    // none of these (the rehearsal finding: "0 seed doc(s) wiped").
+    await coll("categories").insertMany([
+      { _id: "groceries", householdId: HH, name: "Groceries", kind: "expense", activeFrom: "2026-01", createdAt: NOW },
+      { _id: "salary", householdId: HH, name: "Salary", kind: "income", activeFrom: "2026-01", createdAt: NOW },
+    ]);
+    await coll("categoryTargets").insertOne({ _id: "groceries:2026-01", householdId: HH, categoryId: "groceries", monthly: 800, effectiveFrom: "2026-01", createdAt: NOW });
+    await coll("transactions").insertMany([
+      { _id: "t1", householdId: HH, categoryId: "groceries", amount: 87.42, date: "2026-06-04", createdAt: NOW },
+      { _id: "t54", householdId: HH, categoryId: "rsu", amount: 12500, date: "2026-03-15", createdAt: NOW },
+    ]);
+    // Hand-entered data: UUID id AND UUID category ref — must survive the wipe.
+    await coll("categories").insertOne({ _id: "5e0a-uuid-cat", householdId: HH, name: "My Category", kind: "expense", activeFrom: "2026-06", createdAt: NOW });
+    await coll("transactions").insertOne({ _id: "8f0e-uuid-tx", householdId: HH, categoryId: "5e0a-uuid-cat", amount: 12, date: "2026-07-01", createdAt: NOW });
+
+    const report = await apply({ firstApply: true });
+    expect(report.seedWiped).toBe(5); // 2 categories + 1 target + 2 transactions
+
+    // Every legacy seed doc is gone…
+    expect(await coll("categories").countDocuments({ _id: { $in: ["groceries", "salary"] } })).toBe(0);
+    expect(await coll("categoryTargets").countDocuments({ _id: "groceries:2026-01" })).toBe(0);
+    expect(await coll("transactions").countDocuments({ _id: { $in: ["t1", "t54"] } })).toBe(0);
+    // …while the hand-entered docs and the household survive.
+    expect(await coll("categories").countDocuments({ _id: "5e0a-uuid-cat" })).toBe(1);
+    expect(await coll("transactions").countDocuments({ _id: "8f0e-uuid-tx" })).toBe(1);
+    expect(await coll("households").countDocuments({ _id: HH })).toBe(1);
+  });
+
+  it("dry-run projects the legacy wipe count without deleting", async () => {
+    await coll("categories").insertOne({ _id: "dining", householdId: HH, name: "Dining out", kind: "expense", activeFrom: "2026-01", createdAt: NOW });
+    await coll("transactions").insertOne({ _id: "t2", householdId: HH, categoryId: "dining", amount: 24.5, date: "2026-06-04", createdAt: NOW });
+
+    const report = await apply({ dryRun: true, firstApply: true });
+    expect(report.seedWiped).toBe(2); // projected: the category + its transaction
+    expect(await coll("categories").countDocuments({ _id: "dining" })).toBe(1); // not wiped
+    expect(await coll("transactions").countDocuments({ _id: "t2" })).toBe(1);
   });
 
   it("refuses --first-apply once imported data exists", async () => {

@@ -103,10 +103,14 @@ Syncs the manifests into MongoDB. Idempotent per file — upsert by deterministi
 `_id`, then delete orphaned imported docs for that file — so re-running the
 current year's workbook updates and prunes rather than duplicating.
 `--dry-run` prints the plan and touches nothing; `--first-apply` wipes the
-seed/demo data (any doc with no `importRef`) and writes the auto-seed-disabled
-marker so a cold start never re-seeds (and refuses to run once imported data
-exists). `householdId` is stamped from the single household document; each
-existing doc's `createdAt` is preserved so re-applies don't churn.
+seed/demo data — recognized by the household-namespaced `_id` prefix **or** the
+legacy bare seed ids/category refs from pre-namespacing databases (the seed
+dataset lives in the pure `lib/db/seed-data`, consumed by both the seeder and
+this wipe); hand-entered docs (UUID ids, UUID category refs) survive — and
+writes the auto-seed-disabled marker so a cold start never re-seeds (and
+refuses to run once imported data exists). `householdId` is stamped from the
+single household document; each existing doc's `createdAt` is preserved so
+re-applies don't churn.
 
 Apply also syncs the Net Worth liability history: one liability `Account` is
 derived per distinct canonical liability name (cross-year, upsert-only), and each

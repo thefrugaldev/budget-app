@@ -6,6 +6,7 @@ import { type AnyBulkWriteOperation, type Db } from "mongodb";
 
 import { COLLECTIONS } from "@/lib/db/collections";
 import { autoSeedDisabledId } from "@/lib/db/seed-marker";
+import { SEED_CATEGORIES, seedDocId } from "@/lib/db/seed-data";
 import type { HouseholdDocument } from "@/lib/db/documents";
 
 import { hashImportRef } from "./import-ref";
@@ -306,11 +307,23 @@ async function syncCollection<T extends ImportedDoc>(input: {
  * auto-seed-disabled marker so a cold start never re-seeds. Refuses to run once
  * imported data exists — `--first-apply` is for the initial apply only.
  *
- * Seed docs are identified by their namespaced `_id` prefix (`<householdId>:…`,
- * from `seedDocId`) — NOT by "lacks an importRef". That distinction matters:
- * a hand-entered transaction added between bootstrap and import (a random-UUID
- * `_id`, no `importRef`) must survive rather than be silently wiped. Only the
- * demo seed carries the household-namespaced key.
+ * Seed docs come in **two id forms**, and both must go:
+ *   - the current per-household namespaced key (`<householdId>:…`, from
+ *     `seedDocId`), matched by an anchored `^`-prefix regex on `_id`;
+ *   - the LEGACY bare form on databases seeded before #111's namespacing
+ *     (local dev, prod): bare category slugs (`"groceries"`), bare transaction
+ *     ids (`"t1"`), and target ids (`"<categoryId>:<activeFrom>"`). These are
+ *     only identifiable via the seed dataset itself (`SEED_CATEGORIES`, the
+ *     pure `lib/db/seed-data` module), so categories match on the slug list
+ *     and transactions/targets match on a **seed-slug `categoryId`** (bare or
+ *     namespaced) — hand-entered docs always reference UUID/nanoid category
+ *     ids and imported docs reference hash ids, so a seed-slug ref can only be
+ *     seed data, and field matching also absorbs drift in seed transaction
+ *     counts across seed versions.
+ *
+ * Either way the wipe is NOT "lacks an importRef": a hand-entered transaction
+ * added between bootstrap and import (a random-UUID `_id` and a UUID
+ * `categoryId`, no `importRef`) must survive rather than be silently wiped.
  *
  * Returns the number of seed docs removed (a projected count under `dryRun`).
  */
@@ -341,11 +354,30 @@ async function wipeSeedAndDisableAutoSeed(input: {
     );
   }
 
-  // Seed docs only: keys are `${householdId}:…`. An anchored `^`-prefix regex on
-  // `_id` uses the primary key index. Hand-entered docs (UUID keys) are spared.
-  const seedFilter = { householdId, _id: { $regex: `^${escapeRegExp(householdId)}:` } };
+  const legacyCategoryIds = SEED_CATEGORIES.map((c) => c._id);
+  const seedCategoryIdRefs = [
+    ...legacyCategoryIds,
+    ...legacyCategoryIds.map((id) => seedDocId(householdId, id)),
+  ];
+  const namespacedId = { $regex: `^${escapeRegExp(householdId)}:` };
+  const seedFilters: Record<string, Record<string, unknown>> = {
+    [COLLECTIONS.categories]: {
+      householdId,
+      $or: [{ _id: { $in: legacyCategoryIds } }, { _id: namespacedId }],
+    },
+    [COLLECTIONS.categoryTargets]: {
+      householdId,
+      $or: [{ categoryId: { $in: seedCategoryIdRefs } }, { _id: namespacedId }],
+    },
+    [COLLECTIONS.transactions]: {
+      householdId,
+      $or: [{ categoryId: { $in: seedCategoryIdRefs } }, { _id: namespacedId }],
+    },
+  };
+
   let wiped = 0;
   for (const c of seedCollections) {
+    const seedFilter = seedFilters[c];
     wiped += await db.collection<StringIdDoc>(c).countDocuments(seedFilter);
     if (!dryRun) await db.collection<StringIdDoc>(c).deleteMany(seedFilter);
   }

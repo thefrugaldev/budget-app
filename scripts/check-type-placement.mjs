@@ -33,6 +33,7 @@ const ROOTS = ["lib", "components", "hooks", "app"];
 const ALLOWLIST = new Set([
   "TransactionSelection", // hooks/useTransactionSelection.ts — the hook's own public return type
   "AmountUnit", // components/budget/income/RecurringAmountField.tsx — UI-only union bound to one field
+  "SeedCategory", // lib/db/seed-data.ts — the seed dataset's own record shape (a CategoryDocument template), consumed only inside the data layer (seed.ts)
 ]);
 
 // Unconditionally co-located (any importer is fine). `*Document` is handled
