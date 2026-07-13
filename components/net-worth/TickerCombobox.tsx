@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { useTickerSearch } from "@/hooks/useTickerSearch";
 import { MIN_SEARCH_LENGTH } from "@/lib/net-worth/price/search-tickers";
@@ -26,6 +26,7 @@ export function TickerCombobox({
   onChange,
   onSelect,
   name,
+  id,
   required,
   ariaLabel,
 }: {
@@ -34,6 +35,8 @@ export function TickerCombobox({
   /** Fired when a suggestion is chosen (symbol only) — a hook for the PR2 price check. */
   onSelect?: (symbol: string) => void;
   name?: string;
+  /** Ties the input to an external `<label htmlFor>` so click-to-focus works. */
+  id?: string;
   required?: boolean;
   ariaLabel?: string;
 }) {
@@ -47,8 +50,18 @@ export function TickerCombobox({
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const longEnough = value.trim().length >= MIN_SEARCH_LENGTH;
-  const showPopup = open && longEnough && (loading || results.length > 0);
+  // Once the query is long enough the popup is shown while open — even for zero
+  // results, so the "no matches" row can explain the empty field rather than
+  // leaving it looking broken.
+  const showPopup = open && longEnough;
   const activeValid = active >= 0 && active < results.length;
+
+  // The blur-close timer must be cancelled if the combobox unmounts mid-delay
+  // (e.g. the enclosing sheet closes while the input is losing focus), or it
+  // fires against a torn-down component.
+  useEffect(() => () => {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+  }, []);
 
   function choose(symbol: string) {
     onChange(symbol);
@@ -60,11 +73,24 @@ export function TickerCombobox({
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (!open) return setOpen(true);
-      if (results.length > 0) setActive((a) => (a + 1) % results.length);
+      // Closed → open and highlight the first match (one press to top-match,
+      // Enter to take it). Open → step down, wrapping.
+      if (!open) {
+        setOpen(true);
+        setActive(0);
+      } else if (results.length > 0) {
+        setActive((a) => (a + 1) % results.length);
+      }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (results.length > 0) setActive((a) => (a <= 0 ? results.length - 1 : a - 1));
+      // Mirror ArrowDown: closed → open on the last match; open → step up,
+      // wrapping. Never mutate `active` behind a closed popup.
+      if (!open) {
+        setOpen(true);
+        setActive(results.length - 1);
+      } else if (results.length > 0) {
+        setActive((a) => (a <= 0 ? results.length - 1 : a - 1));
+      }
     } else if (e.key === "Enter") {
       if (open && activeValid) {
         e.preventDefault(); // choose the highlighted option instead of submitting
@@ -87,6 +113,7 @@ export function TickerCombobox({
     <div className="relative">
       <input
         name={name}
+        id={id}
         type="text"
         role="combobox"
         aria-label={ariaLabel}
@@ -123,7 +150,9 @@ export function TickerCombobox({
           className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md bg-popover py-1 shadow-md ring-1 ring-border"
         >
           {results.length === 0 ? (
-            <li className="px-2 py-1.5 text-xs text-muted-foreground">Searching…</li>
+            <li className="px-2 py-1.5 text-xs text-muted-foreground">
+              {loading ? "Searching…" : "No matches — you can still type a symbol"}
+            </li>
           ) : (
             results.map((r, i) => (
               <li

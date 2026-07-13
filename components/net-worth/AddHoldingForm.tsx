@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
 
 import { addHoldingAction } from "@/app/actions/net-worth";
 import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
@@ -24,6 +24,7 @@ export function AddHoldingForm({
   onCancel?: () => void;
 }) {
   const [state, formAction] = useActionState(addHoldingAction, NET_WORTH_ACTION_INITIAL);
+  const tickerId = useId();
   const [ticker, setTicker] = useState("");
   const [quantity, setQuantity] = useState("");
   const [priceOverride, setPriceOverride] = useState("");
@@ -43,11 +44,17 @@ export function AddHoldingForm({
       <input type="hidden" name="accountId" value={accountId} />
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex-1 space-y-1">
-          <span className="block text-[11px] font-medium text-muted-foreground">Ticker</span>
+          <label htmlFor={tickerId} className="block text-[11px] font-medium text-muted-foreground">
+            Ticker
+          </label>
           <TickerCombobox
             name="ticker"
+            id={tickerId}
             value={ticker}
             onChange={setTicker}
+            // onChange tracks free typing; onSelect fires only on a chosen suggestion.
+            // Both set the ticker today (so a click fills the field either way); onSelect
+            // is the seam where chunk 2 hangs its price-check, which is why they're distinct.
             onSelect={setTicker}
             required
             ariaLabel="Ticker"
