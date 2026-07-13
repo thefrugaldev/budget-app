@@ -272,6 +272,9 @@ function emitExpenseCell(
     lines: txLines,
     overrides: cellOverrides,
     refundKeywords: overrides.refundKeywords,
+    // Dates an add-line synthetic that omits its own month: it lands in this
+    // cell's column month, so no `(paid M/D)` coercion note is generated.
+    budgetMonth: cell.month,
   });
   cellReports.push({
     ref: prefix,

@@ -15,13 +15,14 @@ import {
 /** Lay out an archive dir: `2023.xlsx` at root, configs under `import/`. */
 async function makeArchive(
   opts?: Parameters<typeof buildFixtureWorkbook>[0],
+  overrides: unknown = fixtureOverrides,
 ): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), "extract-"));
   const importDir = join(dir, "import");
   mkdirSync(importDir, { recursive: true });
   writeFileSync(join(dir, "2023.xlsx"), await buildFixtureWorkbook(opts));
   writeFileSync(join(importDir, "mapping.json"), JSON.stringify(fixtureMapping));
-  writeFileSync(join(importDir, "overrides.json"), JSON.stringify(fixtureOverrides));
+  writeFileSync(join(importDir, "overrides.json"), JSON.stringify(overrides));
   writeFileSync(join(importDir, "income.json"), JSON.stringify(fixtureIncome));
   return dir;
 }
@@ -68,6 +69,23 @@ describe("runExtract", () => {
     expect(existsSync(join(dir, "import/reports/reconciliation.json"))).toBe(true);
     expect(existsSync(join(dir, "import/manifest/2023.json"))).toBe(false);
     expect(existsSync(join(dir, "import/manifest/categories.json"))).toBe(false);
+  });
+
+  it("reconciles a previously-unbalanced cell via an add-line override (exit 0)", async () => {
+    // The Dining cell ($100 vs $30 itemized) fails without an override; the
+    // add-line remainder reconciles it end-to-end through the CLI.
+    const dir = await makeArchive({ includeUnreconciled: true }, {
+      cells: {
+        "2023.xlsx!2023!B5": [
+          { line: 2, action: "add-line", day: 20, amountCents: 7000, reason: "unitemized remainder" },
+        ],
+      },
+      refundKeywords: ["refund"],
+    });
+    expect(await runExtract([dir])).toBe(0);
+    const year = JSON.parse(readFileSync(join(dir, "import/manifest/2023.json"), "utf8"));
+    const refs = year.transactions.map((t: { importRef: string }) => t.importRef);
+    expect(refs).toContain("2023.xlsx!2023!B5#2");
   });
 
   it("fails the payoff cross-check (exit 1), writing no manifest", async () => {

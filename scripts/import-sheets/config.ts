@@ -136,6 +136,19 @@ function parseLineOverride(raw: unknown, path: string) {
         day: asIntInRange(o.day, `${path}.day`, 1, 31),
         reason,
       };
+    case "add-line":
+      return {
+        line,
+        action: "add-line" as const,
+        day: asIntInRange(o.day, `${path}.day`, 1, 31),
+        ...(o.month !== undefined
+          ? { month: asIntInRange(o.month, `${path}.month`, 1, 12) }
+          : {}),
+        amountCents: asInt(o.amountCents, `${path}.amountCents`),
+        ...(o.vendor !== undefined ? { vendor: asString(o.vendor, `${path}.vendor`) } : {}),
+        ...(o.note !== undefined ? { note: asString(o.note, `${path}.note`) } : {}),
+        reason,
+      };
     default:
       throw new Error(`${path}.action invalid: ${JSON.stringify(o.action)}`);
   }

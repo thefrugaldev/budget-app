@@ -91,6 +91,64 @@ describe("buildExtract — transactions", () => {
     expect(result.reconciliation.unreconciled).toBe(0);
   });
 
+  it("emits an add-line synthetic as a real transaction (unitemized remainder)", async () => {
+    // The Dining cell (B5: $100 with only $30 itemized) is unreconciled without
+    // an override; an add-line for the $70 remainder reconciles it and becomes
+    // a manifest transaction with a deterministic importRef at line 2. The
+    // vendor "Chase" proves the rewrite rules apply to added lines too, and
+    // month 12 in a January cell proves budget-month coercion applies.
+    const buf = await buildFixtureWorkbook({ includeUnreconciled: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const overrides = {
+      cells: {
+        "2023.xlsx!2023!B5": [
+          { line: 2, action: "add-line" as const, day: 30, month: 12, amountCents: 7000, vendor: "Chase", note: "card autopay", reason: "unitemized remainder" },
+        ],
+      },
+      refundKeywords: ["refund"],
+    };
+    const run = () =>
+      buildExtract({ workbooks: [wb], mapping: fixtureMapping, overrides, income: fixtureIncome });
+
+    const result = run();
+    expect(result.reconciliation.unreconciled).toBe(0);
+    const added = result.workbooks[0].transactions.find(
+      (t) => t.importRef === "2023.xlsx!2023!B5#2",
+    )!;
+    expect(added).toMatchObject({
+      amount: 70,
+      date: "2023-01-30", // Dec bill coerced into the January budget month
+      note: "card autopay (paid 12/30)",
+      vendor: "Chase Mortgage", // rewrite applied
+    });
+
+    // Deterministic across runs: same inputs, identical ids and output.
+    expect(JSON.stringify(run())).toBe(JSON.stringify(result));
+  });
+
+  it("defaults an add-line's month to the cell's own column month (no paid note)", async () => {
+    const buf = await buildFixtureWorkbook({ includeUnreconciled: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const result = buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: {
+        cells: {
+          "2023.xlsx!2023!B5": [
+            { line: 2, action: "add-line" as const, day: 20, amountCents: 7000, reason: "unitemized remainder" },
+          ],
+        },
+        refundKeywords: [],
+      },
+      income: fixtureIncome,
+    });
+    const added = result.workbooks[0].transactions.find(
+      (t) => t.importRef === "2023.xlsx!2023!B5#2",
+    )!;
+    expect(added.date).toBe("2023-01-20"); // the cell's own January column
+    expect(added.note).toBeUndefined(); // no coercion, no paid note
+  });
+
   it("emits a savings cell as a month-end monthly total", async () => {
     const { workbooks } = await extract();
     const brokerage = workbooks[0].transactions.find(

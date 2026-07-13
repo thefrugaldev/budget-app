@@ -57,12 +57,31 @@ export type ParsedLine = ParsedTransactionLine | UnparsedLine;
  * - `sign-flip` — negate the line's amount (a refund keyed in as positive).
  * - `set-amount` — replace the parsed amount with a corrected value in cents.
  * - `set-date` — correct the line's month/day (does not affect the checksum).
+ * - `add-line` — append a synthetic transaction line the parser can't produce:
+ *   an unparseable comment shape (a `Paid (1/15)` autopay cell whose value IS
+ *   the single transaction, `$(-42.00)`, `1,811.44` with no `$`) or an
+ *   unitemized remainder the cell total carries beyond its parsed lines. The
+ *   synthetic line joins the sum *before* the exact/flip evaluation. Its
+ *   `line` is the index the emitted transaction's importRef uses (`#<line>`),
+ *   so it must NOT collide with a parsed line's 1-based index — reconcile
+ *   throws if it does; number added lines after the cell's parsed count.
+ *   `month` defaults to the cell's own column month (no date coercion note).
  */
 export type LineOverride =
   | { line: number; action: "skip"; reason: string }
   | { line: number; action: "sign-flip"; reason: string }
   | { line: number; action: "set-amount"; amountCents: number; reason: string }
-  | { line: number; action: "set-date"; month: number; day: number; reason: string };
+  | { line: number; action: "set-date"; month: number; day: number; reason: string }
+  | {
+      line: number;
+      action: "add-line";
+      day: number;
+      month?: number;
+      amountCents: number;
+      vendor?: string;
+      note?: string;
+      reason: string;
+    };
 
 /**
  * A reconciled line paired with its 1-based source position within the cell —

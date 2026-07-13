@@ -122,6 +122,50 @@ describe("parseOverrides", () => {
       parseOverrides({ cells: { k: [{ line: 1, action: "set-date", month: 1, day: 0, reason: "x" }] } }),
     ).toThrow(/day must be an integer 1–31/);
   });
+
+  it("parses an add-line with all optional fields", () => {
+    const o = parseOverrides({
+      cells: {
+        "2020.xlsx!2020!B9": [
+          { line: 2, action: "add-line", day: 15, month: 1, amountCents: 4200, vendor: "Power Co", note: "autopay", reason: "comment is 'Paid (1/15)'" },
+        ],
+      },
+    });
+    expect(o.cells["2020.xlsx!2020!B9"][0]).toEqual({
+      line: 2, action: "add-line", day: 15, month: 1, amountCents: 4200,
+      vendor: "Power Co", note: "autopay", reason: "comment is 'Paid (1/15)'",
+    });
+  });
+
+  it("parses a minimal add-line (month/vendor/note omitted)", () => {
+    const o = parseOverrides({
+      cells: { k: [{ line: 3, action: "add-line", day: 1, amountCents: -4200, reason: "unitemized remainder" }] },
+    });
+    expect(o.cells.k[0]).toEqual({
+      line: 3, action: "add-line", day: 1, amountCents: -4200, reason: "unitemized remainder",
+    });
+  });
+
+  it("range-checks an add-line day and month and rejects fractional cents", () => {
+    expect(() =>
+      parseOverrides({ cells: { k: [{ line: 1, action: "add-line", day: 32, amountCents: 100, reason: "x" }] } }),
+    ).toThrow(/day must be an integer 1–31/);
+    expect(() =>
+      parseOverrides({ cells: { k: [{ line: 1, action: "add-line", day: 1, month: 0, amountCents: 100, reason: "x" }] } }),
+    ).toThrow(/month must be an integer 1–12/);
+    expect(() =>
+      parseOverrides({ cells: { k: [{ line: 1, action: "add-line", day: 1, amountCents: 10.5, reason: "x" }] } }),
+    ).toThrow(/amountCents must be an integer/);
+  });
+
+  it("rejects an add-line with an empty reason or blank vendor", () => {
+    expect(() =>
+      parseOverrides({ cells: { k: [{ line: 1, action: "add-line", day: 1, amountCents: 100, reason: "" }] } }),
+    ).toThrow(/reason/);
+    expect(() =>
+      parseOverrides({ cells: { k: [{ line: 1, action: "add-line", day: 1, amountCents: 100, vendor: "", reason: "x" }] } }),
+    ).toThrow(/vendor/);
+  });
 });
 
 describe("parseIncome", () => {

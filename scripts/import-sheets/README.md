@@ -37,6 +37,18 @@ The deterministic, side-effect-free core, unit-tested on synthetic inputs:
 | `import-ref.ts` | Build the human-readable `importRef` provenance string and its deterministic document `_id`. |
 | `types.ts` | Importer-internal types. |
 
+**Override actions (`overrides.json`).** Per-cell exceptions, keyed by the
+cell's importRef prefix; each carries a mandatory `reason` — the checked-in
+audit trail for ADR 0005 decision 1 (no silent deltas).
+
+| Action | When to use |
+| --- | --- |
+| `skip` | Drop a parsed line (e.g. an annual payment already captured as amortized monthly deposits). |
+| `sign-flip` | Negate a parsed line's amount (a refund keyed in as positive). |
+| `set-amount` | Replace a parsed line's amount with a corrected value in cents. |
+| `set-date` | Correct a parsed line's month/day (doesn't affect the checksum). |
+| `add-line` | Append a synthetic line the parser can't produce: unparseable/informational comment shapes (a `Paid (1/15)` autopay cell whose value *is* the transaction, `$(-42.00)`, `1,811.44` with no `$`) or an unitemized remainder beyond the parsed lines. `{ line, day, month?, amountCents, vendor?, note?, reason }` — `line` becomes the emitted transaction's importRef index and must sit above the cell's parsed-line count (collisions throw); `month` defaults to the cell's own column month; the line joins the sum before the exact/flip evaluation, is never auto-flipped, and flows through budget-month dating and vendor rewrites like a parsed line. |
+
 ## Extract CLI (chunk 2)
 
 | Module | Responsibility |
