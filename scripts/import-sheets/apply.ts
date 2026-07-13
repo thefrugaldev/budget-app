@@ -8,8 +8,13 @@ import { COLLECTIONS } from "@/lib/db/collections";
 import { autoSeedDisabledId } from "@/lib/db/seed-marker";
 import type { HouseholdDocument } from "@/lib/db/documents";
 
+import { hashImportRef } from "./import-ref";
 import { connectMongo, runCli } from "./cli";
-import type { CategoriesManifest, WorkbookManifest } from "./manifest-types";
+import type {
+  CategoriesManifest,
+  ManifestLiabilitySnapshot,
+  WorkbookManifest,
+} from "./manifest-types";
 
 /**
  * The `apply` CLI (chunk 3): sync the extract manifests into MongoDB (ADR 0005
@@ -21,8 +26,11 @@ import type { CategoriesManifest, WorkbookManifest } from "./manifest-types";
  *
  *   MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--first-apply] [--db <name>]
  *
- * Liability snapshots are deliberately skipped until Net Worth ships (#109 /
- * chunk 7); apply reports how many it left for later.
+ * Net Worth liability history (chunk 7): a liability `Account` is derived per
+ * distinct canonical liability name across all workbooks, and each DebtsEquity
+ * balance becomes a dated `Snapshot`. Accounts upsert with $set/$setOnInsert
+ * (NOT replaceOne) so a post-cutover check-in's live `balance` — and a
+ * derived `closedAt` — survive a later re-apply.
  */
 
 export type CollectionSync = {
@@ -42,8 +50,6 @@ export type ApplyReport = {
   /** Seed/demo docs removed by `--first-apply` (0 otherwise). */
   seedWiped: number;
   syncs: CollectionSync[];
-  /** Liability-snapshot docs left for chunk 7. */
-  skippedLiabilitySnapshots: number;
 };
 
 type ImportedDoc = { _id: string; importRef: string };
@@ -90,8 +96,17 @@ export async function applyManifests(input: {
     }),
   );
 
+  // Derived liability accounts: cross-year like categories (upsert-only, no
+  // per-file orphan sweep) but with $set/$setOnInsert so user-owned fields
+  // survive a re-apply. Run before the snapshot sync so every snapshot's
+  // accountId points at an account this apply already touched.
+  syncs.push(
+    await syncLiabilityAccounts({
+      db, workbooks, householdId, now, dryRun,
+    }),
+  );
+
   // Per-workbook, cell-derived docs: orphan-scoped to the file.
-  let skippedLiabilitySnapshots = 0;
   for (const wb of workbooks) {
     syncs.push(
       await syncCollection({
@@ -105,11 +120,123 @@ export async function applyManifests(input: {
         householdId, now, scope: wb.file, dryRun,
       }),
     );
-    // Skipped until #109 provides the Account/Snapshot collections (chunk 7).
-    skippedLiabilitySnapshots += wb.liabilitySnapshots.length;
+    syncs.push(
+      await syncCollection({
+        db, collection: COLLECTIONS.snapshots, docs: snapshotDocs(wb.liabilitySnapshots),
+        householdId, now, scope: wb.file, dryRun,
+      }),
+    );
   }
 
-  return { dryRun, firstApply, householdId, seedWiped, syncs, skippedLiabilitySnapshots };
+  return { dryRun, firstApply, householdId, seedWiped, syncs };
+}
+
+/** `_id`/importRef for a derived liability account, keyed by canonical name. */
+function liabilityAccountRef(name: string): string {
+  return `liability!account!${name}`;
+}
+
+type SnapshotDoc = ImportedDoc & {
+  accountId: string;
+  date: string;
+  value: number;
+};
+
+/** One Snapshot document per liability-balance snapshot in a workbook. */
+function snapshotDocs(snapshots: ManifestLiabilitySnapshot[]): SnapshotDoc[] {
+  return snapshots.map((s) => ({
+    _id: s._id,
+    importRef: s.importRef,
+    accountId: hashImportRef(liabilityAccountRef(s.liability)),
+    date: s.date,
+    value: s.balance,
+  }));
+}
+
+/**
+ * Derive one liability `Account` per distinct canonical liability name across
+ * all workbooks and upsert it. **Not** {@link syncCollection}'s replaceOne: a
+ * post-cutover check-in updates an account's live `balance`, so a later re-apply
+ * must set only the imported identity fields ($set) and seed `balance`/
+ * `createdAt` once ($setOnInsert) — never clobber a user-edited balance.
+ *
+ * Closed detection is data-driven: the max snapshot month across *all*
+ * liabilities is the archive's current edge; a liability whose own last snapshot
+ * predates it has ended (a loan paid off mid-archive, absent from later
+ * DebtsEquity tabs) → its `closedAt` is set to its last snapshot date. Setting
+ * closedAt on update is the one exception to "never touch closedAt".
+ */
+async function syncLiabilityAccounts(input: {
+  db: Db;
+  workbooks: WorkbookManifest[];
+  householdId: string;
+  now: Date;
+  dryRun: boolean;
+}): Promise<CollectionSync> {
+  const { db, workbooks, householdId, now, dryRun } = input;
+  const col = db.collection<StringIdDoc>(COLLECTIONS.accounts);
+
+  // Gather every snapshot per canonical liability name, in date order.
+  const byName = new Map<string, ManifestLiabilitySnapshot[]>();
+  for (const wb of workbooks) {
+    for (const snap of wb.liabilitySnapshots) {
+      const list = byName.get(snap.liability) ?? [];
+      list.push(snap);
+      byName.set(snap.liability, list);
+    }
+  }
+  for (const list of byName.values()) {
+    list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  }
+
+  // The archive edge: the latest snapshot month across all liabilities.
+  let maxDate = "";
+  for (const list of byName.values()) {
+    const last = list[list.length - 1]?.date ?? "";
+    if (last > maxDate) maxDate = last;
+  }
+
+  const ids = [...byName.keys()].map((name) => hashImportRef(liabilityAccountRef(name)));
+  const existing = new Set<string>();
+  if (ids.length > 0) {
+    const rows = await col
+      .find({ _id: { $in: ids } }, { projection: { _id: 1 } })
+      .toArray();
+    for (const r of rows) existing.add(r._id);
+  }
+
+  let inserted = 0;
+  let updated = 0;
+  const ops: AnyBulkWriteOperation<StringIdDoc>[] = [];
+  for (const [name, list] of byName) {
+    const ref = liabilityAccountRef(name);
+    const _id = hashImportRef(ref);
+    if (existing.has(_id)) updated++;
+    else inserted++;
+
+    const lastDate = list[list.length - 1].date;
+    const latestBalance = list[list.length - 1].balance;
+    const derivedClosed = lastDate < maxDate;
+    ops.push({
+      updateOne: {
+        filter: { _id },
+        update: {
+          $set: {
+            name,
+            class: "liability",
+            householdId,
+            importRef: ref,
+            ...(derivedClosed ? { closedAt: lastDate } : {}),
+          },
+          $setOnInsert: { balance: latestBalance, createdAt: now },
+        },
+        upsert: true,
+      },
+    });
+  }
+  if (!dryRun && ops.length > 0) await col.bulkWrite(ops);
+
+  return { collection: COLLECTIONS.accounts, scope: null, inserted, updated, deletedOrphans: 0 };
 }
 
 /**
@@ -304,12 +431,11 @@ function formatReport(report: ApplyReport, dbName: string): string {
   const lines = [`apply ${verb} → db "${dbName}", household ${report.householdId}`];
   if (report.firstApply) lines.push(`  first-apply: ${report.seedWiped} seed doc(s) wiped, auto-seed disabled`);
   for (const s of report.syncs) {
-    const scope = s.scope ?? "categories";
+    const scope = s.scope ?? "cross-year";
     lines.push(
       `  ${s.collection} [${scope}]: +${s.inserted} ~${s.updated} -${s.deletedOrphans}`,
     );
   }
-  lines.push(`  liability snapshots skipped (chunk 7 / #109): ${report.skippedLiabilitySnapshots}`);
   return lines.join("\n") + "\n";
 }
 

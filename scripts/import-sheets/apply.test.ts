@@ -32,6 +32,16 @@ async function fixtureExtract(): Promise<ExtractResult> {
 let mongo: MemoryMongo;
 let result: ExtractResult;
 
+/** A synthetic liability snapshot for the closed-detection / sweep tests. */
+function liabSnap(
+  importRef: string,
+  liability: string,
+  date: string,
+  balance: number,
+): ExtractResult["workbooks"][number]["liabilitySnapshots"][number] {
+  return { _id: importRef, importRef, liability, date, balance };
+}
+
 /** Collections here use string `_id`s, not the driver's default ObjectId. */
 function coll(name: string) {
   return mongo.db.collection<{ _id: string } & Record<string, unknown>>(name);
@@ -86,7 +96,9 @@ describe("applyManifests — first apply", () => {
     expect(byScope("categoryTargets", null).inserted).toBe(1);
     expect(byScope("transactions", "2023.xlsx").inserted).toBe(7);
     expect(byScope("categoryTargets", "2023.xlsx").inserted).toBe(2);
-    expect(report.skippedLiabilitySnapshots).toBe(2);
+    // One derived liability account (Mortgage) + its two monthly snapshots.
+    expect(byScope("accounts", null).inserted).toBe(1);
+    expect(byScope("snapshots", "2023.xlsx").inserted).toBe(2);
   });
 
   it("spares hand-entered (non-seed) data when wiping the seed", async () => {
@@ -148,6 +160,110 @@ describe("applyManifests — dry run", () => {
     expect(report.syncs.find((s) => s.collection === "transactions")!.inserted).toBe(7);
     expect(await coll("transactions").countDocuments()).toBe(0);
     expect(await coll("categories").countDocuments({ importRef: { $exists: true } })).toBe(0);
+  });
+});
+
+describe("applyManifests — liability accounts & snapshots", () => {
+  it("derives one account per canonical liability with class/importRef/balance-from-latest", async () => {
+    await apply({ firstApply: true });
+    // The fixture's single Mortgage liability.
+    const accounts = await coll("accounts").find({ householdId: HH }).toArray();
+    expect(accounts).toHaveLength(1);
+    const mortgage = accounts[0];
+    expect(mortgage).toMatchObject({
+      name: "Mortgage",
+      class: "liability",
+      importRef: "liability!account!Mortgage",
+      balance: 299000, // the latest (February) balance
+    });
+    expect(mortgage.kind).toBeUndefined();
+    expect(mortgage.closedAt).toBeUndefined(); // still the current liability
+
+    // Snapshots point at the derived account and carry the balance as `value`.
+    const snaps = await coll("snapshots").find({ householdId: HH }).sort({ date: 1 }).toArray();
+    expect(snaps).toHaveLength(2);
+    expect(snaps[0]).toMatchObject({ accountId: mortgage._id, date: "2023-01-31", value: 300000 });
+    expect(typeof snaps[0].importRef).toBe("string");
+  });
+
+  it("marks a liability closed when its last snapshot predates the archive edge", async () => {
+    // Two liabilities: 'Auto' ends in 2023, 'Home' continues into 2024.
+    const workbooks: ExtractResult["workbooks"] = [
+      {
+        file: "2023.xlsx",
+        transactions: [],
+        estimateTargets: [],
+        liabilitySnapshots: [
+          liabSnap("2023.xlsx!DebtsEquity!B12", "Auto", "2023-12-31", 5000),
+          liabSnap("2023.xlsx!DebtsEquity!C12", "Home", "2023-12-31", 250000),
+        ],
+      },
+      {
+        file: "2024.xlsx",
+        transactions: [],
+        estimateTargets: [],
+        liabilitySnapshots: [
+          liabSnap("2024.xlsx!DebtsEquity!B12", "Home", "2024-12-31", 240000),
+        ],
+      },
+    ];
+    await apply({ firstApply: true, workbooks });
+
+    const auto = await coll("accounts").findOne({ name: "Auto" });
+    const home = await coll("accounts").findOne({ name: "Home" });
+    expect(auto!.closedAt).toBe("2023-12-31"); // last snapshot before the edge
+    expect(home!.closedAt).toBeUndefined(); // reaches the archive edge → open
+    expect(home!.balance).toBe(240000); // latest snapshot balance
+  });
+
+  it("preserves a user-edited balance and derived closedAt across re-apply ($setOnInsert)", async () => {
+    await apply({ firstApply: true });
+    const mortgage = await coll("accounts").findOne({ name: "Mortgage" });
+
+    // Simulate a post-cutover check-in editing the live balance.
+    await coll("accounts").updateOne({ _id: mortgage!._id }, { $set: { balance: 111111 } });
+
+    await apply(); // re-apply (no first-apply)
+    const after = await coll("accounts").findOne({ _id: mortgage!._id });
+    expect(after!.balance).toBe(111111); // NOT clobbered back to the manifest balance
+    expect(after!.name).toBe("Mortgage"); // identity fields still refreshed
+  });
+
+  it("syncs snapshots idempotently and sweeps orphans per file, respecting the unique index", async () => {
+    // Create the same unique index the app builds, so a re-apply that tried to
+    // insert a duplicate (household, account, date) would actually throw.
+    await coll("snapshots").createIndex(
+      { householdId: 1, accountId: 1, date: 1 },
+      { unique: true },
+    );
+    await apply({ firstApply: true });
+    const before = await coll("snapshots").countDocuments({ householdId: HH });
+    expect(before).toBe(2);
+
+    // Re-apply: pure updates, no unique-index violation on (household, account, date).
+    const report = await apply();
+    const snapSync = report.syncs.find((s) => s.collection === "snapshots" && s.scope === "2023.xlsx")!;
+    expect(snapSync.inserted).toBe(0);
+    expect(snapSync.updated).toBe(2);
+    expect(await coll("snapshots").countDocuments({ householdId: HH })).toBe(2);
+
+    // Drop a snapshot from the manifest → orphan swept for that file.
+    const trimmed = [{
+      ...result.workbooks[0],
+      liabilitySnapshots: result.workbooks[0].liabilitySnapshots.slice(0, -1),
+    }];
+    const report2 = await apply({ workbooks: trimmed });
+    const swept = report2.syncs.find((s) => s.collection === "snapshots" && s.scope === "2023.xlsx")!;
+    expect(swept.deletedOrphans).toBe(1);
+    expect(await coll("snapshots").countDocuments({ householdId: HH })).toBe(1);
+  });
+
+  it("dry-run reports account/snapshot counts but writes nothing", async () => {
+    const report = await apply({ dryRun: true });
+    expect(report.syncs.find((s) => s.collection === "accounts")!.inserted).toBe(1);
+    expect(report.syncs.find((s) => s.collection === "snapshots")!.inserted).toBe(2);
+    expect(await coll("accounts").countDocuments()).toBe(0);
+    expect(await coll("snapshots").countDocuments()).toBe(0);
   });
 });
 
