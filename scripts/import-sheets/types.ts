@@ -132,9 +132,38 @@ export type VendorRewrite = {
   mode?: "exact" | "regex";
 };
 
+/**
+ * A liability rename/display-cleanup rule from `mapping.json`, the DebtsEquity
+ * analogue of {@link MappedCategory}. A liability column header (which repeats
+ * across years and may be display-ugly, e.g. `Student Loans (Total)`) resolves
+ * to a single canonical account name. Matching is case-insensitive after
+ * trimming, like category aliases. Mapping only *renames*: an unmapped header
+ * passes through unchanged rather than erroring, since a liability need not be
+ * declared to be imported.
+ */
+export type MappedLiability = {
+  canonicalName: string;
+  aliases: string[];
+};
+
 export type CategoryMapping = {
   categories: MappedCategory[];
   vendorRewrites: VendorRewrite[];
+  /**
+   * Optional liability canonical-name rules; an unmapped header is kept as-is.
+   * Absent (from a config with no `liabilities` key) is treated as empty.
+   */
+  liabilities?: MappedLiability[];
+  /**
+   * Grid row labels (normalized: trim + case-insensitive, like aliases) that are
+   * deliberately not imported even when nonzero — derived totals the sheet
+   * computes (`Total`, `Remaining After Expenses & Savings`, …) and smeared
+   * one-off income rows folded into the W-2 baselines (ADR §6). Matching one of
+   * these suppresses the unmapped-nonzero hard error. A label can't be both a
+   * skipRow and a category alias (config validation enforces this). Absent is
+   * treated as empty.
+   */
+  skipRows?: string[];
 };
 
 /**

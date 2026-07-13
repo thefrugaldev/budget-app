@@ -43,6 +43,48 @@ describe("parseMapping", () => {
       }),
     ).toThrow(/claimed by both/);
   });
+
+  it("defaults liabilities and skipRows to empty when absent", () => {
+    const m = parseMapping(ok);
+    expect(m.liabilities).toEqual([]);
+    expect(m.skipRows).toEqual([]);
+  });
+
+  it("parses liabilities and skipRows", () => {
+    const m = parseMapping({
+      ...ok,
+      liabilities: [{ canonicalName: "Mortgage", aliases: ["Mortgage", "Home Loan"] }],
+      skipRows: ["Total", "Remaining After Expenses & Savings"],
+    });
+    expect(m.liabilities).toEqual([
+      { canonicalName: "Mortgage", aliases: ["Mortgage", "Home Loan"] },
+    ]);
+    expect(m.skipRows).toEqual(["Total", "Remaining After Expenses & Savings"]);
+  });
+
+  it("rejects a liability with empty aliases", () => {
+    expect(() =>
+      parseMapping({ ...ok, liabilities: [{ canonicalName: "Mortgage", aliases: [] }] }),
+    ).toThrow(/liabilities\[0\].aliases must be non-empty/);
+  });
+
+  it("rejects a liability alias claimed by two liabilities", () => {
+    expect(() =>
+      parseMapping({
+        ...ok,
+        liabilities: [
+          { canonicalName: "Mortgage", aliases: ["Home Loan"] },
+          { canonicalName: "Second", aliases: ["home loan"] },
+        ],
+      }),
+    ).toThrow(/liability alias .* claimed by both/);
+  });
+
+  it("rejects a skipRow that is also a category alias", () => {
+    expect(() =>
+      parseMapping({ ...ok, skipRows: ["food"] }), // "Food" is a Groceries alias
+    ).toThrow(/can't be both mapped and skipped/);
+  });
 });
 
 describe("parseOverrides", () => {

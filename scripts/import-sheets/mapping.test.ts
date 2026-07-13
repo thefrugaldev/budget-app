@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCategory, rewriteVendor } from "./mapping";
+import { isSkipRow, resolveCategory, resolveLiability, rewriteVendor } from "./mapping";
 import type { CategoryMapping } from "./types";
 
 const mapping: CategoryMapping = {
@@ -23,6 +23,11 @@ const mapping: CategoryMapping = {
     { match: "AMZN Mktp US", to: "Amazon", mode: "regex" },
     { match: "sq *blue bottle", to: "Blue Bottle", mode: "exact" },
   ],
+  liabilities: [
+    { canonicalName: "Mortgage", aliases: ["Mortgage", "Home Loan"] },
+    { canonicalName: "Student Loans", aliases: ["Student Loans (Total)"] },
+  ],
+  skipRows: ["Total", "Remaining After Expenses & Savings", "Tennis Income"],
 };
 
 describe("resolveCategory", () => {
@@ -51,6 +56,34 @@ describe("resolveCategory", () => {
   it("returns null for an unmapped or empty label", () => {
     expect(resolveCategory("Crypto", mapping)).toBeNull();
     expect(resolveCategory("   ", mapping)).toBeNull();
+  });
+});
+
+describe("resolveLiability", () => {
+  it("renames a mapped header to its canonical name", () => {
+    expect(resolveLiability("Home Loan", mapping)).toBe("Mortgage");
+    expect(resolveLiability("Student Loans (Total)", mapping)).toBe("Student Loans");
+  });
+
+  it("matches case-insensitively after trimming", () => {
+    expect(resolveLiability("  home loan ", mapping)).toBe("Mortgage");
+  });
+
+  it("passes an unmapped header through as its trimmed self (no error)", () => {
+    expect(resolveLiability("  Auto Loan  ", mapping)).toBe("Auto Loan");
+  });
+});
+
+describe("isSkipRow", () => {
+  it("matches a declared skipRow (trim/case-insensitive)", () => {
+    expect(isSkipRow("Total", mapping)).toBe(true);
+    expect(isSkipRow("  tennis income ", mapping)).toBe(true);
+  });
+
+  it("is false for a mapped or unknown label and for empty", () => {
+    expect(isSkipRow("Groceries", mapping)).toBe(false);
+    expect(isSkipRow("Whatever", mapping)).toBe(false);
+    expect(isSkipRow("   ", mapping)).toBe(false);
   });
 });
 
