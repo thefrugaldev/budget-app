@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { addHoldingAction } from "@/app/actions/net-worth";
 import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AmountInput } from "@/components/budget/amount/AmountInput";
+import { TickerCombobox } from "@/components/net-worth/TickerCombobox";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 
@@ -41,19 +42,17 @@ export function AddHoldingForm({
     <form action={formAction} className="space-y-2 rounded-lg bg-muted/50 p-3">
       <input type="hidden" name="accountId" value={accountId} />
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex-1 space-y-1">
+        <div className="flex-1 space-y-1">
           <span className="block text-[11px] font-medium text-muted-foreground">Ticker</span>
-          <input
+          <TickerCombobox
             name="ticker"
             value={ticker}
-            onChange={(e) => setTicker(e.target.value.toUpperCase())}
-            placeholder="VTI"
+            onChange={setTicker}
+            onSelect={setTicker}
             required
-            aria-label="Ticker"
-            autoComplete="off"
-            className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+            ariaLabel="Ticker"
           />
-        </label>
+        </div>
         <label className="flex-1 space-y-1">
           <span className="block text-[11px] font-medium text-muted-foreground">Quantity</span>
           <input
