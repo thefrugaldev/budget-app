@@ -80,11 +80,16 @@ account name; unmapped headers pass through unchanged (mapping only renames).
 
 **Payoff cross-check.** DebtsEquity tabs carry no comments, but 2023-onward the
 year grid's Mortgage row cells carry a `Payoff Left - $…` metadata line. Extract
-compares each such payoff quote against the same month's DebtsEquity balance for
-the resolved liability. A payoff quote includes accrued interest, so it never
-matches the principal balance exactly — the check is tolerance-based and **fails
-above 0.5% relative delta** (or when a payoff line has no matching balance). The
-results land in the reconciliation report (`liabilityCrossChecks`), and any
+compares each such payoff quote against the resolved liability's DebtsEquity
+balance for the **same month and the previous month-end** — a quote written
+before that month's payment posted matches the prior balance (a real-data timing
+artifact), and the previous month is looked up across workbook boundaries
+(January → December of the prior year's file). A payoff quote includes accrued
+interest, so it never matches the principal balance exactly — the check is
+tolerance-based and passes when **either** comparison is within **0.5% relative
+delta** (failing when both diverge, or when neither month has a balance). Each
+report entry records the best comparison (`matched: "month" | "prior-month"`).
+The results land in the reconciliation report (`liabilityCrossChecks`), and any
 failure exits the extract CLI non-zero, same as an unreconciled cell. A negative
 DebtsEquity balance also hard-fails, naming the cell.
 

@@ -48,15 +48,23 @@ export function buildExtract(input: {
 
   const activity = new ActivityTracker();
   const cellReports: CellReconcileReport[] = [];
-  const crossChecks: LiabilityCrossCheck[] = [];
+  const payoffObservations: PayoffObservation[] = [];
   const vendorTally = new Map<string, { count: number; totalCents: number }>();
 
   const orderedFiles = [...workbooks].sort((a, b) => a.year - b.year);
   const manifests: WorkbookManifest[] = orderedFiles.map((wb) =>
-    buildWorkbook(wb, { mapping, overrides, income }, activity, cellReports, crossChecks, vendorTally),
+    buildWorkbook(wb, { mapping, overrides, income }, activity, cellReports, payoffObservations, vendorTally),
   );
 
   const categories = buildCategoriesManifest(mapping, income, activity);
+
+  // Payoff cross-checks are evaluated here, not per workbook: the previous
+  // month-end comparison for a January payoff needs December of the *prior
+  // year's file*, so the balance index must span the whole archive.
+  const crossChecks = evaluatePayoffCrossChecks(
+    payoffObservations,
+    buildBalanceIndex(orderedFiles, mapping),
+  );
 
   return {
     categories,
@@ -71,7 +79,7 @@ function buildWorkbook(
   cfg: { mapping: CategoryMapping; overrides: OverridesConfig; income: IncomeConfig },
   activity: ActivityTracker,
   cellReports: CellReconcileReport[],
-  crossChecks: LiabilityCrossCheck[],
+  payoffObservations: PayoffObservation[],
   vendorTally: Map<string, { count: number; totalCents: number }>,
 ): WorkbookManifest {
   const { mapping, overrides } = cfg;
@@ -123,7 +131,7 @@ function buildWorkbook(
     });
   }
 
-  collectPayoffCrossChecks(wb, mapping, crossChecks);
+  collectPayoffObservations(wb, mapping, payoffObservations);
 
   return {
     file: wb.file,
@@ -164,29 +172,35 @@ function buildLiabilitySnapshots(
 
 const PAYOFF_LINE = /^payoff left\s*-\s*\$?([\d,]+(?:\.\d{1,2})?)\s*$/i;
 
+/** One `Payoff Left - $…` line found in a grid liability row, pre-evaluation. */
+type PayoffObservation = {
+  ref: string;
+  /** Canonical liability name the row resolved to. */
+  liability: string;
+  year: number;
+  /** 1–12, the cell's column month. */
+  month: number;
+  payoffCents: number;
+};
+
 /**
- * Cross-check the mortgage-payoff metadata (chunk 7 / story 17). The payoff
- * quote lives as an extra `Payoff Left - $…` comment line in the *year grid's*
+ * Collect the mortgage-payoff metadata (chunk 7 / story 17). The payoff quote
+ * lives as an extra `Payoff Left - $…` comment line in the *year grid's*
  * liability row (DebtsEquity tabs carry no comments), so we scan each grid row
  * whose label resolves (via `mapping.liabilities`, falling back to the raw
- * label) to a liability present in this workbook's DebtsEquity, and compare each
- * payoff line against that liability's same-month balance. A payoff quote
- * includes accrued interest, so it never matches the principal balance exactly —
- * the tolerance (`ok` iff relative delta ≤ 0.5%) is what makes the check useful
- * rather than always-failing. A payoff line with no matching balance fails.
+ * label) to a liability present in this workbook's DebtsEquity. Evaluation
+ * happens later at the buildExtract level ({@link evaluatePayoffCrossChecks}),
+ * where the whole archive's balances are in scope for the previous-month
+ * comparison.
  */
-function collectPayoffCrossChecks(
+function collectPayoffObservations(
   wb: RawWorkbook,
   mapping: CategoryMapping,
-  out: LiabilityCrossCheck[],
+  out: PayoffObservation[],
 ): void {
-  // Month-indexed balance (in cents) per canonical liability name in this file.
-  const balanceByLiabilityMonth = new Map<string, number>();
   const present = new Set<string>();
   for (const liab of wb.liabilities) {
-    const name = resolveLiability(liab.liability, mapping);
-    present.add(name);
-    balanceByLiabilityMonth.set(`${name}!${liab.month}`, liab.balanceCents);
+    present.add(resolveLiability(liab.liability, mapping));
   }
 
   for (const row of wb.gridRows) {
@@ -197,26 +211,91 @@ function collectPayoffCrossChecks(
       lines.forEach((line, i) => {
         const match = PAYOFF_LINE.exec(line);
         if (!match) return;
-        const payoffCents = parseAmountToCents(match[1]);
-        const balanceCents = balanceByLiabilityMonth.get(`${name}!${cell.month}`) ?? null;
-        const ref = buildImportRef({
-          file: wb.file, sheet: wb.gridSheet, cell: cell.cell, line: i + 1,
-        });
-        if (balanceCents === null || balanceCents === 0) {
-          out.push({
-            ref, liability: name, month: cell.month, payoffCents,
-            balanceCents, deltaPct: null, ok: false,
-          });
-          return;
-        }
-        const deltaPct = (Math.abs(payoffCents - balanceCents) / balanceCents) * 100;
         out.push({
-          ref, liability: name, month: cell.month, payoffCents,
-          balanceCents, deltaPct, ok: deltaPct <= 0.5,
+          ref: buildImportRef({ file: wb.file, sheet: wb.gridSheet, cell: cell.cell, line: i + 1 }),
+          liability: name,
+          year: wb.year,
+          month: cell.month,
+          payoffCents: parseAmountToCents(match[1]),
         });
       });
     }
   }
+}
+
+/**
+ * Archive-wide balance index: (canonical liability, "YYYY-MM") → cents. Spans
+ * every workbook so a January payoff can be compared against December of the
+ * prior year's file.
+ */
+function buildBalanceIndex(
+  workbooks: RawWorkbook[],
+  mapping: CategoryMapping,
+): Map<string, number> {
+  const index = new Map<string, number>();
+  for (const wb of workbooks) {
+    for (const liab of wb.liabilities) {
+      const name = resolveLiability(liab.liability, mapping);
+      index.set(`${name}!${yearMonth(wb.year, liab.month)}`, liab.balanceCents);
+    }
+  }
+  return index;
+}
+
+/**
+ * Evaluate each payoff observation against the liability's **same-month** and
+ * **previous month-end** balances: a quote written before that month's payment
+ * posted matches the prior balance exactly (a real-data timing artifact), so a
+ * payoff passes when EITHER comparison is within the 0.5% tolerance. The
+ * reported `balanceCents`/`deltaPct` are the best (smallest-delta) available
+ * comparison — "month" preferred on a tie — and `matched` names it when
+ * passing. A missing prior month (e.g. January of the earliest workbook) just
+ * means only the same-month comparison applies; when neither balance exists
+ * (or only zero balances, which can't anchor a relative delta), the entry
+ * fails with nulls.
+ */
+function evaluatePayoffCrossChecks(
+  observations: PayoffObservation[],
+  balanceIndex: Map<string, number>,
+): LiabilityCrossCheck[] {
+  return observations.map((o) => {
+    const prior =
+      o.month === 1 ? { year: o.year - 1, month: 12 } : { year: o.year, month: o.month - 1 };
+    const comparisons: { which: "month" | "prior-month"; balanceCents: number; deltaPct: number }[] = [];
+    for (const [which, year, month] of [
+      ["month", o.year, o.month],
+      ["prior-month", prior.year, prior.month],
+    ] as const) {
+      const balanceCents = balanceIndex.get(`${o.liability}!${yearMonth(year, month)}`);
+      if (balanceCents === undefined || balanceCents === 0) continue;
+      comparisons.push({
+        which,
+        balanceCents,
+        deltaPct: (Math.abs(o.payoffCents - balanceCents) / balanceCents) * 100,
+      });
+    }
+
+    // Smallest delta wins; the iteration order above prefers "month" on a tie.
+    const best = comparisons.reduce(
+      (a, b) => (a === null || b.deltaPct < a.deltaPct ? b : a),
+      null as (typeof comparisons)[number] | null,
+    );
+    const ok = best !== null && best.deltaPct <= 0.5;
+    return {
+      ref: o.ref,
+      liability: o.liability,
+      month: o.month,
+      payoffCents: o.payoffCents,
+      balanceCents: best?.balanceCents ?? null,
+      deltaPct: best?.deltaPct ?? null,
+      ok,
+      matched: ok ? best.which : null,
+    };
+  });
+}
+
+function yearMonth(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
 }
 
 /** A savings cell is a month-level total (no itemization) → one transaction. */

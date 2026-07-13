@@ -31,12 +31,18 @@ const MONTHS = [
 /**
  * How the fixture's mortgage-payoff cross-check should land:
  *   - `"pass"` (default): a `Payoff Left - $…` line within 0.5% of the Jan
- *     balance (a payoff quote incl. accrued interest);
- *   - `"fail"`: a payoff line >0.5% off;
- *   - `"missing"`: a payoff line in a month with no DebtsEquity balance;
+ *     balance (a payoff quote incl. accrued interest); January of the earliest
+ *     workbook, so only the same-month comparison applies (no prior December);
+ *   - `"fail"`: a January payoff >0.5% off, with no prior-month balance to
+ *     save it;
+ *   - `"prior-month"`: a February payoff >0.5% from February's balance but
+ *     within 0.5% of January's — the quote-written-before-the-payment-posted
+ *     timing artifact the check must recognize;
+ *   - `"missing"`: a payoff line in a month where neither the same month nor
+ *     the previous month has a DebtsEquity balance;
  *   - `"none"`: no payoff metadata at all.
  */
-export type PayoffMode = "pass" | "fail" | "missing" | "none";
+export type PayoffMode = "pass" | "fail" | "prior-month" | "missing" | "none";
 
 export type FixtureOptions = {
   includeUnreconciled?: boolean;
@@ -97,9 +103,15 @@ export async function buildFixtureWorkbook(
   // parses as `unparsed` and is dropped from the reconciliation sum).
   grid.getCell("A3").value = "Mortgage";
   setCell(grid, "B3", 1900, mortgageComment(payoffMode));
+  if (payoffMode === "prior-month") {
+    // February: $301,000 is 0.67% from Feb's 299,000 (fails same-month) but
+    // 0.33% from Jan's 300,000 — passes only via the prior-month comparison.
+    // (ExcelJS drops a note on a valueless cell, so carry a real bill too.)
+    setCell(grid, "C3", 1900, "2/1 - $1,900.00 (Chase)\nPayoff Left - $301,000.00");
+  }
   if (payoffMode === "missing") {
-    // March (D3) has no DebtsEquity balance → a payoff here can't be matched.
-    setCell(grid, "D3", 1900, "3/28 - $1,900.00 (Chase)\nPayoff Left - $290,000.00");
+    // April: neither April nor March has a DebtsEquity balance → unmatched.
+    setCell(grid, "E3", 1900, "4/28 - $1,900.00 (Chase)\nPayoff Left - $290,000.00");
   }
 
   // Row 4: Brokerage (savings) — bare monthly total, no comment

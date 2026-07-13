@@ -8,6 +8,7 @@ import {
   fixtureOverrides,
 } from "./fixtures/build-fixture-workbook";
 import { readWorkbookBuffer } from "./workbook";
+import type { RawWorkbook } from "./workbook";
 import type { ExtractResult } from "./manifest-types";
 
 async function extract(opts?: { includeUnreconciled?: boolean }): Promise<ExtractResult> {
@@ -261,21 +262,71 @@ describe("buildExtract — liability payoff cross-check", () => {
     expect(recon.liabilityCrossChecksTotal).toBe(1);
     expect(recon.liabilityCrossChecksPassed).toBe(1);
     const c = recon.liabilityCrossChecks[0];
-    expect(c).toMatchObject({ liability: "Mortgage", month: 1, ok: true });
+    // January of the earliest workbook: no prior December exists, so only the
+    // same-month comparison applies — and it passes as "month".
+    expect(c).toMatchObject({ liability: "Mortgage", month: 1, ok: true, matched: "month" });
     expect(c.deltaPct!).toBeLessThanOrEqual(0.5);
   });
 
-  it("fails when the payoff diverges beyond 0.5%", async () => {
+  it("fails when the payoff diverges beyond 0.5% (and no prior month saves it)", async () => {
     const recon = await crossCheck({ payoffMode: "fail" });
     expect(recon.liabilityCrossChecksPassed).toBe(0);
-    expect(recon.liabilityCrossChecks[0]).toMatchObject({ ok: false });
+    expect(recon.liabilityCrossChecks[0]).toMatchObject({ ok: false, matched: null });
     expect(recon.liabilityCrossChecks[0].deltaPct!).toBeGreaterThan(0.5);
   });
 
-  it("fails a payoff line with no matching DebtsEquity balance", async () => {
+  it("passes via the previous month-end when the same month diverges (timing artifact)", async () => {
+    const recon = await crossCheck({ payoffMode: "prior-month" });
+    const c = recon.liabilityCrossChecks.find((x) => x.month === 2)!;
+    // $301,000 is 0.67% off February's balance but 0.33% off January's — the
+    // quote was written before that month's payment posted.
+    expect(c).toMatchObject({ ok: true, matched: "prior-month", balanceCents: 30000000 });
+    expect(c.deltaPct!).toBeLessThanOrEqual(0.5);
+    expect(recon.liabilityCrossChecksPassed).toBe(recon.liabilityCrossChecksTotal);
+  });
+
+  it("fails a payoff line when neither the month nor the prior month has a balance", async () => {
     const recon = await crossCheck({ payoffMode: "missing" });
-    const missing = recon.liabilityCrossChecks.find((c) => c.month === 3)!;
-    expect(missing).toMatchObject({ balanceCents: null, deltaPct: null, ok: false });
+    const missing = recon.liabilityCrossChecks.find((c) => c.month === 4)!;
+    expect(missing).toMatchObject({
+      balanceCents: null, deltaPct: null, ok: false, matched: null,
+    });
+  });
+
+  it("compares a January payoff against December of the previous year's workbook", async () => {
+    // Hand-crafted minimal RawWorkbooks: 2023 carries only a December balance;
+    // 2024's January payoff diverges 0.67% from January's own balance but
+    // matches 2023's December exactly — cross-file prior-month lookup.
+    const wb2023: RawWorkbook = {
+      file: "2023.xlsx", year: 2023, gridSheet: "2023",
+      gridRows: [], estimates: [],
+      liabilities: [{ liability: "Mortgage", month: 12, cell: "B13", balanceCents: 30_000_000 }],
+    };
+    const wb2024: RawWorkbook = {
+      file: "2024.xlsx", year: 2024, gridSheet: "2024",
+      gridRows: [{
+        label: "Mortgage",
+        cells: [{ month: 1, cell: "B2", valueCents: null, comment: "Payoff Left - $300,000.00" }],
+      }],
+      estimates: [],
+      liabilities: [{ liability: "Mortgage", month: 1, cell: "B2", balanceCents: 29_800_000 }],
+    };
+    const { reconciliation } = buildExtract({
+      workbooks: [wb2024, wb2023], // deliberately unsorted — buildExtract orders by year
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    });
+    expect(reconciliation.liabilityCrossChecks).toEqual([
+      expect.objectContaining({
+        ref: "2024.xlsx!2024!B2#1",
+        month: 1,
+        ok: true,
+        matched: "prior-month",
+        balanceCents: 30_000_000,
+        deltaPct: 0,
+      }),
+    ]);
   });
 
   it("records no cross-check when there is no payoff metadata", async () => {

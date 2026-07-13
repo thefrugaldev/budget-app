@@ -44,7 +44,7 @@ describe("buildReconciliationReport", () => {
   it("counts and orders liability cross-checks, failures first", () => {
     const check = (ref: string, ok: boolean): LiabilityCrossCheck => ({
       ref, liability: "Mortgage", month: 1, payoffCents: 100,
-      balanceCents: 100, deltaPct: 0, ok,
+      balanceCents: 100, deltaPct: 0, ok, matched: ok ? "month" : null,
     });
     const report = buildReconciliationReport(
       [],

@@ -109,11 +109,15 @@ export type CellReconcileReport = {
 
 /**
  * One payoff-metadata cross-check (chunk 7 / story 17). A `Payoff Left - $…`
- * line in a year-grid liability row's cell comment is compared against the same
- * month's DebtsEquity balance for that liability. A payoff quote includes
- * accrued interest, so it never matches the principal balance exactly; the check
- * is tolerance-based (`ok` iff `deltaPct` ≤ 0.5). A payoff line with no matching
- * DebtsEquity balance is a failing entry (`balanceCents: null`, `ok: false`).
+ * line in a year-grid liability row's cell comment is compared against that
+ * liability's DebtsEquity balance for the **same month and the previous
+ * month-end** — a quote written before the month's payment posted matches the
+ * prior balance (a legitimate timing artifact observed on real data), and the
+ * previous month is looked up across workbook boundaries (January → December of
+ * the prior year's file). A payoff quote includes accrued interest, so it never
+ * matches the principal balance exactly; the check is tolerance-based (`ok` iff
+ * the best available `deltaPct` ≤ 0.5). When neither month's balance exists,
+ * the entry fails with `balanceCents`/`deltaPct` null.
  */
 export type LiabilityCrossCheck = {
   /** `<file>!<sheet>!<cell>#<line>` — the payoff comment line's importRef. */
@@ -123,11 +127,16 @@ export type LiabilityCrossCheck = {
   /** 1–12 budget month the payoff line sits in. */
   month: number;
   payoffCents: number;
-  /** The month's DebtsEquity balance in cents, or null when none matched. */
+  /**
+   * The balance of the best (smallest-delta) available comparison — same month
+   * or previous month-end — or null when neither exists.
+   */
   balanceCents: number | null;
-  /** |payoff − balance| / balance × 100, or null when no balance matched. */
+  /** |payoff − balance| / balance × 100 for that comparison, or null. */
   deltaPct: number | null;
   ok: boolean;
+  /** Which comparison passed ("month" preferred on a tie); null when failing. */
+  matched: "month" | "prior-month" | null;
 };
 
 export type ReconciliationReport = {
