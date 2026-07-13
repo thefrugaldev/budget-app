@@ -30,9 +30,14 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.some((item) => item.href === "/categories")).toBe(false);
   });
 
-  it("FIRE took the freed slot as a marked placeholder (#79)", () => {
+  it("FIRE is a live destination — its placeholder marker came off with #110 chunk 6", () => {
     const fire = NAV_ITEMS.find((item) => item.href === "/fire");
-    expect(fire?.placeholder).toBe(true);
+    expect(fire).toBeDefined();
+    expect(fire?.placeholder).toBeFalsy();
+  });
+
+  it("no nav item is still marked as a placeholder (all shipped)", () => {
+    expect(NAV_ITEMS.some((item) => item.placeholder)).toBe(false);
   });
 
   // Story 16: the /categories/[id] detail page is not itself a nav destination,

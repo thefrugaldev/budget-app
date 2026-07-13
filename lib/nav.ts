@@ -12,9 +12,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: "Pulse", href: "/", icon: Activity, mobileTab: "primary" },
   // FIRE takes the slot vacated by the dropped Categories index (#79): category
   // management lives on Pulse + the /categories/[id] detail page, so the index
-  // was redundant. FIRE is a marked placeholder — the feature is a future
-  // discovery effort, but the slot signals the product's direction.
-  { label: "FIRE", href: "/fire", icon: Flame, mobileTab: "primary", placeholder: true },
+  // was redundant. Live as of #110 — the "Soon" marker came off with chunk 6
+  // (the page now renders the KPI strip, live assumptions, and the projection
+  // chart), mirroring how Net Worth's marker came off with #109.
+  { label: "FIRE", href: "/fire", icon: Flame, mobileTab: "primary" },
   { label: "Income", href: "/income", icon: Wallet, mobileTab: "primary" },
   { label: "Transactions", href: "/transactions", icon: Receipt, mobileTab: "primary" },
   // Net Worth is live as of #109 — the "Soon" marker came off with chunk 9

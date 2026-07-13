@@ -28,9 +28,13 @@ export function FireKpiStrip({ nestEgg, view }: { nestEgg: number; view: FireVie
   return (
     <div>
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {/* The page-subject is the h1 (not the progress figure) — a screen
+            reader announcing the heading says what the page is about, and the
+            decorated hero figure sits beneath as a non-heading. Mirrors
+            NetWorthHero so the two pages read as one product (stories 21, 22). */}
+        <h1 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           FIRE
-        </p>
+        </h1>
         <p className="mt-2 font-heading text-hero font-bold tracking-tight tabular-nums text-signal-good-foreground">
           {pct(view.progress)}
         </p>
