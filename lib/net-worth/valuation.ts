@@ -24,6 +24,21 @@ export function accountValue(account: Account, priceFor: PriceLookup): number {
 }
 
 /**
+ * How many of an account's holdings have no usable price — neither a manual
+ * `priceOverride` nor a resolvable feed price (the same override-then-feed rule
+ * {@link accountValue} prices by, and the row's "No price yet" chip flags). Zero
+ * for a non-investment account (no holdings). The Net Worth card uses it to hint
+ * that some positions need a manual price before the account value is complete.
+ */
+export function unpricedHoldingCount(account: Account, priceFor: PriceLookup): number {
+  let count = 0;
+  for (const h of account.holdings ?? []) {
+    if ((h.priceOverride ?? priceFor(h.ticker)) === undefined) count++;
+  }
+  return count;
+}
+
+/**
  * An account's signed contribution to net worth: assets add, liabilities
  * subtract. Kept separate from {@link accountValue} because both the live
  * headline and the recorded history series sign a magnitude the same way — one

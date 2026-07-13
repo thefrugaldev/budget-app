@@ -8,6 +8,7 @@ import {
   nestEgg,
   netWorthHeadline,
   signedContribution,
+  unpricedHoldingCount,
 } from "./valuation";
 
 const prices: Record<string, number> = { VOO: 500, AAPL: 200 };
@@ -69,6 +70,41 @@ describe("accountValue", () => {
       holdings: [{ ticker: "PRIVATECO", quantity: 100, priceOverride: 12.5 }], // no feed price
     });
     expect(accountValue(brokerage, priceFor)).toBe(1_250);
+  });
+});
+
+describe("unpricedHoldingCount", () => {
+  it("counts holdings with neither an override nor a feed price", () => {
+    const brokerage = account({
+      class: "asset",
+      kind: "investment",
+      holdings: [
+        { ticker: "VOO", quantity: 10 }, // feed-priced
+        { ticker: "MYSTERY", quantity: 5 }, // unpriced
+        { ticker: "PRIVATECO", quantity: 2 }, // unpriced
+        { ticker: "FXAIX", quantity: 1, priceOverride: 190 }, // override → priced
+      ],
+    });
+    expect(unpricedHoldingCount(brokerage, priceFor)).toBe(2);
+  });
+
+  it("is 0 when every holding is priced, and for an account with no holdings", () => {
+    const priced = account({
+      class: "asset",
+      kind: "investment",
+      holdings: [{ ticker: "VOO", quantity: 10 }],
+    });
+    expect(unpricedHoldingCount(priced, priceFor)).toBe(0);
+    expect(unpricedHoldingCount(account({ class: "asset", kind: "cash", balance: 100 }), priceFor)).toBe(0);
+  });
+
+  it("treats an override of 0 as priced (a deliberate zero, not 'no price')", () => {
+    const brokerage = account({
+      class: "asset",
+      kind: "investment",
+      holdings: [{ ticker: "DELISTED", quantity: 3, priceOverride: 0 }],
+    });
+    expect(unpricedHoldingCount(brokerage, priceFor)).toBe(0);
   });
 });
 

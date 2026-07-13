@@ -18,6 +18,7 @@ export function AccountCard({
   account,
   value,
   lastUpdated,
+  unpricedCount = 0,
   action,
 }: {
   account: Account;
@@ -25,6 +26,8 @@ export function AccountCard({
   value: number;
   /** ISO date of the account's most recent snapshot; absent if never recorded. */
   lastUpdated?: string;
+  /** Holdings with no override and no feed price — surfaced as a hint so the value reads as incomplete. */
+  unpricedCount?: number;
   /** Edit affordance rendered top-right (a client component, role-gated). */
   action?: ReactNode;
 }) {
@@ -43,6 +46,14 @@ export function AccountCard({
                 {holdingsCount === 0
                   ? "No holdings"
                   : `${holdingsCount} ${holdingsCount === 1 ? "holding" : "holdings"}`}
+              </p>
+            )}
+            {/* Nudge toward the manual override when part of the value is missing —
+                the value above understates the account until these are priced. */}
+            {unpricedCount > 0 && (
+              <p className="text-xs text-signal-warn-foreground">
+                {unpricedCount} {unpricedCount === 1 ? "holding needs" : "holdings need"} a manual
+                price
               </p>
             )}
           </div>

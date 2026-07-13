@@ -40,10 +40,22 @@ export function HoldingRow({
     holding.priceOverride !== undefined ? String(holding.priceOverride) : "",
   );
   const [showOverride, setShowOverride] = useState(holding.priceOverride !== undefined);
+  // Set when edit mode is opened from the "No price yet" chip, so the override
+  // field autofocuses — one click from "this is unpriced" to typing the price.
+  const [focusOverride, setFocusOverride] = useState(false);
   // A misclicked Trash irrecoverably drops the position (and any manual price the
   // user set), so gate it behind a lightweight inline confirm — lighter than the
   // account-level type-to-confirm, but no longer a one-click data loss.
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+
+  // Open the editor straight onto the manual-price field (from the chip): expand
+  // it and flag it for autofocus. The read→edit switch remounts the form, so
+  // `autoFocus` fires on the fresh input.
+  function openPriceOverrideEditor() {
+    setShowOverride(true);
+    setFocusOverride(true);
+    setEditing(true);
+  }
 
   // Resync local inputs when the persisted holding actually changes (an update
   // landed and the page revalidated) — keyed by value, so an unrelated re-render
@@ -76,9 +88,14 @@ export function HoldingRow({
           {value !== undefined ? (
             <span className="text-sm font-medium tabular-nums">{fmt(value)}</span>
           ) : (
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-signal-warn-foreground">
+            <button
+              type="button"
+              onClick={openPriceOverrideEditor}
+              aria-label={`${holding.ticker} has no price — set a manual price`}
+              className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-signal-warn-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               No price yet
-            </span>
+            </button>
           )}
           {confirmingRemove ? (
             <form action={removeAction} className="flex items-center gap-1">
@@ -103,7 +120,10 @@ export function HoldingRow({
             <>
               <button
                 type="button"
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  setFocusOverride(false);
+                  setEditing(true);
+                }}
                 aria-label={`Edit ${holding.ticker}`}
                 className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -158,6 +178,7 @@ export function HoldingRow({
             variant="field"
             value={priceOverride}
             onChange={setPriceOverride}
+            autoFocus={focusOverride}
             ariaLabel={`${holding.ticker} price override`}
           />
         </label>
