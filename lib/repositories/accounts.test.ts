@@ -14,12 +14,15 @@ vi.mock("@/lib/db/household-scope", () => ({ scopedCollection: vi.fn() }));
 import { scopedCollection } from "@/lib/db/household-scope";
 
 import {
+  addHolding,
   closeAccount,
   createAccount,
   deleteAccount,
   getAccountById,
   listAccounts,
+  removeHolding,
   updateAccount,
+  updateHolding,
 } from "./accounts";
 import { countSnapshotsForAccount, createSnapshot, listSnapshotsForAccount } from "./snapshots";
 
@@ -120,6 +123,85 @@ describe("updateAccount", () => {
     await expect(
       updateAccount(a.id, { kind: "investment", clearKind: true }),
     ).rejects.toThrow(/cannot both set and clear/);
+  });
+});
+
+describe("holdings — atomic add / update / remove (#140)", () => {
+  const holdingsOf = async (id: string) => (await getAccountById(id))?.holdings ?? [];
+
+  it("adds a holding, rejects a duplicate ticker, and reports a missing account", async () => {
+    const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
+    expect(await addHolding(a.id, { ticker: "VOO", quantity: 10 })).toBe("added");
+    expect(await holdingsOf(a.id)).toEqual([{ ticker: "VOO", quantity: 10 }]);
+
+    // Same symbol again is refused in the write itself — array is unchanged.
+    expect(await addHolding(a.id, { ticker: "VOO", quantity: 99 })).toBe("duplicate");
+    expect(await holdingsOf(a.id)).toEqual([{ ticker: "VOO", quantity: 10 }]);
+
+    expect(await addHolding("nope", { ticker: "AAPL", quantity: 1 })).toBe("not-found");
+  });
+
+  it("validates the holding before writing", async () => {
+    const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
+    await expect(addHolding(a.id, { ticker: "VOO", quantity: -1 })).rejects.toThrow(/quantity/);
+    expect(await holdingsOf(a.id)).toEqual([]);
+  });
+
+  it("updates a holding in place and clears the override on demand", async () => {
+    const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
+    await addHolding(a.id, { ticker: "VOO", quantity: 10, priceOverride: 450 });
+
+    expect(await updateHolding(a.id, "VOO", { quantity: 12, priceOverride: 460 })).toBe(true);
+    expect(await holdingsOf(a.id)).toEqual([{ ticker: "VOO", quantity: 12, priceOverride: 460 }]);
+
+    // Clearing the override $unsets it — the holding reverts to the feed price.
+    expect(await updateHolding(a.id, "VOO", { quantity: 12 })).toBe(true);
+    expect(await holdingsOf(a.id)).toEqual([{ ticker: "VOO", quantity: 12 }]);
+
+    // Unknown ticker → no match.
+    expect(await updateHolding(a.id, "AAPL", { quantity: 1 })).toBe(false);
+  });
+
+  it("removes a holding and reports a no-op for an absent ticker", async () => {
+    const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
+    await addHolding(a.id, { ticker: "VOO", quantity: 10 });
+    await addHolding(a.id, { ticker: "AAPL", quantity: 3 });
+
+    expect(await removeHolding(a.id, "VOO")).toBe(true);
+    expect(await holdingsOf(a.id)).toEqual([{ ticker: "AAPL", quantity: 3 }]);
+    expect(await removeHolding(a.id, "VOO")).toBe(false); // already gone
+  });
+
+  it("does not lose a concurrent add of a different ticker (the #140 fix)", async () => {
+    const a = await createAccount({
+      name: "Brokerage",
+      class: "asset",
+      kind: "investment",
+      holdings: [{ ticker: "VOO", quantity: 10 }],
+    });
+
+    // Two adds racing: the read-modify-write this replaced would drop one; the
+    // atomic $push lands both.
+    const [x, y] = await Promise.all([
+      addHolding(a.id, { ticker: "AAPL", quantity: 1 }),
+      addHolding(a.id, { ticker: "MSFT", quantity: 2 }),
+    ]);
+    expect([x, y]).toEqual(["added", "added"]);
+    const tickers = (await holdingsOf(a.id)).map((h) => h.ticker).sort();
+    expect(tickers).toEqual(["AAPL", "MSFT", "VOO"]);
+  });
+
+  it("keeps a ticker unique under a concurrent double-add of the same symbol", async () => {
+    const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
+    const results = (
+      await Promise.all([
+        addHolding(a.id, { ticker: "VOO", quantity: 10 }),
+        addHolding(a.id, { ticker: "VOO", quantity: 20 }),
+      ])
+    ).sort();
+    // Exactly one wins; the other is refused — never two VOO rows.
+    expect(results).toEqual(["added", "duplicate"]);
+    expect(await holdingsOf(a.id)).toHaveLength(1);
   });
 });
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import type { Filter, UpdateFilter } from "mongodb";
 
 import { COLLECTIONS } from "@/lib/db/collections";
 import type { AccountDocument } from "@/lib/db/documents";
@@ -148,6 +149,81 @@ export async function updateAccount(
 
   await accounts.updateOne({ _id: id }, update);
   return { ok: true };
+}
+
+/**
+ * Holdings are edited with **atomic array operators** rather than reading the
+ * whole `holdings[]`, mutating it in memory, and writing it back (#140). The
+ * read-modify-write let two concurrent edits race — the second full-array write
+ * clobbered the first (lost update). A `$push` / positional `$` / `$pull` each
+ * touch only the one element, so concurrent edits to *different* holdings in the
+ * same account both land. The per-holding validity check still runs on the input
+ * (`assertValidHolding`), and the one-symbol-per-account rule is enforced *in the
+ * write* by the `$ne` filter guard below — so atomicity costs us none of the
+ * validation the old read-then-write did.
+ */
+
+/**
+ * Add a holding (story 4). The `"holdings.ticker": { $ne }` filter makes the push
+ * happen only when the symbol isn't already present, enforcing uniqueness
+ * atomically. A miss is either a duplicate ticker or a vanished account (a
+ * concurrent delete); one follow-up read disambiguates for the caller's message.
+ */
+export async function addHolding(
+  id: string,
+  holding: Holding,
+): Promise<"added" | "duplicate" | "not-found"> {
+  assertValidHolding(holding);
+  const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
+  const res = await accounts.updateOne(
+    { _id: id, "holdings.ticker": { $ne: holding.ticker } } as Filter<AccountDocument>,
+    { $push: { holdings: holding } } as UpdateFilter<AccountDocument>,
+  );
+  if (res.matchedCount === 1) return "added";
+  return (await accounts.findOne({ _id: id })) ? "duplicate" : "not-found";
+}
+
+/**
+ * Update one holding in place, keyed by ticker (story 18). The positional `$`
+ * targets the matched element, so a concurrent edit to another holding survives.
+ * Clearing the override (`priceOverride` undefined) `$unset`s it, reverting the
+ * holding to the feed price. Returns false when the ticker isn't in the account.
+ */
+export async function updateHolding(
+  id: string,
+  ticker: string,
+  fields: { quantity: number; priceOverride?: number },
+): Promise<boolean> {
+  assertValidHolding({
+    ticker,
+    quantity: fields.quantity,
+    ...(fields.priceOverride !== undefined ? { priceOverride: fields.priceOverride } : {}),
+  });
+  const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
+  const set: Record<string, unknown> = { "holdings.$.quantity": fields.quantity };
+  const update: Record<string, unknown> = { $set: set };
+  if (fields.priceOverride !== undefined) set["holdings.$.priceOverride"] = fields.priceOverride;
+  else update.$unset = { "holdings.$.priceOverride": "" };
+
+  const res = await accounts.updateOne(
+    { _id: id, "holdings.ticker": ticker } as Filter<AccountDocument>,
+    update as UpdateFilter<AccountDocument>,
+  );
+  return res.matchedCount === 1;
+}
+
+/**
+ * Remove a holding by ticker (story 18 — a sold position). `$pull` is atomic, so
+ * a concurrent edit to another holding isn't lost. Returns false when nothing was
+ * removed (the ticker wasn't there, or the account is gone).
+ */
+export async function removeHolding(id: string, ticker: string): Promise<boolean> {
+  const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
+  const res = await accounts.updateOne(
+    { _id: id } as Filter<AccountDocument>,
+    { $pull: { holdings: { ticker } } } as UpdateFilter<AccountDocument>,
+  );
+  return res.modifiedCount === 1;
 }
 
 /**
