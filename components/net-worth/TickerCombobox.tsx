@@ -73,6 +73,10 @@ export function TickerCombobox({
     } else if (e.key === "Escape") {
       if (open) {
         e.preventDefault();
+        // Dismiss the popup first — and stop the Escape reaching the surrounding
+        // dialog's document-level close handler, so the sheet doesn't also close.
+        // A second Escape (popup now shut) falls through and closes the sheet.
+        e.stopPropagation();
         setOpen(false);
         setActive(-1);
       }
