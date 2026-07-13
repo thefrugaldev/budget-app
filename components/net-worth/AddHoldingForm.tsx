@@ -8,6 +8,8 @@ import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { TickerCombobox } from "@/components/net-worth/TickerCombobox";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
+import { useTickerPriceCheck } from "@/hooks/useTickerPriceCheck";
+import { fmtExact } from "@/lib/budget";
 
 /**
  * Add a position to an investment account (#109 chunk 7, story 4). Ticker +
@@ -31,12 +33,23 @@ export function AddHoldingForm({
   // Override is opt-in: hidden until asked for, so the common path is just
   // ticker + quantity and the manual price reads as a deliberate exception.
   const [showOverride, setShowOverride] = useState(false);
+  // A chosen ticker the feed can't price reveals the manual-price field — the
+  // coverage-match nudge (#145): you picked a symbol we can't quote, so set a
+  // price now. Reveal is deliberately one-way — never auto-hidden — so a price
+  // typed here isn't yanked away if the ticker later changes; don't "fix" that
+  // into an auto-hide. The trade-off it leaves: if the user types a price for an
+  // unpriced ticker and then switches to a *priceable* one, the override stays
+  // visible and populated and Save would store it over the feed price. The
+  // status line shows the live price alongside it, so the mismatch is on screen;
+  // preserving the typed value beats silently discarding deliberate input.
+  const priceCheck = useTickerPriceCheck(() => setShowOverride(true));
 
   useActionSuccessToast(state, () => "Holding added", () => {
     setTicker("");
     setQuantity("");
     setPriceOverride("");
     setShowOverride(false);
+    priceCheck.reset();
   });
 
   return (
@@ -51,11 +64,14 @@ export function AddHoldingForm({
             name="ticker"
             id={tickerId}
             value={ticker}
-            onChange={setTicker}
-            // onChange tracks free typing; onSelect fires only on a chosen suggestion.
-            // Both set the ticker today (so a click fills the field either way); onSelect
-            // is the seam where chunk 2 hangs its price-check, which is why they're distinct.
-            onSelect={setTicker}
+            // onChange tracks the field and clears a stale price check as the text
+            // changes; onSelect fires only on a chosen suggestion, where we
+            // price-check that one symbol (chunk 2 coverage matching).
+            onChange={(v) => {
+              setTicker(v);
+              priceCheck.reset();
+            }}
+            onSelect={priceCheck.check}
             required
             ariaLabel="Ticker"
           />
@@ -75,6 +91,29 @@ export function AddHoldingForm({
           />
         </label>
       </div>
+
+      {/* Price-check feedback for the chosen ticker (announced politely so a
+          screen-reader user hears the live price or the "no price" nudge). */}
+      <div aria-live="polite" className="min-h-4 text-xs">
+        {priceCheck.state.status === "checking" && (
+          <p className="text-muted-foreground">Checking live price…</p>
+        )}
+        {priceCheck.state.status === "priced" && (
+          <p className="text-muted-foreground">
+            Live price{" "}
+            <span className="font-medium tabular-nums text-foreground">
+              {fmtExact(priceCheck.state.price)}
+            </span>{" "}
+            per share
+          </p>
+        )}
+        {priceCheck.state.status === "unpriced" && (
+          <p className="text-signal-warn-foreground">
+            No live price for {priceCheck.state.ticker} — add a manual price below.
+          </p>
+        )}
+      </div>
+
       {showOverride ? (
         <label className="block space-y-1">
           <span className="block text-[11px] font-medium text-muted-foreground">
