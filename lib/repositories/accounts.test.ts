@@ -191,6 +191,35 @@ describe("holdings — atomic add / update / remove (#140)", () => {
     expect(tickers).toEqual(["AAPL", "MSFT", "VOO"]);
   });
 
+  it("does not lose a concurrent update to a different holding (the #140 fix)", async () => {
+    const a = await createAccount({
+      name: "Brokerage",
+      class: "asset",
+      kind: "investment",
+      holdings: [
+        { ticker: "VOO", quantity: 10 },
+        { ticker: "AAPL", quantity: 3 },
+      ],
+    });
+
+    const [u1, u2] = await Promise.all([
+      updateHolding(a.id, "VOO", { quantity: 11 }),
+      updateHolding(a.id, "AAPL", { quantity: 4 }),
+    ]);
+    expect([u1, u2]).toEqual([true, true]);
+    // Both edits land — the positional `$` touches only its own element.
+    expect(await holdingsOf(a.id)).toEqual([
+      { ticker: "VOO", quantity: 11 },
+      { ticker: "AAPL", quantity: 4 },
+    ]);
+  });
+
+  it("refuses to push a holding onto a non-investment account", async () => {
+    const cash = await createAccount({ name: "Ally", class: "asset", kind: "cash", balance: 100 });
+    expect(await addHolding(cash.id, { ticker: "VOO", quantity: 1 })).toBe("not-found");
+    expect((await getAccountById(cash.id))?.holdings).toBeUndefined();
+  });
+
   it("keeps a ticker unique under a concurrent double-add of the same symbol", async () => {
     const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
     const results = (

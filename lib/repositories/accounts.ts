@@ -164,10 +164,15 @@ export async function updateAccount(
  */
 
 /**
- * Add a holding (story 4). The `"holdings.ticker": { $ne }` filter makes the push
- * happen only when the symbol isn't already present, enforcing uniqueness
- * atomically. A miss is either a duplicate ticker or a vanished account (a
- * concurrent delete); one follow-up read disambiguates for the caller's message.
+ * Add a holding (story 4). The filter enforces two rules *in the write*: `kind:
+ * "investment"` (holdings only belong on an investment account) and
+ * `"holdings.ticker": { $ne }` (one symbol per account). Gating kind here is
+ * defense-in-depth — the action's `requireInvestmentAccount` owns the friendly
+ * "not an investment account" message, but this also closes the narrow window
+ * between that read and this write (a concurrent kind change) and refuses a
+ * direct repo call against the wrong kind. A miss means the account is gone or
+ * not an investment account (→ not-found), or the ticker's already present on an
+ * eligible account (→ duplicate); one follow-up read disambiguates.
  */
 export async function addHolding(
   id: string,
@@ -176,11 +181,16 @@ export async function addHolding(
   assertValidHolding(holding);
   const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
   const res = await accounts.updateOne(
-    { _id: id, "holdings.ticker": { $ne: holding.ticker } } as Filter<AccountDocument>,
+    {
+      _id: id,
+      kind: "investment",
+      "holdings.ticker": { $ne: holding.ticker },
+    } as Filter<AccountDocument>,
     { $push: { holdings: holding } } as UpdateFilter<AccountDocument>,
   );
   if (res.matchedCount === 1) return "added";
-  return (await accounts.findOne({ _id: id })) ? "duplicate" : "not-found";
+  const doc = await accounts.findOne({ _id: id });
+  return doc?.kind === "investment" ? "duplicate" : "not-found";
 }
 
 /**
@@ -188,6 +198,13 @@ export async function addHolding(
  * targets the matched element, so a concurrent edit to another holding survives.
  * Clearing the override (`priceOverride` undefined) `$unset`s it, reverting the
  * holding to the feed price. Returns false when the ticker isn't in the account.
+ *
+ * Re-validates the whole reconstructed holding, including the ticker, as
+ * defense-in-depth — even though the ticker is used only to *locate* the element
+ * (the positional `$` never rewrites it). One consequence: a ticker the DB
+ * already holds but that fails a (hypothetically stricter, future) parser would
+ * be rejected here; acceptable, since tickers are `parseTicker`-normalized on the
+ * way in.
  */
 export async function updateHolding(
   id: string,
