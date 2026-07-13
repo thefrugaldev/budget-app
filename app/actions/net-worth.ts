@@ -328,6 +328,29 @@ export async function searchTickersAction(query: string): Promise<TickerSearchRe
 }
 
 /**
+ * Price-check a chosen ticker (#144 chunk 2 — coverage matching). The combobox
+ * suggests every search match; on *select* — not per keystroke, which would burn
+ * quota — we fetch just the chosen symbol's live price so the user can eyeball it
+ * before saving, or be nudged to a manual override when the feed can't quote it
+ * (search and quotes are the same Tiingo provider, but not every listed symbol
+ * has a current price). Editor-gated like {@link searchTickersAction}; degrades
+ * to `null` — read as "no live price" — on any failure so entry never breaks.
+ * Returns the per-share price in dollars, or `null` when unpriced.
+ */
+export async function lookupTickerPriceAction(ticker: string): Promise<number | null> {
+  try {
+    await requireRole("editor");
+    const t = ticker.trim().toUpperCase();
+    if (t === "") return null;
+    const prices = await getQuotes([t]);
+    return prices.get(t) ?? null;
+  } catch (err) {
+    console.warn("Ticker price lookup failed:", err);
+    return null;
+  }
+}
+
+/**
  * Submit a check-in (stories 7/8): record one dated snapshot per open account at
  * its current value — a complete monthly data point, so an untouched account
  * carries forward rather than cratering the chart. This is purely the *history*
