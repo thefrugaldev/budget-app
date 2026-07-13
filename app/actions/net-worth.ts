@@ -9,6 +9,7 @@ import {
   unpricedTickers,
 } from "@/lib/net-worth/check-in";
 import { getQuotes } from "@/lib/net-worth/price/get-quotes";
+import { searchTickers } from "@/lib/net-worth/price/search-tickers";
 import {
   addHolding,
   closeAccount,
@@ -21,7 +22,7 @@ import {
   updateHolding,
 } from "@/lib/repositories/accounts";
 import { createSnapshots } from "@/lib/repositories/snapshots";
-import type { Account, Holding, PriceLookup } from "@/types/net-worth";
+import type { Account, Holding, PriceLookup, TickerSearchResult } from "@/types/net-worth";
 
 import {
   parseAccountClass,
@@ -305,6 +306,24 @@ export async function removeHoldingAction(
     return success(prev, id);
   } catch (err) {
     return failure(prev, err);
+  }
+}
+
+/**
+ * Symbol-search for the add-holding combobox (#144). A query action (not a
+ * form submit), called from the debounced client hook. Editor-gated — the
+ * autocomplete only appears in the editor flow, and gating keeps a viewer or an
+ * unauthenticated request from spending our Tiingo quota. Degrades to `[]` on
+ * any failure (missing key, rate limit, outage) so type-ahead never surfaces an
+ * error mid-keystroke; the user can always type the ticker by hand.
+ */
+export async function searchTickersAction(query: string): Promise<TickerSearchResult[]> {
+  try {
+    await requireRole("editor");
+    return await searchTickers(query);
+  } catch (err) {
+    console.warn("Ticker search failed:", err);
+    return [];
   }
 }
 

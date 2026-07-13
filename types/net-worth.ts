@@ -137,6 +137,24 @@ export interface PriceProvider {
   getQuotes(tickers: string[]): Promise<Map<string, number>>;
 }
 
+/** One symbol-search match for the add-holding autocomplete: ticker + its name. */
+export type TickerSearchResult = {
+  symbol: string;
+  description: string;
+};
+
+/**
+ * A source of ticker symbol-search results (#144). A swap like
+ * {@link PriceProvider} — the combobox depends only on this interface. Backed by
+ * Tiingo (the same provider as quotes): the plan first kept search on Finnhub to
+ * spare Tiingo's quota, but Finnhub's free `/search` returns nothing for mutual
+ * funds, so it couldn't find most real holdings — Tiingo's search matches what
+ * the quote path can price (#143/#144).
+ */
+export interface TickerSearchProvider {
+  search(query: string): Promise<TickerSearchResult[]>;
+}
+
 /** A cached market quote: the price and when it was fetched (ISO datetime). */
 export type CachedQuote = {
   ticker: string;
