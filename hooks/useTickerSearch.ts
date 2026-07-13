@@ -10,7 +10,7 @@ import type { TickerSearchResult } from "@/types/net-worth";
  * Debounced ticker symbol-search for the add-holding combobox (#144). Waits for
  * a ~300ms typing pause and a minimum query length before hitting the server
  * action, so a burst of keystrokes costs one request, not one per key — keeping
- * well inside Finnhub's free-tier rate limit.
+ * well inside Tiingo's free-tier rate limit (50 req/hour).
  *
  * Results are cached per normalized query for the session (a module-level Map,
  * so it survives remounts of the form), and an incrementing sequence guard drops

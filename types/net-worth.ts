@@ -145,9 +145,11 @@ export type TickerSearchResult = {
 
 /**
  * A source of ticker symbol-search results (#144). A swap like
- * {@link PriceProvider} — the combobox depends only on this interface, never on
- * Finnhub. Deliberately separate from the quote provider: search stays on
- * Finnhub's free `/search` so it doesn't spend Tiingo's quote quota (#143).
+ * {@link PriceProvider} — the combobox depends only on this interface. Backed by
+ * Tiingo (the same provider as quotes): the plan first kept search on Finnhub to
+ * spare Tiingo's quota, but Finnhub's free `/search` returns nothing for mutual
+ * funds, so it couldn't find most real holdings — Tiingo's search matches what
+ * the quote path can price (#143/#144).
  */
 export interface TickerSearchProvider {
   search(query: string): Promise<TickerSearchResult[]>;

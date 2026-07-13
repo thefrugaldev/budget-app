@@ -313,7 +313,7 @@ export async function removeHoldingAction(
  * Symbol-search for the add-holding combobox (#144). A query action (not a
  * form submit), called from the debounced client hook. Editor-gated — the
  * autocomplete only appears in the editor flow, and gating keeps a viewer or an
- * unauthenticated request from spending our Finnhub quota. Degrades to `[]` on
+ * unauthenticated request from spending our Tiingo quota. Degrades to `[]` on
  * any failure (missing key, rate limit, outage) so type-ahead never surfaces an
  * error mid-keystroke; the user can always type the ticker by hand.
  */

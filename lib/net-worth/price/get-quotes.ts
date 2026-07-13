@@ -13,7 +13,9 @@ export const DEFAULT_QUOTE_TTL_MS = 12 * 60 * 60 * 1000;
 // The API key and platform `fetch` are stable per process, so construct the
 // provider once (matching the single exported `mongoQuoteCache`). Tiingo is the
 // quote source (#143) — it prices mutual-fund NAVs, which Finnhub's free tier
-// doesn't; Finnhub is retained only for the future `/search` autocomplete.
+// doesn't. Tiingo now also backs ticker search (#144), so it's the app's sole
+// market-data provider; Finnhub was dropped because its free `/search` returns
+// nothing for mutual funds.
 const provider = new TiingoPriceProvider();
 
 /**
