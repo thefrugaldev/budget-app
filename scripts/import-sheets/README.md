@@ -43,7 +43,7 @@ The deterministic, side-effect-free core, unit-tested on synthetic inputs:
 | --- | --- |
 | `extract.ts` | CLI entry: arg parsing, config/workbook IO, lock-file warning, deterministic output writing, hard reconciliation gate. |
 | `workbook.ts` | ExcelJS reader → structured, cell-addressed `RawWorkbook` (year grid, Estimate, DebtsEquity). All spreadsheet contact is confined here. |
-| `config.ts` | Parse + validate `mapping.json` / `overrides.json` / `income.json`, failing loudly on malformed config. |
+| `config.ts` | Parse + validate `mapping.json` / `overrides.json` / `income.json`, failing loudly on malformed config. Also parses the optional `liabilities` (canonical-name rules) and `skipRows` (deliberately-not-imported labels). |
 | `icon-validate.ts` | Every mapping/income icon must resolve in the app's lucide catalog (story 7). |
 | `build-manifest.ts` | The extract core: raw workbooks + configs → manifests + reports, composing the chunk-1 transforms. Pure/deterministic. |
 | `reports.ts` | Reconciliation and vendor-frequency report formatters. |
@@ -53,9 +53,28 @@ The deterministic, side-effect-free core, unit-tested on synthetic inputs:
 **Manifest layout.** Config-derived, cross-year documents (canonical categories,
 W-2 income baselines) live in `categories.json` and are upsert-only. Workbook-cell
 documents (transactions, estimate targets, liability snapshots) live in per-year
-`YYYY.json` and carry a `<file>!…` importRef, so chunk 3's per-file orphan
-deletion is scoped to them. Liability snapshots are extracted now but not applied
-until Net Worth ships (#109 / chunk 7).
+`YYYY.json` and carry a `<file>!…` importRef, so the per-file orphan deletion is
+scoped to them.
+
+**skipRows / liabilities (mapping.json).** `skipRows` is a list of grid row
+labels (normalized like aliases) that are deliberately not imported even when
+nonzero — the sheet's derived totals (`Total`, `Remaining After Expenses &
+Savings`, …) and one-off income rows smeared into the W-2 baselines (ADR §6).
+Without it, a nonzero unmapped row hard-errors the extract, which would block the
+cutover. A label can't be both a skipRow and a category alias. `liabilities` is
+the DebtsEquity analogue of category mapping: `{ canonicalName, aliases[] }`
+entries rename display-ugly or year-varying column headers onto one canonical
+account name; unmapped headers pass through unchanged (mapping only renames).
+
+**Payoff cross-check.** DebtsEquity tabs carry no comments, but 2023-onward the
+year grid's Mortgage row cells carry a `Payoff Left - $…` metadata line. Extract
+compares each such payoff quote against the same month's DebtsEquity balance for
+the resolved liability. A payoff quote includes accrued interest, so it never
+matches the principal balance exactly — the check is tolerance-based and **fails
+above 0.5% relative delta** (or when a payoff line has no matching balance). The
+results land in the reconciliation report (`liabilityCrossChecks`), and any
+failure exits the extract CLI non-zero, same as an unreconciled cell. A negative
+DebtsEquity balance also hard-fails, naming the cell.
 
 ## Apply CLI (chunk 3)
 
@@ -70,8 +89,17 @@ current year's workbook updates and prunes rather than duplicating.
 seed/demo data (any doc with no `importRef`) and writes the auto-seed-disabled
 marker so a cold start never re-seeds (and refuses to run once imported data
 exists). `householdId` is stamped from the single household document; each
-existing doc's `createdAt` is preserved so re-applies don't churn. Liability
-snapshots are skipped until Net Worth ships (#109 / chunk 7).
+existing doc's `createdAt` is preserved so re-applies don't churn.
+
+Apply also syncs the Net Worth liability history: one liability `Account` is
+derived per distinct canonical liability name (cross-year, upsert-only), and each
+DebtsEquity balance becomes a dated `Snapshot` under it. A liability whose last
+snapshot predates the archive's latest month is auto-`closedAt` (a loan paid off
+mid-archive). Accounts upsert with `$set`/`$setOnInsert` (not `replaceOne`) so a
+post-cutover check-in's live `balance` — and a derived `closedAt` — survive a
+re-apply. `--first-apply` does **not** wipe seeded/hand-entered accounts or
+snapshots (net-worth seed uses random UUIDs, indistinguishable from real data);
+clearing that test data at cutover is an explicit RUNBOOK step.
 
 | Module | Responsibility |
 | --- | --- |
@@ -115,8 +143,3 @@ Cosmos DB Mongo-API free tier). `storage-audit.ts` — `projectStorage` (pure) +
 current-year re-run cadence, the cutover checklist, and the post-cutover backup
 policy. Reset protection for imported data (chunk 5) is the danger-zone opt-in
 described there and in the app's Settings danger zone.
-
-## Not yet (later chunks)
-
-- **Chunk 7 (blocked by #109):** apply the already-extracted DebtsEquity
-  liability snapshots.
