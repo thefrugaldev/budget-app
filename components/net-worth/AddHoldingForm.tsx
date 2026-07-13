@@ -35,8 +35,13 @@ export function AddHoldingForm({
   const [showOverride, setShowOverride] = useState(false);
   // A chosen ticker the feed can't price reveals the manual-price field — the
   // coverage-match nudge (#145): you picked a symbol we can't quote, so set a
-  // price now. Reveal-only; never auto-hidden, so a price typed here isn't yanked
-  // away if the ticker later changes.
+  // price now. Reveal is deliberately one-way — never auto-hidden — so a price
+  // typed here isn't yanked away if the ticker later changes; don't "fix" that
+  // into an auto-hide. The trade-off it leaves: if the user types a price for an
+  // unpriced ticker and then switches to a *priceable* one, the override stays
+  // visible and populated and Save would store it over the feed price. The
+  // status line shows the live price alongside it, so the mismatch is on screen;
+  // preserving the typed value beats silently discarding deliberate input.
   const priceCheck = useTickerPriceCheck(() => setShowOverride(true));
 
   useActionSuccessToast(state, () => "Holding added", () => {

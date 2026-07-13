@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { lookupTickerPriceAction } from "@/app/actions/net-worth";
 
@@ -28,7 +28,9 @@ export type TickerPriceCheck =
  * to reveal the manual-price override. It runs from the async result, not a
  * render effect, so the reveal is a one-shot response to the outcome. `check` and
  * `reset` are plain event handlers (never used as effect deps), so they close
- * over the latest `onUnpriced` directly — no ref or memoization needed.
+ * over the latest `onUnpriced` directly — no ref or memoization needed. Keep the
+ * callback self-contained (idempotent w.r.t. render churn); it may run against a
+ * later render, so it shouldn't close over state a re-render meaningfully changes.
  */
 export function useTickerPriceCheck(onUnpriced?: () => void): {
   state: TickerPriceCheck;
@@ -37,6 +39,16 @@ export function useTickerPriceCheck(onUnpriced?: () => void): {
 } {
   const [state, setState] = useState<TickerPriceCheck>({ status: "idle" });
   const seq = useRef(0);
+  // A pending lookup can resolve after the form unmounts (the edit sheet closes
+  // mid-check). The sequence ref survives unmount, so it can't gate that — this
+  // does: skip the settling `setState` once unmounted.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   function check(ticker: string) {
     const t = ticker.trim().toUpperCase();
@@ -47,21 +59,23 @@ export function useTickerPriceCheck(onUnpriced?: () => void): {
     }
     const mySeq = ++seq.current;
     setState({ status: "checking", ticker: t });
+    // Live only if this is still the latest check and the form is still mounted.
+    const current = () => mounted.current && mySeq === seq.current;
     const markUnpriced = () => {
       setState({ status: "unpriced", ticker: t });
       onUnpriced?.();
     };
     lookupTickerPriceAction(t)
       .then((price) => {
-        // A newer selection (or a reset) has superseded this lookup — drop it.
-        if (mySeq !== seq.current) return;
+        // A newer selection, a reset, or an unmount has superseded this — drop it.
+        if (!current()) return;
         if (price === null) markUnpriced();
         else setState({ status: "priced", ticker: t, price });
       })
       .catch(() => {
         // The action already degrades to null; this only covers a transport-level
         // rejection. Treat it as unpriced so the override nudge still appears.
-        if (mySeq === seq.current) markUnpriced();
+        if (current()) markUnpriced();
       });
   }
 
