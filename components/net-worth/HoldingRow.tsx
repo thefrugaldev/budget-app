@@ -40,8 +40,11 @@ export function HoldingRow({
     holding.priceOverride !== undefined ? String(holding.priceOverride) : "",
   );
   const [showOverride, setShowOverride] = useState(holding.priceOverride !== undefined);
-  // Set when edit mode is opened from the "No price yet" chip, so the override
-  // field autofocuses — one click from "this is unpriced" to typing the price.
+  // Set only when edit mode is opened from the "No price yet" chip, so the
+  // override field autofocuses — one click from "this is unpriced" to typing the
+  // price. Invariant: every *non-chip* open path must clear it (the pencil does),
+  // else a prior chip-open would sticky-focus the override on the next edit; any
+  // new edit-trigger added later must set it explicitly.
   const [focusOverride, setFocusOverride] = useState(false);
   // A misclicked Trash irrecoverably drops the position (and any manual price the
   // user set), so gate it behind a lightweight inline confirm — lighter than the
