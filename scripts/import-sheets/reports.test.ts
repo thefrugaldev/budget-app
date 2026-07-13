@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildReconciliationReport, buildVendorReport } from "./reports";
-import type { CellReconcileReport } from "./manifest-types";
+import type { CellReconcileReport, LiabilityCrossCheck } from "./manifest-types";
 
 function cell(
   ref: string,
@@ -39,6 +39,20 @@ describe("buildReconciliationReport", () => {
       "exact",
       "exact",
     ]);
+  });
+
+  it("counts and orders liability cross-checks, failures first", () => {
+    const check = (ref: string, ok: boolean): LiabilityCrossCheck => ({
+      ref, liability: "Mortgage", month: 1, payoffCents: 100,
+      balanceCents: 100, deltaPct: 0, ok,
+    });
+    const report = buildReconciliationReport(
+      [],
+      [check("c", true), check("a", false), check("b", true)],
+    );
+    expect(report.liabilityCrossChecksTotal).toBe(3);
+    expect(report.liabilityCrossChecksPassed).toBe(2);
+    expect(report.liabilityCrossChecks.map((c) => c.ref)).toEqual(["a", "b", "c"]);
   });
 });
 

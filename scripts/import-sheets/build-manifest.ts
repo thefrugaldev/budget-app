@@ -1,7 +1,7 @@
 import { toBudgetMonthDate, appendPaidNote, daysInMonth } from "./budget-month";
 import { buildImportRef, hashImportRef } from "./import-ref";
-import { resolveCategory, rewriteVendor } from "./mapping";
-import { centsToDollars } from "./money";
+import { isSkipRow, resolveCategory, resolveLiability, rewriteVendor } from "./mapping";
+import { centsToDollars, parseAmountToCents } from "./money";
 import { parseCommentLine } from "./parse-line";
 import { reconcileCell } from "./reconcile";
 import { buildReconciliationReport, buildVendorReport } from "./reports";
@@ -9,6 +9,7 @@ import { compareStrings } from "./sort";
 import type {
   CellReconcileReport,
   ExtractResult,
+  LiabilityCrossCheck,
   ManifestCategory,
   ManifestCategoryTarget,
   ManifestLiabilitySnapshot,
@@ -47,11 +48,12 @@ export function buildExtract(input: {
 
   const activity = new ActivityTracker();
   const cellReports: CellReconcileReport[] = [];
+  const crossChecks: LiabilityCrossCheck[] = [];
   const vendorTally = new Map<string, { count: number; totalCents: number }>();
 
   const orderedFiles = [...workbooks].sort((a, b) => a.year - b.year);
   const manifests: WorkbookManifest[] = orderedFiles.map((wb) =>
-    buildWorkbook(wb, { mapping, overrides, income }, activity, cellReports, vendorTally),
+    buildWorkbook(wb, { mapping, overrides, income }, activity, cellReports, crossChecks, vendorTally),
   );
 
   const categories = buildCategoriesManifest(mapping, income, activity);
@@ -59,7 +61,7 @@ export function buildExtract(input: {
   return {
     categories,
     workbooks: manifests,
-    reconciliation: buildReconciliationReport(cellReports),
+    reconciliation: buildReconciliationReport(cellReports, crossChecks),
     vendors: buildVendorReport(vendorTally),
   };
 }
@@ -69,23 +71,27 @@ function buildWorkbook(
   cfg: { mapping: CategoryMapping; overrides: OverridesConfig; income: IncomeConfig },
   activity: ActivityTracker,
   cellReports: CellReconcileReport[],
+  crossChecks: LiabilityCrossCheck[],
   vendorTally: Map<string, { count: number; totalCents: number }>,
 ): WorkbookManifest {
   const { mapping, overrides } = cfg;
   const transactions: ManifestTransaction[] = [];
   const estimateTargets: ManifestCategoryTarget[] = [];
-  const liabilitySnapshots: ManifestLiabilitySnapshot[] = [];
+  const liabilitySnapshots = buildLiabilitySnapshots(wb, mapping);
 
   for (const row of wb.gridRows) {
     const category = resolveCategory(row.label, mapping);
     const hasValue = row.cells.some((c) => (c.valueCents ?? 0) !== 0);
     if (!category) {
-      if (hasValue) {
+      // A declared skipRow (derived total / smeared income) is deliberately not
+      // imported even when nonzero; only a row that is *neither* mapped nor
+      // skipped and carries a value is the hard-error case.
+      if (hasValue && !isSkipRow(row.label, mapping)) {
         throw new Error(
           `${wb.file}!${wb.gridSheet}: row "${row.label}" is unmapped but has nonzero values`,
         );
       }
-      continue; // an all-zero unmapped row (a spacer/total) — nothing to import
+      continue; // all-zero, skipped, or spacer row — nothing to import
     }
 
     for (const cell of row.cells) {
@@ -117,16 +123,7 @@ function buildWorkbook(
     });
   }
 
-  for (const liab of wb.liabilities) {
-    const ref = buildImportRef({ file: wb.file, sheet: "DebtsEquity", cell: liab.cell, line: 1 });
-    liabilitySnapshots.push({
-      _id: hashImportRef(ref),
-      importRef: ref,
-      liability: liab.liability,
-      date: monthEnd(wb.year, liab.month),
-      balance: centsToDollars(liab.balanceCents),
-    });
-  }
+  collectPayoffCrossChecks(wb, mapping, crossChecks);
 
   return {
     file: wb.file,
@@ -134,6 +131,92 @@ function buildWorkbook(
     estimateTargets: sortByRef(estimateTargets),
     liabilitySnapshots: sortByRef(liabilitySnapshots),
   };
+}
+
+/**
+ * DebtsEquity balances → canonicalized liability snapshots. A negative balance
+ * is a hard error (the sheet needs review; none exist today) rather than a
+ * silently-imported bad point. Balances stay non-negative magnitudes — the
+ * account's `liability` class supplies the sign in aggregation (ADR 0003).
+ */
+function buildLiabilitySnapshots(
+  wb: RawWorkbook,
+  mapping: CategoryMapping,
+): ManifestLiabilitySnapshot[] {
+  const snapshots: ManifestLiabilitySnapshot[] = [];
+  for (const liab of wb.liabilities) {
+    if (liab.balanceCents < 0) {
+      throw new Error(
+        `${wb.file}!DebtsEquity!${liab.cell}: liability "${liab.liability}" has a negative balance`,
+      );
+    }
+    const ref = buildImportRef({ file: wb.file, sheet: "DebtsEquity", cell: liab.cell, line: 1 });
+    snapshots.push({
+      _id: hashImportRef(ref),
+      importRef: ref,
+      liability: resolveLiability(liab.liability, mapping),
+      date: monthEnd(wb.year, liab.month),
+      balance: centsToDollars(liab.balanceCents),
+    });
+  }
+  return snapshots;
+}
+
+const PAYOFF_LINE = /^payoff left\s*-\s*\$?([\d,]+(?:\.\d{1,2})?)\s*$/i;
+
+/**
+ * Cross-check the mortgage-payoff metadata (chunk 7 / story 17). The payoff
+ * quote lives as an extra `Payoff Left - $…` comment line in the *year grid's*
+ * liability row (DebtsEquity tabs carry no comments), so we scan each grid row
+ * whose label resolves (via `mapping.liabilities`, falling back to the raw
+ * label) to a liability present in this workbook's DebtsEquity, and compare each
+ * payoff line against that liability's same-month balance. A payoff quote
+ * includes accrued interest, so it never matches the principal balance exactly —
+ * the tolerance (`ok` iff relative delta ≤ 0.5%) is what makes the check useful
+ * rather than always-failing. A payoff line with no matching balance fails.
+ */
+function collectPayoffCrossChecks(
+  wb: RawWorkbook,
+  mapping: CategoryMapping,
+  out: LiabilityCrossCheck[],
+): void {
+  // Month-indexed balance (in cents) per canonical liability name in this file.
+  const balanceByLiabilityMonth = new Map<string, number>();
+  const present = new Set<string>();
+  for (const liab of wb.liabilities) {
+    const name = resolveLiability(liab.liability, mapping);
+    present.add(name);
+    balanceByLiabilityMonth.set(`${name}!${liab.month}`, liab.balanceCents);
+  }
+
+  for (const row of wb.gridRows) {
+    const name = resolveLiability(row.label, mapping);
+    if (!present.has(name)) continue;
+    for (const cell of row.cells) {
+      const lines = (cell.comment ?? "").split("\n").map((l) => l.trim());
+      lines.forEach((line, i) => {
+        const match = PAYOFF_LINE.exec(line);
+        if (!match) return;
+        const payoffCents = parseAmountToCents(match[1]);
+        const balanceCents = balanceByLiabilityMonth.get(`${name}!${cell.month}`) ?? null;
+        const ref = buildImportRef({
+          file: wb.file, sheet: wb.gridSheet, cell: cell.cell, line: i + 1,
+        });
+        if (balanceCents === null || balanceCents === 0) {
+          out.push({
+            ref, liability: name, month: cell.month, payoffCents,
+            balanceCents, deltaPct: null, ok: false,
+          });
+          return;
+        }
+        const deltaPct = (Math.abs(payoffCents - balanceCents) / balanceCents) * 100;
+        out.push({
+          ref, liability: name, month: cell.month, payoffCents,
+          balanceCents, deltaPct, ok: deltaPct <= 0.5,
+        });
+      });
+    }
+  }
 }
 
 /** A savings cell is a month-level total (no itemization) → one transaction. */

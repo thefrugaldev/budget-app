@@ -143,6 +143,104 @@ describe("buildExtract — categories, targets, income, liabilities", () => {
       expect.objectContaining({ liability: "Mortgage", date: "2023-01-31", balance: 300000 }),
     );
   });
+
+  it("canonicalizes a display-ugly liability header", async () => {
+    const buf = await buildFixtureWorkbook({ uglyLiabilityHeader: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const { workbooks } = buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    });
+    // "Home Loan" resolves to "Mortgage" via mapping.liabilities.
+    expect(workbooks[0].liabilitySnapshots.every((s) => s.liability === "Mortgage")).toBe(true);
+  });
+});
+
+describe("buildExtract — skipRows and the unmapped-nonzero gate", () => {
+  it("skips a declared derived-total row even when nonzero", async () => {
+    const buf = await buildFixtureWorkbook({ includeSkipRow: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const result = buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    });
+    // No category, no transaction, no error from the "Total" row.
+    expect(result.categories.categories.some((c) => c.name === "Total")).toBe(false);
+    expect(result.workbooks[0].transactions.some((t) => t.categoryId === undefined)).toBe(false);
+  });
+
+  it("still hard-errors a nonzero row that is neither mapped nor skipped", async () => {
+    const buf = await buildFixtureWorkbook({ includeUnmappedNonzero: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    expect(() =>
+      buildExtract({
+        workbooks: [wb],
+        mapping: fixtureMapping,
+        overrides: fixtureOverrides,
+        income: fixtureIncome,
+      }),
+    ).toThrow(/unmapped but has nonzero values/);
+  });
+});
+
+describe("buildExtract — liability payoff cross-check", () => {
+  async function crossCheck(opts: Parameters<typeof buildFixtureWorkbook>[0]) {
+    const wb = await readWorkbookBuffer(await buildFixtureWorkbook(opts), "2023.xlsx");
+    return buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    }).reconciliation;
+  }
+
+  it("passes when the payoff quote is within 0.5% of the balance", async () => {
+    const recon = await crossCheck({ payoffMode: "pass" });
+    expect(recon.liabilityCrossChecksTotal).toBe(1);
+    expect(recon.liabilityCrossChecksPassed).toBe(1);
+    const c = recon.liabilityCrossChecks[0];
+    expect(c).toMatchObject({ liability: "Mortgage", month: 1, ok: true });
+    expect(c.deltaPct!).toBeLessThanOrEqual(0.5);
+  });
+
+  it("fails when the payoff diverges beyond 0.5%", async () => {
+    const recon = await crossCheck({ payoffMode: "fail" });
+    expect(recon.liabilityCrossChecksPassed).toBe(0);
+    expect(recon.liabilityCrossChecks[0]).toMatchObject({ ok: false });
+    expect(recon.liabilityCrossChecks[0].deltaPct!).toBeGreaterThan(0.5);
+  });
+
+  it("fails a payoff line with no matching DebtsEquity balance", async () => {
+    const recon = await crossCheck({ payoffMode: "missing" });
+    const missing = recon.liabilityCrossChecks.find((c) => c.month === 3)!;
+    expect(missing).toMatchObject({ balanceCents: null, deltaPct: null, ok: false });
+  });
+
+  it("records no cross-check when there is no payoff metadata", async () => {
+    const recon = await crossCheck({ payoffMode: "none" });
+    expect(recon.liabilityCrossChecksTotal).toBe(0);
+  });
+});
+
+describe("buildExtract — negative liability balance", () => {
+  it("hard-errors, naming the cell", async () => {
+    const wb = await readWorkbookBuffer(
+      await buildFixtureWorkbook({ negativeBalance: true }),
+      "2023.xlsx",
+    );
+    expect(() =>
+      buildExtract({
+        workbooks: [wb],
+        mapping: fixtureMapping,
+        overrides: fixtureOverrides,
+        income: fixtureIncome,
+      }),
+    ).toThrow(/DebtsEquity!B2: liability "Mortgage" has a negative balance/);
+  });
 });
 
 describe("buildExtract — reports and the gate", () => {

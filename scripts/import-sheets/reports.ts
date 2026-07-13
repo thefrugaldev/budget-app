@@ -1,5 +1,6 @@
 import type {
   CellReconcileReport,
+  LiabilityCrossCheck,
   ReconciliationReport,
   VendorReport,
 } from "./manifest-types";
@@ -20,11 +21,17 @@ import { compareStrings } from "./sort";
  */
 export function buildReconciliationReport(
   cells: CellReconcileReport[],
+  crossChecks: LiabilityCrossCheck[] = [],
 ): ReconciliationReport {
   const rank = (s: string) =>
     s === "unreconciled" ? 0 : s === "reconciled-by-flip" ? 1 : 2;
   const sorted = [...cells].sort(
     (a, b) => rank(a.status) - rank(b.status) || compareStrings(a.ref, b.ref),
+  );
+  // Failures first, then by ref, so a reviewer lands on the payoff quotes that
+  // diverged from the recorded balance beyond tolerance.
+  const sortedChecks = [...crossChecks].sort(
+    (a, b) => Number(a.ok) - Number(b.ok) || compareStrings(a.ref, b.ref),
   );
   return {
     totalCells: cells.length,
@@ -32,6 +39,9 @@ export function buildReconciliationReport(
     reconciledByFlip: cells.filter((c) => c.status === "reconciled-by-flip").length,
     unreconciled: cells.filter((c) => c.status === "unreconciled").length,
     cells: sorted,
+    liabilityCrossChecksTotal: crossChecks.length,
+    liabilityCrossChecksPassed: crossChecks.filter((c) => c.ok).length,
+    liabilityCrossChecks: sortedChecks,
   };
 }
 

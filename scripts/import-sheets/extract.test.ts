@@ -13,7 +13,9 @@ import {
 } from "./fixtures/build-fixture-workbook";
 
 /** Lay out an archive dir: `2023.xlsx` at root, configs under `import/`. */
-async function makeArchive(opts?: { includeUnreconciled?: boolean }): Promise<string> {
+async function makeArchive(
+  opts?: Parameters<typeof buildFixtureWorkbook>[0],
+): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), "extract-"));
   const importDir = join(dir, "import");
   mkdirSync(importDir, { recursive: true });
@@ -66,6 +68,26 @@ describe("runExtract", () => {
     expect(existsSync(join(dir, "import/reports/reconciliation.json"))).toBe(true);
     expect(existsSync(join(dir, "import/manifest/2023.json"))).toBe(false);
     expect(existsSync(join(dir, "import/manifest/categories.json"))).toBe(false);
+  });
+
+  it("fails the payoff cross-check (exit 1), writing no manifest", async () => {
+    const dir = await makeArchive({ payoffMode: "fail" });
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const code = await runExtract([dir]);
+    expect(code).toBe(1);
+    expect(stderr.mock.calls.join("")).toMatch(/payoff cross-check/);
+    expect(existsSync(join(dir, "import/manifest/2023.json"))).toBe(false);
+    // The reconciliation report (which now carries the cross-checks) is written.
+    const recon = JSON.parse(
+      readFileSync(join(dir, "import/reports/reconciliation.json"), "utf8"),
+    );
+    expect(recon.liabilityCrossChecksPassed).toBe(0);
+  });
+
+  it("passes the gate when the payoff quote is within tolerance", async () => {
+    const dir = await makeArchive({ payoffMode: "pass" });
+    expect(await runExtract([dir])).toBe(0);
+    expect(existsSync(join(dir, "import/manifest/2023.json"))).toBe(true);
   });
 
   it("warns when an Excel lock file is present", async () => {
