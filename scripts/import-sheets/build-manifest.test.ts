@@ -333,6 +333,28 @@ describe("buildExtract — liability payoff cross-check", () => {
     const recon = await crossCheck({ payoffMode: "none" });
     expect(recon.liabilityCrossChecksTotal).toBe(0);
   });
+
+  it("hard-errors when two grid rows resolve to the same canonical liability", async () => {
+    // "Mortgage" and "Home Loan" both canonicalize to "Mortgage" via
+    // mapping.liabilities — payoff attribution would be ambiguous.
+    const wb: RawWorkbook = {
+      file: "2023.xlsx", year: 2023, gridSheet: "2023",
+      gridRows: [
+        { label: "Mortgage", cells: [] },
+        { label: "Home Loan", cells: [] },
+      ],
+      estimates: [],
+      liabilities: [{ liability: "Mortgage", month: 1, cell: "B2", balanceCents: 100 }],
+    };
+    expect(() =>
+      buildExtract({
+        workbooks: [wb],
+        mapping: fixtureMapping,
+        overrides: fixtureOverrides,
+        income: fixtureIncome,
+      }),
+    ).toThrow(/ambiguous payoff attribution/);
+  });
 });
 
 describe("buildExtract — negative liability balance", () => {

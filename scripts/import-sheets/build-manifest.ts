@@ -203,9 +203,22 @@ function collectPayoffObservations(
     present.add(resolveLiability(liab.liability, mapping));
   }
 
+  // Two grid rows collapsing onto one canonical liability would make payoff
+  // attribution ambiguous (whose quote is whose?) — hard-error, mirroring
+  // resolveCategory's stance on ambiguity.
+  const rowByLiability = new Map<string, string>();
+
   for (const row of wb.gridRows) {
     const name = resolveLiability(row.label, mapping);
     if (!present.has(name)) continue;
+    const priorLabel = rowByLiability.get(name);
+    if (priorLabel !== undefined) {
+      throw new Error(
+        `${wb.file}!${wb.gridSheet}: rows "${priorLabel}" and "${row.label}" both ` +
+          `resolve to liability "${name}" — ambiguous payoff attribution`,
+      );
+    }
+    rowByLiability.set(name, row.label);
     for (const cell of row.cells) {
       const lines = (cell.comment ?? "").split("\n").map((l) => l.trim());
       lines.forEach((line, i) => {

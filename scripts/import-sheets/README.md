@@ -116,11 +116,16 @@ Apply also syncs the Net Worth liability history: one liability `Account` is
 derived per distinct canonical liability name (cross-year, upsert-only), and each
 DebtsEquity balance becomes a dated `Snapshot` under it. A liability whose last
 snapshot predates the archive's latest month is auto-`closedAt` (a loan paid off
-mid-archive). Accounts upsert with `$set`/`$setOnInsert` (not `replaceOne`) so a
-post-cutover check-in's live `balance` — and a derived `closedAt` — survive a
-re-apply. `--first-apply` does **not** wipe seeded/hand-entered accounts or
-snapshots (net-worth seed uses random UUIDs, indistinguishable from real data);
-clearing that test data at cutover is an explicit RUNBOOK step.
+mid-archive); one that later resumes has that derived `closedAt` cleared again.
+Accounts upsert with `$set`/`$setOnInsert` (not `replaceOne`), and the derived
+fields are revisited on re-apply **only while still import-derived**: `balance`
+advances to the new latest snapshot when the current value equals the previous
+apply's latest imported snapshot (the pre-cutover re-run cadence), and a derived
+`closedAt` is un-set the same way — a post-cutover check-in/edit (a value that no
+longer matches the imported provenance) is never clobbered. `--first-apply` does
+**not** wipe seeded/hand-entered accounts or snapshots (net-worth seed uses
+random UUIDs, indistinguishable from real data); clearing that test data at
+cutover is an explicit RUNBOOK step.
 
 | Module | Responsibility |
 | --- | --- |

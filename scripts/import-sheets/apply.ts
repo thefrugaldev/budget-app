@@ -157,15 +157,30 @@ function snapshotDocs(snapshots: ManifestLiabilitySnapshot[]): SnapshotDoc[] {
 /**
  * Derive one liability `Account` per distinct canonical liability name across
  * all workbooks and upsert it. **Not** {@link syncCollection}'s replaceOne: a
- * post-cutover check-in updates an account's live `balance`, so a later re-apply
- * must set only the imported identity fields ($set) and seed `balance`/
- * `createdAt` once ($setOnInsert) — never clobber a user-edited balance.
+ * post-cutover check-in updates an account's live `balance`, so a re-apply must
+ * never clobber a user-edited value. The ownership rule per field:
  *
- * Closed detection is data-driven: the max snapshot month across *all*
- * liabilities is the archive's current edge; a liability whose own last snapshot
- * predates it has ended (a loan paid off mid-archive, absent from later
- * DebtsEquity tabs) → its `closedAt` is set to its last snapshot date. Setting
- * closedAt on update is the one exception to "never touch closedAt".
+ * - **Identity** (`name`, `class`, `importRef`) — import-owned, always `$set`.
+ * - **`balance`** — seeded from the latest snapshot on insert; on update it is
+ *   advanced to the new latest **only while still import-derived**, i.e. the
+ *   account's current balance equals the *previous* apply's latest imported
+ *   snapshot value (covers the whole pre-cutover re-run cadence, where nothing
+ *   else moves it). A balance that differs (a user check-in/edit) — or one with
+ *   no imported snapshot to compare against — is left alone.
+ * - **`closedAt`** — data-driven: the max snapshot month across *all*
+ *   liabilities is the archive's edge; a liability whose own last snapshot
+ *   predates it has ended → `$set closedAt` = that last date. Symmetrically, a
+ *   liability that *resumes* (reaches the edge again) gets its stale derived
+ *   `closedAt` `$unset` — but only when the current value equals the previous
+ *   apply's latest imported snapshot date, i.e. it is the value a previous
+ *   apply derived; a manually-closed account (unrelated date) stays closed.
+ *   `closedAt` never appears in `$set` and `$unset` at once (the branches are
+ *   exclusive), and `balance` moves out of `$setOnInsert` when `$set` takes it
+ *   (Mongo rejects the same path in both).
+ *
+ * The previous apply's snapshots are read here, BEFORE the snapshot sync runs
+ * ({@link applyManifests} orders it so) — they are the provenance that tells
+ * import-derived values apart from user edits.
  */
 async function syncLiabilityAccounts(input: {
   db: Db;
@@ -177,47 +192,73 @@ async function syncLiabilityAccounts(input: {
   const { db, workbooks, householdId, now, dryRun } = input;
   const col = db.collection<StringIdDoc>(COLLECTIONS.accounts);
 
-  // Gather every snapshot per canonical liability name, in date order.
-  const byName = new Map<string, ManifestLiabilitySnapshot[]>();
+  // Latest snapshot (max date) per canonical liability — the only element the
+  // derivation reads, so an O(n) pick rather than a sort.
+  const latestByName = new Map<string, ManifestLiabilitySnapshot>();
   for (const wb of workbooks) {
     for (const snap of wb.liabilitySnapshots) {
-      const list = byName.get(snap.liability) ?? [];
-      list.push(snap);
-      byName.set(snap.liability, list);
+      const cur = latestByName.get(snap.liability);
+      if (!cur || snap.date > cur.date) latestByName.set(snap.liability, snap);
     }
-  }
-  for (const list of byName.values()) {
-    list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   }
 
   // The archive edge: the latest snapshot month across all liabilities.
   let maxDate = "";
-  for (const list of byName.values()) {
-    const last = list[list.length - 1]?.date ?? "";
-    if (last > maxDate) maxDate = last;
+  for (const latest of latestByName.values()) {
+    if (latest.date > maxDate) maxDate = latest.date;
   }
 
-  const ids = [...byName.keys()].map((name) => hashImportRef(liabilityAccountRef(name)));
-  const existing = new Set<string>();
+  const ids = [...latestByName.keys()].map((name) => hashImportRef(liabilityAccountRef(name)));
+  const existing = new Map<string, { balance?: number; closedAt?: string }>();
   if (ids.length > 0) {
     const rows = await col
-      .find({ _id: { $in: ids } }, { projection: { _id: 1 } })
+      .find({ _id: { $in: ids } }, { projection: { _id: 1, balance: 1, closedAt: 1 } })
       .toArray();
-    for (const r of rows) existing.add(r._id);
+    for (const r of rows) {
+      existing.set(r._id, {
+        balance: r.balance as number | undefined,
+        closedAt: r.closedAt as string | undefined,
+      });
+    }
+  }
+
+  // The previous apply's latest imported snapshot per existing account — still
+  // in the DB because this runs before the snapshot sync. Its value/date are
+  // what a previous apply would have written into balance/closedAt.
+  const snapshotsCol = db.collection<StringIdDoc>(COLLECTIONS.snapshots);
+  const prevLatest = new Map<string, { value: number; date: string }>();
+  for (const _id of existing.keys()) {
+    const [row] = await snapshotsCol
+      .find(
+        { householdId, accountId: _id, importRef: { $exists: true } },
+        { projection: { value: 1, date: 1 } },
+      )
+      .sort({ date: -1 })
+      .limit(1)
+      .toArray();
+    if (row) prevLatest.set(_id, { value: row.value as number, date: row.date as string });
   }
 
   let inserted = 0;
   let updated = 0;
   const ops: AnyBulkWriteOperation<StringIdDoc>[] = [];
-  for (const [name, list] of byName) {
+  for (const [name, latest] of latestByName) {
     const ref = liabilityAccountRef(name);
     const _id = hashImportRef(ref);
-    if (existing.has(_id)) updated++;
+    const current = existing.get(_id);
+    if (current) updated++;
     else inserted++;
 
-    const lastDate = list[list.length - 1].date;
-    const latestBalance = list[list.length - 1].balance;
-    const derivedClosed = lastDate < maxDate;
+    const derivedClosed = latest.date < maxDate;
+    const prev = current ? prevLatest.get(_id) : undefined;
+    const advanceBalance =
+      current !== undefined && prev !== undefined && current.balance === prev.value;
+    const clearClosedAt =
+      !derivedClosed &&
+      current?.closedAt !== undefined &&
+      prev !== undefined &&
+      current.closedAt === prev.date;
+
     ops.push({
       updateOne: {
         filter: { _id },
@@ -227,9 +268,14 @@ async function syncLiabilityAccounts(input: {
             class: "liability",
             householdId,
             importRef: ref,
-            ...(derivedClosed ? { closedAt: lastDate } : {}),
+            ...(advanceBalance ? { balance: latest.balance } : {}),
+            ...(derivedClosed ? { closedAt: latest.date } : {}),
           },
-          $setOnInsert: { balance: latestBalance, createdAt: now },
+          $setOnInsert: {
+            ...(advanceBalance ? {} : { balance: latest.balance }),
+            createdAt: now,
+          },
+          ...(clearClosedAt ? { $unset: { closedAt: "" } } : {}),
         },
         upsert: true,
       },
@@ -316,14 +362,21 @@ async function syncCollection<T extends ImportedDoc>(input: {
  *     only identifiable via the seed dataset itself (`SEED_CATEGORIES`, the
  *     pure `lib/db/seed-data` module), so categories match on the slug list
  *     and transactions/targets match on a **seed-slug `categoryId`** (bare or
- *     namespaced) — hand-entered docs always reference UUID/nanoid category
- *     ids and imported docs reference hash ids, so a seed-slug ref can only be
- *     seed data, and field matching also absorbs drift in seed transaction
- *     counts across seed versions.
+ *     namespaced).
  *
- * Either way the wipe is NOT "lacks an importRef": a hand-entered transaction
- * added between bootstrap and import (a random-UUID `_id` and a UUID
- * `categoryId`, no `importRef`) must survive rather than be silently wiped.
+ * **Contract: hand-entered docs survive UNLESS they are filed under a seed
+ * category.** A transaction/target referencing a seed category (bare or
+ * namespaced `categoryId`) is wiped even when its own `_id` is a hand-entered
+ * UUID — sparing it would leave it dangling against a deleted category, and at
+ * cutover anything filed under a demo category is demo-scoped test data. The
+ * marker-free legacy seed makes a finer distinction impossible. Hand-entered
+ * docs on the user's own (UUID/nanoid) categories — and, once synced, imported
+ * docs on hash-id categories — never match and always survive; the wipe is NOT
+ * "lacks an importRef".
+ *
+ * This content-matching bridge is deletable post-cutover; if seeding ever
+ * grows again, new seed docs should carry a provenance marker (mirroring
+ * `importRef`) so the wipe can match provenance, not content.
  *
  * Returns the number of seed docs removed (a projected count under `dryRun`).
  */
@@ -360,6 +413,11 @@ async function wipeSeedAndDisableAutoSeed(input: {
     ...legacyCategoryIds.map((id) => seedDocId(householdId, id)),
   ];
   const namespacedId = { $regex: `^${escapeRegExp(householdId)}:` };
+  // In each $or below, the `categoryId` branch is load-bearing for LEGACY seed
+  // docs (bare ids that no prefix matches) and, per the contract above, for
+  // hand-entered docs filed under a seed category; the `_id`-regex branch is
+  // load-bearing for namespaced seed docs — whose `categoryId` is also a seed
+  // ref by construction, so the branches overlap there. Kept as belt-and-braces.
   const seedFilters: Record<string, Record<string, unknown>> = {
     [COLLECTIONS.categories]: {
       householdId,
