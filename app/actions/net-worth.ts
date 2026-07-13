@@ -10,12 +10,15 @@ import {
 } from "@/lib/net-worth/check-in";
 import { getQuotes } from "@/lib/net-worth/price/get-quotes";
 import {
+  addHolding,
   closeAccount,
   createAccount,
   deleteAccount,
   getAccountById,
   listAccounts,
+  removeHolding,
   updateAccount,
+  updateHolding,
 } from "@/lib/repositories/accounts";
 import { createSnapshots } from "@/lib/repositories/snapshots";
 import type { Account, Holding, PriceLookup } from "@/types/net-worth";
@@ -232,11 +235,8 @@ export async function addHoldingAction(
   try {
     await requireRole("editor");
     const id = parseAccountId(formData.get("accountId"));
-    const account = await requireInvestmentAccount(id);
+    await requireInvestmentAccount(id); // existence + kind gate (nice errors)
     const ticker = parseTicker(formData.get("ticker"));
-    if ((account.holdings ?? []).some((h) => h.ticker === ticker)) {
-      throw new Error("That ticker is already in this account — edit it instead");
-    }
     const quantity = parseQuantity(formData.get("quantity"));
     const priceOverride = parsePriceOverride(formData.get("priceOverride"));
     const holding: Holding = {
@@ -244,7 +244,13 @@ export async function addHoldingAction(
       quantity,
       ...(priceOverride !== undefined ? { priceOverride } : {}),
     };
-    assertUpdated(await updateAccount(id, { holdings: [...(account.holdings ?? []), holding] }));
+    // Atomic push (uniqueness enforced in the write) — no read-modify-write, so a
+    // concurrent add of a different ticker can't clobber this one (#140).
+    const result = await addHolding(id, holding);
+    if (result === "duplicate") {
+      throw new Error("That ticker is already in this account — edit it instead");
+    }
+    if (result === "not-found") throw new Error("Account not found");
     revalidateNetWorth();
     return success(prev, id);
   } catch (err) {
@@ -264,20 +270,14 @@ export async function updateHoldingAction(
   try {
     await requireRole("editor");
     const id = parseAccountId(formData.get("accountId"));
-    const account = await requireInvestmentAccount(id);
+    await requireInvestmentAccount(id); // existence + kind gate (nice errors)
     const ticker = parseTicker(formData.get("ticker"));
-    const existing = account.holdings ?? [];
-    if (!existing.some((h) => h.ticker === ticker)) {
-      throw new Error("Holding not found");
-    }
     const quantity = parseQuantity(formData.get("quantity"));
     const priceOverride = parsePriceOverride(formData.get("priceOverride"));
-    const holdings = existing.map((h) =>
-      h.ticker === ticker
-        ? { ticker, quantity, ...(priceOverride !== undefined ? { priceOverride } : {}) }
-        : h,
-    );
-    assertUpdated(await updateAccount(id, { holdings }));
+    // Atomic positional update — a concurrent edit to another holding survives (#140).
+    if (!(await updateHolding(id, ticker, { quantity, priceOverride }))) {
+      throw new Error("Holding not found");
+    }
     revalidateNetWorth();
     return success(prev, id);
   } catch (err) {
@@ -297,15 +297,10 @@ export async function removeHoldingAction(
   try {
     await requireRole("editor");
     const id = parseAccountId(formData.get("accountId"));
-    const account = await requireInvestmentAccount(id);
+    await requireInvestmentAccount(id); // existence + kind gate (nice errors)
     const ticker = parseTicker(formData.get("ticker"));
-    const existing = account.holdings ?? [];
-    if (!existing.some((h) => h.ticker === ticker)) {
-      throw new Error("Holding not found");
-    }
-    assertUpdated(
-      await updateAccount(id, { holdings: existing.filter((h) => h.ticker !== ticker) }),
-    );
+    // Atomic $pull — no read-modify-write, so a concurrent edit isn't lost (#140).
+    if (!(await removeHolding(id, ticker))) throw new Error("Holding not found");
     revalidateNetWorth();
     return success(prev, id);
   } catch (err) {
