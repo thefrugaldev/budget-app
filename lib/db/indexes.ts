@@ -100,6 +100,21 @@ function buildIndexes(db: Db): Promise<void> {
     // history series and per-account queries), which the compound key serves
     // and its `householdId` prefix also covers the household-only filter.
     db.collection(COLLECTIONS.accounts).createIndex({ householdId: 1, name: 1 }),
+    // Archive-import provenance on the Net Worth collections (#118 chunk 7),
+    // mirroring the transactions/categoryTargets partial indexes: serves apply's
+    // per-file snapshot orphan sweep and the danger-zone reset's importRef filter.
+    db
+      .collection(COLLECTIONS.accounts)
+      .createIndex(
+        { importRef: 1 },
+        { partialFilterExpression: { importRef: { $exists: true } } },
+      ),
+    db
+      .collection(COLLECTIONS.snapshots)
+      .createIndex(
+        { importRef: 1 },
+        { partialFilterExpression: { importRef: { $exists: true } } },
+      ),
     // Snapshots are day-grain — at most one per (household, account, date). The
     // createSnapshots upsert dedups logically; this UNIQUE index enforces it at
     // the DB, so a concurrent double-submit can't slip a second row past the

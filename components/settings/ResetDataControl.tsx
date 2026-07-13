@@ -65,8 +65,8 @@ export function ResetDataControl() {
         title="Clear all data?"
         description={
           includeImported
-            ? "This permanently deletes everything — every hand-entered transaction, category, and target AND the history imported from your spreadsheet archive. It can't be undone."
-            : "This permanently deletes every transaction, category, and target you entered by hand. History imported from your spreadsheet archive is kept. It can't be undone."
+            ? "This permanently deletes everything — every hand-entered transaction, category, target, account, and net-worth snapshot AND the history imported from your spreadsheet archive. It can't be undone."
+            : "This permanently deletes every transaction, category, target, account, and net-worth snapshot you entered by hand. History imported from your spreadsheet archive is kept. It can't be undone."
         }
         confirmLabel="Clear everything"
         onConfirm={handleConfirm}

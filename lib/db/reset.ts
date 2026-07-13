@@ -2,9 +2,11 @@ import { requireHouseholdId } from "@/lib/auth/session";
 
 import { COLLECTIONS } from "./collections";
 import type {
+  AccountDocument,
   CategoryDocument,
   CategoryTargetDocument,
   MetaDocument,
+  SnapshotDocument,
   TransactionDocument,
 } from "./documents";
 import { scopedCollection } from "./household-scope";
@@ -13,10 +15,12 @@ import { autoSeedDisabledId } from "./seed";
 
 /**
  * Danger-zone reset (#81 story 9): permanently clears user-data collections
- * (transactions, categories, and their target history) and records the
- * auto-seed-disabled marker so {@link ensureSeeded} never refills the
- * deliberately-emptied database on a later cold start. Local data only — there
- * is no remote/account state to touch yet.
+ * (transactions, categories, their target history, and the Net Worth
+ * accounts + snapshots) and records the auto-seed-disabled marker so
+ * {@link ensureSeeded} never refills the deliberately-emptied database on a
+ * later cold start. Local data only — there is no remote/account state to touch
+ * yet. `fireAssumptions` is deliberately not cleared here (see the PR discussion
+ * / open question — a single derived-defaults doc, not a data collection).
  *
  * By default it spares imported archive history (#118 story 14): only
  * hand-entered docs are removed. `includeImported: true` (the explicit UI
@@ -44,12 +48,15 @@ export async function resetAllData(
   // the same (cached) household internally for their own filters and stamps.
   const householdId = await requireHouseholdId();
 
-  const [meta, transactions, categories, targets] = await Promise.all([
-    scopedCollection<MetaDocument>(COLLECTIONS.meta),
-    scopedCollection<TransactionDocument>(COLLECTIONS.transactions),
-    scopedCollection<CategoryDocument>(COLLECTIONS.categories),
-    scopedCollection<CategoryTargetDocument>(COLLECTIONS.categoryTargets),
-  ]);
+  const [meta, transactions, categories, targets, accounts, snapshots] =
+    await Promise.all([
+      scopedCollection<MetaDocument>(COLLECTIONS.meta),
+      scopedCollection<TransactionDocument>(COLLECTIONS.transactions),
+      scopedCollection<CategoryDocument>(COLLECTIONS.categories),
+      scopedCollection<CategoryTargetDocument>(COLLECTIONS.categoryTargets),
+      scopedCollection<AccountDocument>(COLLECTIONS.accounts),
+      scopedCollection<SnapshotDocument>(COLLECTIONS.snapshots),
+    ]);
 
   // Per-household marker id, so two households (or a re-bootstrap after a
   // delete-household) never dup-key on a shared `_id`. The scoped collection
@@ -67,5 +74,7 @@ export async function resetAllData(
     transactions.deleteMany(resetDeletionFilter<TransactionDocument>(includeImported)),
     categories.deleteMany(resetDeletionFilter<CategoryDocument>(includeImported)),
     targets.deleteMany(resetDeletionFilter<CategoryTargetDocument>(includeImported)),
+    accounts.deleteMany(resetDeletionFilter<AccountDocument>(includeImported)),
+    snapshots.deleteMany(resetDeletionFilter<SnapshotDocument>(includeImported)),
   ]);
 }
