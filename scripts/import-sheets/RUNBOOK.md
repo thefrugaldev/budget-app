@@ -159,3 +159,95 @@ taken *at* cutover (the checklist step above); from then on, any apply run
 (should one ever be needed) is preceded by a database backup — the danger-zone
 reset already spares imported docs by default (chunk 5), but a backup is the
 belt-and-braces step before any bulk write to a live, authoritative database.
+
+### The provider gives you nothing — you are the backup
+
+The production cluster runs on the **Azure Cosmos DB for MongoDB vCore free
+tier**, which per Microsoft's own restrictions list does **not support
+Backup / Restore at all** — no automatic backups, no point-in-time restore, no
+"undo" button. Point-in-time restore (35-day retention) is a **paid-tier-only**
+feature; it is *not* something this database has. The free tier also has **no
+high availability** (single node, no failover) and **no uptime SLA**, and it
+**pauses after 60 days of inactivity** (paused, not deleted — resumeable from
+the portal; any activity resets the clock).
+
+The consequence is blunt: **if the data is lost or corrupted, Azure will not
+recover it for you.** The `mongodump` archives below are therefore not a
+belt-and-suspenders extra on top of a provider backup — they are the *only*
+backup that exists.
+
+### What the backups defend against (and the one thing that doesn't need them)
+
+- **Self-inflicted loss** (a bad `import:apply`, an accidental `deleteMany`, a
+  future migration bug) — the most likely cause for a single-user app. Guarded
+  by the "backup before any bulk write" rule below and by the danger-zone
+  reset's default `importRef` sparing.
+- **Provider-side loss** (Azure loses the cluster; no HA, no provider backup) —
+  low probability, zero safety net on Azure's side. The dump lives in the
+  private archive repo on GitHub, wholly independent infrastructure.
+- **Account/cluster lifecycle** (free-tier inactivity pause; a lapsed Azure
+  subscription taking the live DB with it) — the GitHub-repo copy survives all
+  of it, and the monthly automated run (below) keeps the 60-day pause from
+  triggering.
+- **Not at risk:** the 2020–2026 history is reproducible from the workbooks +
+  configs via `extract`/`apply`, so only *post-cutover hand-entered* data is
+  truly irreplaceable — which is exactly what the dumps protect.
+
+If the data ever outgrows this posture, scaling to a paid tier (M30+) adds PITR
+and HA and keeps data/connection string/network rules intact through the
+upgrade. Not warranted yet at single-digit-MiB scale.
+
+### Mechanics
+
+Backups are scripted `mongodump` archives committed to the private archive repo
+— same privacy posture as the workbooks, and pushing doubles as the offsite
+copy. The whole database is single-digit MiB, so a full dump is the unit of
+backup.
+
+**Automated (monthly):** `.github/workflows/backup.yml` in the archive repo
+dumps the DB and commits the archive on the 1st of each month (and on demand via
+the Actions "Run workflow" button / `gh workflow run backup.yml`). It reads the
+prod connection string from a repo secret named `MONGODB_URI` — encrypted
+client-side (libsodium sealed box) before it reaches GitHub, injected only as an
+env var, and never echoed by the workflow. One-time setup and the secret command
+are documented in `backups/README.md` in the archive repo.
+
+**Manual (before any bulk write / re-apply):** from the archive repo checkout,
+with prod `MONGODB_URI` from the secret store (never hard-coded):
+
+```
+mongodump --uri "$MONGODB_URI" --db budget \
+  --archive=backups/budget-prod-$(date +%Y-%m-%d).archive.gz --gzip
+git add backups/ && git commit -m "Backup $(date +%Y-%m-%d)" && git push
+```
+
+**Cadence:** the monthly job is the baseline (aligned with the net-worth
+check-in, the natural heartbeat of hand-entered data); take an extra manual dump
+**unconditionally before any `import:apply` or other bulk write.**
+
+### Recovery
+
+Restore replaces the database contents from an archive:
+
+```
+mongorestore --uri "$MONGODB_URI" --archive=backups/<file>.archive.gz \
+  --gzip --drop --noIndexRestore
+```
+
+- `--drop` clears each collection before restoring so the result mirrors the
+  backup exactly (no merged leftovers).
+- `--noIndexRestore` is required when restoring across engines: Cosmos vCore
+  stamps a `storageEngine.enableOrderedIndex` option on its indexes that plain
+  MongoDB rejects (and vice-versa metadata can round-trip oddly). Indexes are
+  not data: the app recreates every index it needs on boot
+  (`lib/db/indexes.ts`), so a restore never needs them from the archive.
+- Verify after restoring: `pnpm import:parity <archive-dir> --db budget` proves
+  the imported half; spot-check the newest hand-entered records in the app.
+- The same command against a scratch database (`--nsFrom "budget.*" --nsTo
+  "budget-restore-test.*"` on a local Mongo, no `--drop` needed) is the
+  restore *test* — run it when taking a backup you especially care about. The
+  cutover backup was verified this way (8,748 documents).
+
+**Worst case, total loss:** the 2020–2026 history is still reproducible from
+the workbooks + configs via `extract`/`apply` even with no backup at all; only
+post-cutover hand-entered data depends on the dumps.
