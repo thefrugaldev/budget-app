@@ -8,6 +8,7 @@ import {
   fixtureOverrides,
 } from "./fixtures/build-fixture-workbook";
 import { readWorkbookBuffer } from "./workbook";
+import type { RawWorkbook } from "./workbook";
 import type { ExtractResult } from "./manifest-types";
 
 async function extract(opts?: { includeUnreconciled?: boolean }): Promise<ExtractResult> {
@@ -91,6 +92,64 @@ describe("buildExtract — transactions", () => {
     expect(result.reconciliation.unreconciled).toBe(0);
   });
 
+  it("emits an add-line synthetic as a real transaction (unitemized remainder)", async () => {
+    // The Dining cell (B5: $100 with only $30 itemized) is unreconciled without
+    // an override; an add-line for the $70 remainder reconciles it and becomes
+    // a manifest transaction with a deterministic importRef at line 2. The
+    // vendor "Chase" proves the rewrite rules apply to added lines too, and
+    // month 12 in a January cell proves budget-month coercion applies.
+    const buf = await buildFixtureWorkbook({ includeUnreconciled: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const overrides = {
+      cells: {
+        "2023.xlsx!2023!B5": [
+          { line: 2, action: "add-line" as const, day: 30, month: 12, amountCents: 7000, vendor: "Chase", note: "card autopay", reason: "unitemized remainder" },
+        ],
+      },
+      refundKeywords: ["refund"],
+    };
+    const run = () =>
+      buildExtract({ workbooks: [wb], mapping: fixtureMapping, overrides, income: fixtureIncome });
+
+    const result = run();
+    expect(result.reconciliation.unreconciled).toBe(0);
+    const added = result.workbooks[0].transactions.find(
+      (t) => t.importRef === "2023.xlsx!2023!B5#2",
+    )!;
+    expect(added).toMatchObject({
+      amount: 70,
+      date: "2023-01-30", // Dec bill coerced into the January budget month
+      note: "card autopay (paid 12/30)",
+      vendor: "Chase Mortgage", // rewrite applied
+    });
+
+    // Deterministic across runs: same inputs, identical ids and output.
+    expect(JSON.stringify(run())).toBe(JSON.stringify(result));
+  });
+
+  it("defaults an add-line's month to the cell's own column month (no paid note)", async () => {
+    const buf = await buildFixtureWorkbook({ includeUnreconciled: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const result = buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: {
+        cells: {
+          "2023.xlsx!2023!B5": [
+            { line: 2, action: "add-line" as const, day: 20, amountCents: 7000, reason: "unitemized remainder" },
+          ],
+        },
+        refundKeywords: [],
+      },
+      income: fixtureIncome,
+    });
+    const added = result.workbooks[0].transactions.find(
+      (t) => t.importRef === "2023.xlsx!2023!B5#2",
+    )!;
+    expect(added.date).toBe("2023-01-20"); // the cell's own January column
+    expect(added.note).toBeUndefined(); // no coercion, no paid note
+  });
+
   it("emits a savings cell as a month-end monthly total", async () => {
     const { workbooks } = await extract();
     const brokerage = workbooks[0].transactions.find(
@@ -142,6 +201,176 @@ describe("buildExtract — categories, targets, income, liabilities", () => {
     expect(snaps).toContainEqual(
       expect.objectContaining({ liability: "Mortgage", date: "2023-01-31", balance: 300000 }),
     );
+  });
+
+  it("canonicalizes a display-ugly liability header", async () => {
+    const buf = await buildFixtureWorkbook({ uglyLiabilityHeader: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const { workbooks } = buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    });
+    // "Home Loan" resolves to "Mortgage" via mapping.liabilities.
+    expect(workbooks[0].liabilitySnapshots.every((s) => s.liability === "Mortgage")).toBe(true);
+  });
+});
+
+describe("buildExtract — skipRows and the unmapped-nonzero gate", () => {
+  it("skips a declared derived-total row even when nonzero", async () => {
+    const buf = await buildFixtureWorkbook({ includeSkipRow: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    const result = buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    });
+    // No category, no transaction, no error from the "Total" row.
+    expect(result.categories.categories.some((c) => c.name === "Total")).toBe(false);
+    expect(result.workbooks[0].transactions.some((t) => t.categoryId === undefined)).toBe(false);
+  });
+
+  it("still hard-errors a nonzero row that is neither mapped nor skipped", async () => {
+    const buf = await buildFixtureWorkbook({ includeUnmappedNonzero: true });
+    const wb = await readWorkbookBuffer(buf, "2023.xlsx");
+    expect(() =>
+      buildExtract({
+        workbooks: [wb],
+        mapping: fixtureMapping,
+        overrides: fixtureOverrides,
+        income: fixtureIncome,
+      }),
+    ).toThrow(/unmapped but has nonzero values/);
+  });
+});
+
+describe("buildExtract — liability payoff cross-check", () => {
+  async function crossCheck(opts: Parameters<typeof buildFixtureWorkbook>[0]) {
+    const wb = await readWorkbookBuffer(await buildFixtureWorkbook(opts), "2023.xlsx");
+    return buildExtract({
+      workbooks: [wb],
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    }).reconciliation;
+  }
+
+  it("passes when the payoff quote is within 0.5% of the balance", async () => {
+    const recon = await crossCheck({ payoffMode: "pass" });
+    expect(recon.liabilityCrossChecksTotal).toBe(1);
+    expect(recon.liabilityCrossChecksPassed).toBe(1);
+    const c = recon.liabilityCrossChecks[0];
+    // January of the earliest workbook: no prior December exists, so only the
+    // same-month comparison applies — and it passes as "month".
+    expect(c).toMatchObject({ liability: "Mortgage", month: 1, ok: true, matched: "month" });
+    expect(c.deltaPct!).toBeLessThanOrEqual(0.5);
+  });
+
+  it("fails when the payoff diverges beyond 0.5% (and no prior month saves it)", async () => {
+    const recon = await crossCheck({ payoffMode: "fail" });
+    expect(recon.liabilityCrossChecksPassed).toBe(0);
+    expect(recon.liabilityCrossChecks[0]).toMatchObject({ ok: false, matched: null });
+    expect(recon.liabilityCrossChecks[0].deltaPct!).toBeGreaterThan(0.5);
+  });
+
+  it("passes via the previous month-end when the same month diverges (timing artifact)", async () => {
+    const recon = await crossCheck({ payoffMode: "prior-month" });
+    const c = recon.liabilityCrossChecks.find((x) => x.month === 2)!;
+    // $301,000 is 0.67% off February's balance but 0.33% off January's — the
+    // quote was written before that month's payment posted.
+    expect(c).toMatchObject({ ok: true, matched: "prior-month", balanceCents: 30000000 });
+    expect(c.deltaPct!).toBeLessThanOrEqual(0.5);
+    expect(recon.liabilityCrossChecksPassed).toBe(recon.liabilityCrossChecksTotal);
+  });
+
+  it("fails a payoff line when neither the month nor the prior month has a balance", async () => {
+    const recon = await crossCheck({ payoffMode: "missing" });
+    const missing = recon.liabilityCrossChecks.find((c) => c.month === 4)!;
+    expect(missing).toMatchObject({
+      balanceCents: null, deltaPct: null, ok: false, matched: null,
+    });
+  });
+
+  it("compares a January payoff against December of the previous year's workbook", async () => {
+    // Hand-crafted minimal RawWorkbooks: 2023 carries only a December balance;
+    // 2024's January payoff diverges 0.67% from January's own balance but
+    // matches 2023's December exactly — cross-file prior-month lookup.
+    const wb2023: RawWorkbook = {
+      file: "2023.xlsx", year: 2023, gridSheet: "2023",
+      gridRows: [], estimates: [],
+      liabilities: [{ liability: "Mortgage", month: 12, cell: "B13", balanceCents: 30_000_000 }],
+    };
+    const wb2024: RawWorkbook = {
+      file: "2024.xlsx", year: 2024, gridSheet: "2024",
+      gridRows: [{
+        label: "Mortgage",
+        cells: [{ month: 1, cell: "B2", valueCents: null, comment: "Payoff Left - $300,000.00" }],
+      }],
+      estimates: [],
+      liabilities: [{ liability: "Mortgage", month: 1, cell: "B2", balanceCents: 29_800_000 }],
+    };
+    const { reconciliation } = buildExtract({
+      workbooks: [wb2024, wb2023], // deliberately unsorted — buildExtract orders by year
+      mapping: fixtureMapping,
+      overrides: fixtureOverrides,
+      income: fixtureIncome,
+    });
+    expect(reconciliation.liabilityCrossChecks).toEqual([
+      expect.objectContaining({
+        ref: "2024.xlsx!2024!B2#1",
+        month: 1,
+        ok: true,
+        matched: "prior-month",
+        balanceCents: 30_000_000,
+        deltaPct: 0,
+      }),
+    ]);
+  });
+
+  it("records no cross-check when there is no payoff metadata", async () => {
+    const recon = await crossCheck({ payoffMode: "none" });
+    expect(recon.liabilityCrossChecksTotal).toBe(0);
+  });
+
+  it("hard-errors when two grid rows resolve to the same canonical liability", async () => {
+    // "Mortgage" and "Home Loan" both canonicalize to "Mortgage" via
+    // mapping.liabilities — payoff attribution would be ambiguous.
+    const wb: RawWorkbook = {
+      file: "2023.xlsx", year: 2023, gridSheet: "2023",
+      gridRows: [
+        { label: "Mortgage", cells: [] },
+        { label: "Home Loan", cells: [] },
+      ],
+      estimates: [],
+      liabilities: [{ liability: "Mortgage", month: 1, cell: "B2", balanceCents: 100 }],
+    };
+    expect(() =>
+      buildExtract({
+        workbooks: [wb],
+        mapping: fixtureMapping,
+        overrides: fixtureOverrides,
+        income: fixtureIncome,
+      }),
+    ).toThrow(/ambiguous payoff attribution/);
+  });
+});
+
+describe("buildExtract — negative liability balance", () => {
+  it("hard-errors, naming the cell", async () => {
+    const wb = await readWorkbookBuffer(
+      await buildFixtureWorkbook({ negativeBalance: true }),
+      "2023.xlsx",
+    );
+    expect(() =>
+      buildExtract({
+        workbooks: [wb],
+        mapping: fixtureMapping,
+        overrides: fixtureOverrides,
+        income: fixtureIncome,
+      }),
+    ).toThrow(/DebtsEquity!B2: liability "Mortgage" has a negative balance/);
   });
 });
 

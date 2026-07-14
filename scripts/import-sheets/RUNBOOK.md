@@ -40,9 +40,10 @@ before the first apply** — a bad run is fixed by re-running, not by restore.
    ```
    pnpm import:extract <archive-dir>
    ```
-   The reconciliation report must show zero unreconciled cells (extract exits
-   non-zero otherwise). Skim the vendor-frequency report for anything that should
-   become a rewrite rule before real data lands.
+   The reconciliation report must show zero unreconciled cells **and** every
+   liability payoff cross-check passing (extract exits non-zero on either). Skim
+   the vendor-frequency report for anything that should become a rewrite rule
+   before real data lands.
 2. **Dry-run apply** and read the plan end to end — inserts/updates/orphan
    deletions per collection per file. Nothing is written:
    ```
@@ -122,7 +123,21 @@ chunk 7 against the real types → *optionally* #110 → cutover (below).
 The one-way switch from spreadsheet to app as system of record:
 
 - [ ] Final `2026.xlsx` save; workbook closed.
-- [ ] `pnpm import:extract` — reconciliation report clean.
+- [ ] `pnpm import:extract` — reconciliation report clean (cells + liability
+      payoff cross-checks all pass).
+- [ ] **Clear hand-entered/seeded net-worth test data.** Any accounts, snapshots,
+      or `fireAssumptions` created while previewing #109/#110 must go before the
+      final apply. `--first-apply` **cannot** identify them — the net-worth seed
+      scripts use random UUIDs, indistinguishable from hand-entered data, so the
+      seed wipe deliberately does not touch these collections. Delete them
+      directly (a scoped `deleteMany` on `accounts`, `snapshots`, and
+      `fireAssumptions` for the household), or use the Settings danger-zone reset
+      (which now clears imported *and* hand-entered accounts/snapshots on the
+      opt-in) **before** the first apply brings the real liability history over.
+      Imported liability snapshots render in the trajectory chart via the
+      carry-forward series (#109 story 10) and are spared by the default reset
+      (chunk-5 `importRef` protection, extended to the snapshot collection in
+      chunk 7).
 - [ ] `pnpm import:apply --dry-run` — plan reviewed.
 - [ ] `pnpm import:apply` — final sync.
 - [ ] `pnpm import:parity` — passes.

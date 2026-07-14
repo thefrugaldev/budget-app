@@ -3,6 +3,7 @@ import type {
   IncomeConfig,
   IncomeSourceConfig,
   MappedCategory,
+  MappedLiability,
   OverridesConfig,
 } from "./types";
 
@@ -35,8 +36,36 @@ export function parseMapping(raw: unknown): CategoryMapping {
     };
   });
 
+  const liabilities = asArray(
+    obj.liabilities ?? [],
+    "mapping.liabilities",
+  ).map((l, i) => parseMappedLiability(l, i));
+
+  const skipRows = asArray(obj.skipRows ?? [], "mapping.skipRows").map((s, i) =>
+    asString(s, `mapping.skipRows[${i}]`),
+  );
+
   assertUniqueAliases(categories);
-  return { categories, vendorRewrites };
+  assertUniqueLiabilityAliases(liabilities);
+  assertSkipRowsDisjoint(skipRows, categories);
+  return { categories, vendorRewrites, liabilities, skipRows };
+}
+
+function parseMappedLiability(raw: unknown, i: number): MappedLiability {
+  const l = asObject(raw, `mapping.liabilities[${i}]`);
+  const aliases = asArray(l.aliases, `mapping.liabilities[${i}].aliases`).map(
+    (a, j) => asString(a, `mapping.liabilities[${i}].aliases[${j}]`),
+  );
+  if (aliases.length === 0) {
+    throw new Error(`mapping.liabilities[${i}].aliases must be non-empty`);
+  }
+  return {
+    canonicalName: asString(
+      l.canonicalName,
+      `mapping.liabilities[${i}].canonicalName`,
+    ),
+    aliases,
+  };
 }
 
 function parseMappedCategory(raw: unknown, i: number): MappedCategory {
@@ -107,6 +136,19 @@ function parseLineOverride(raw: unknown, path: string) {
         day: asIntInRange(o.day, `${path}.day`, 1, 31),
         reason,
       };
+    case "add-line":
+      return {
+        line,
+        action: "add-line" as const,
+        day: asIntInRange(o.day, `${path}.day`, 1, 31),
+        ...(o.month !== undefined
+          ? { month: asIntInRange(o.month, `${path}.month`, 1, 12) }
+          : {}),
+        amountCents: asInt(o.amountCents, `${path}.amountCents`),
+        ...(o.vendor !== undefined ? { vendor: asString(o.vendor, `${path}.vendor`) } : {}),
+        ...(o.note !== undefined ? { note: asString(o.note, `${path}.note`) } : {}),
+        reason,
+      };
     default:
       throw new Error(`${path}.action invalid: ${JSON.stringify(o.action)}`);
   }
@@ -165,6 +207,39 @@ function assertUniqueAliases(categories: MappedCategory[]): void {
         );
       }
       seen.set(key, c.canonicalName);
+    }
+  }
+}
+
+function assertUniqueLiabilityAliases(liabilities: MappedLiability[]): void {
+  const seen = new Map<string, string>();
+  for (const l of liabilities) {
+    for (const alias of l.aliases) {
+      const key = alias.trim().toLowerCase();
+      const existing = seen.get(key);
+      if (existing && existing !== l.canonicalName) {
+        throw new Error(
+          `liability alias "${alias}" is claimed by both "${existing}" and "${l.canonicalName}"`,
+        );
+      }
+      seen.set(key, l.canonicalName);
+    }
+  }
+}
+
+function assertSkipRowsDisjoint(
+  skipRows: string[],
+  categories: MappedCategory[],
+): void {
+  const aliasKeys = new Set<string>();
+  for (const c of categories) {
+    for (const alias of c.aliases) aliasKeys.add(alias.trim().toLowerCase());
+  }
+  for (const row of skipRows) {
+    if (aliasKeys.has(row.trim().toLowerCase())) {
+      throw new Error(
+        `skipRow "${row}" is also a category alias — a label can't be both mapped and skipped`,
+      );
     }
   }
 }

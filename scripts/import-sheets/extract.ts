@@ -70,15 +70,28 @@ export async function runExtract(argv: string[]): Promise<number> {
   writeReports(outDir, result);
 
   const { reconciliation: recon } = result;
+  const crossFailed =
+    recon.liabilityCrossChecksTotal - recon.liabilityCrossChecksPassed;
   process.stdout.write(
     `extract: ${recon.totalCells} cells — ${recon.exact} exact, ` +
-      `${recon.reconciledByFlip} by flip, ${recon.unreconciled} unreconciled\n`,
+      `${recon.reconciledByFlip} by flip, ${recon.unreconciled} unreconciled; ` +
+      `payoff cross-check: ${recon.liabilityCrossChecksPassed}/${recon.liabilityCrossChecksTotal} passed\n`,
   );
-  if (recon.unreconciled > 0) {
+  if (recon.unreconciled > 0 || crossFailed > 0) {
+    if (recon.unreconciled > 0) {
+      process.stderr.write(
+        `FAILED reconciliation gate: ${recon.unreconciled} cell(s) do not balance. `,
+      );
+    }
+    if (crossFailed > 0) {
+      process.stderr.write(
+        `FAILED payoff cross-check: ${crossFailed} liability payoff(s) diverge from the ` +
+          `recorded balance beyond 0.5% (or have no matching balance). `,
+      );
+    }
     process.stderr.write(
-      `FAILED reconciliation gate: ${recon.unreconciled} cell(s) do not balance. ` +
-        `No manifest written. See ${join(outDir, "reports", "reconciliation.json")} ` +
-        `(unreconciled listed first).\n`,
+      `No manifest written. See ${join(outDir, "reports", "reconciliation.json")} ` +
+        `(failures listed first).\n`,
     );
     return 1;
   }

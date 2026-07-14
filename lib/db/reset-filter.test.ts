@@ -56,4 +56,32 @@ describe("resetDeletionFilter — applied to a real collection", () => {
 
     expect(await coll().countDocuments({ householdId: HH })).toBe(0);
   });
+
+  // Net Worth collections joined the reset in chunk 7 (spec item 10). The filter
+  // is collection-agnostic; prove it spares/removes imported docs there too.
+  it("spares imported accounts and snapshots by default, removes them on opt-in", async () => {
+    const accounts = mongo.db.collection<{ _id: string } & Record<string, unknown>>("accounts");
+    const snapshots = mongo.db.collection<{ _id: string } & Record<string, unknown>>("snapshots");
+    await accounts.insertMany([
+      { _id: "acct-manual", householdId: HH, name: "Checking", class: "asset" },
+      { _id: "acct-imported", householdId: HH, importRef: "liability!account!Mortgage", name: "Mortgage", class: "liability" },
+    ]);
+    await snapshots.insertMany([
+      { _id: "snap-manual", householdId: HH, accountId: "acct-manual", date: "2026-07-01", value: 100 },
+      { _id: "snap-imported", householdId: HH, importRef: "2023.xlsx!DebtsEquity!B2#1", accountId: "acct-imported", date: "2023-01-31", value: 300000 },
+    ]);
+
+    const spare = { householdId: HH, ...(resetDeletionFilter(false) as Record<string, unknown>) };
+    await accounts.deleteMany(spare);
+    await snapshots.deleteMany(spare);
+    expect(await accounts.countDocuments({ _id: "acct-imported" })).toBe(1);
+    expect(await snapshots.countDocuments({ _id: "snap-imported" })).toBe(1);
+    expect(await accounts.countDocuments({ _id: "acct-manual" })).toBe(0);
+
+    const all = { householdId: HH, ...(resetDeletionFilter(true) as Record<string, unknown>) };
+    await accounts.deleteMany(all);
+    await snapshots.deleteMany(all);
+    expect(await accounts.countDocuments({ householdId: HH })).toBe(0);
+    expect(await snapshots.countDocuments({ householdId: HH })).toBe(0);
+  });
 });

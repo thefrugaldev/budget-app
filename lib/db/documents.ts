@@ -79,7 +79,7 @@ export type MetaDocument = HouseholdOwned & {
 // Household-owned like all user data; the domain mappers project these to the
 // `@/types/net-worth` shapes. ---
 
-export type AccountDocument = HouseholdOwned & {
+export type AccountDocument = HouseholdOwned & Imported & {
   _id: string;
   name: string;
   class: AccountClass;
@@ -95,7 +95,7 @@ export type AccountDocument = HouseholdOwned & {
   createdAt: Date;
 };
 
-export type SnapshotDocument = HouseholdOwned & {
+export type SnapshotDocument = HouseholdOwned & Imported & {
   _id: string;
   accountId: string;
   date: string; // ISO "YYYY-MM-DD"

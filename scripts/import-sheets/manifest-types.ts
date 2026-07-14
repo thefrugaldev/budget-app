@@ -55,14 +55,16 @@ export type ManifestTransaction = {
 };
 
 /**
- * Provisional liability-balance snapshot. The Net Worth Account/Snapshot
- * document types don't exist until #109, so these are extracted into manifests
- * now (validated while the sheets are fresh) and applied later (chunk 7).
+ * A liability-balance snapshot from a DebtsEquity cell. Applied (chunk 7) as a
+ * Net Worth `Snapshot` under a derived liability `Account`.
  */
 export type ManifestLiabilitySnapshot = {
   _id: string;
   importRef: string;
-  /** Canonical liability name (the DebtsEquity column header). */
+  /**
+   * Canonical liability name — the DebtsEquity column header run through the
+   * optional `mapping.liabilities` rename (unmapped headers pass through).
+   */
   liability: string;
   /** Month-end ISO date "YYYY-MM-DD". */
   date: string;
@@ -105,6 +107,38 @@ export type CellReconcileReport = {
   autoFlippedLines: number[];
 };
 
+/**
+ * One payoff-metadata cross-check (chunk 7 / story 17). A `Payoff Left - $…`
+ * line in a year-grid liability row's cell comment is compared against that
+ * liability's DebtsEquity balance for the **same month and the previous
+ * month-end** — a quote written before the month's payment posted matches the
+ * prior balance (a legitimate timing artifact observed on real data), and the
+ * previous month is looked up across workbook boundaries (January → December of
+ * the prior year's file). A payoff quote includes accrued interest, so it never
+ * matches the principal balance exactly; the check is tolerance-based (`ok` iff
+ * the best available `deltaPct` ≤ 0.5). When neither month's balance exists,
+ * the entry fails with `balanceCents`/`deltaPct` null.
+ */
+export type LiabilityCrossCheck = {
+  /** `<file>!<sheet>!<cell>#<line>` — the payoff comment line's importRef. */
+  ref: string;
+  /** Canonical liability name the row resolved to. */
+  liability: string;
+  /** 1–12 budget month the payoff line sits in. */
+  month: number;
+  payoffCents: number;
+  /**
+   * The balance of the best (smallest-delta) available comparison — same month
+   * or previous month-end — or null when neither exists.
+   */
+  balanceCents: number | null;
+  /** |payoff − balance| / balance × 100 for that comparison, or null. */
+  deltaPct: number | null;
+  ok: boolean;
+  /** Which comparison passed ("month" preferred on a tie); null when failing. */
+  matched: "month" | "prior-month" | null;
+};
+
 export type ReconciliationReport = {
   totalCells: number;
   exact: number;
@@ -112,6 +146,12 @@ export type ReconciliationReport = {
   unreconciled: number;
   /** All cells, unreconciled first (then by ref) so review lands on failures. */
   cells: CellReconcileReport[];
+  /** How many payoff-metadata lines were checked. */
+  liabilityCrossChecksTotal: number;
+  /** How many of those passed (`deltaPct` ≤ 0.5 against a matched balance). */
+  liabilityCrossChecksPassed: number;
+  /** Every cross-check, failures first (then by ref). */
+  liabilityCrossChecks: LiabilityCrossCheck[];
 };
 
 /** Post-rewrite vendor frequency, so rewrite rules can be reviewed once (story 11). */

@@ -28,9 +28,39 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+/**
+ * How the fixture's mortgage-payoff cross-check should land:
+ *   - `"pass"` (default): a `Payoff Left - $…` line within 0.5% of the Jan
+ *     balance (a payoff quote incl. accrued interest); January of the earliest
+ *     workbook, so only the same-month comparison applies (no prior December);
+ *   - `"fail"`: a January payoff >0.5% off, with no prior-month balance to
+ *     save it;
+ *   - `"prior-month"`: a February payoff >0.5% from February's balance but
+ *     within 0.5% of January's — the quote-written-before-the-payment-posted
+ *     timing artifact the check must recognize;
+ *   - `"missing"`: a payoff line in a month where neither the same month nor
+ *     the previous month has a DebtsEquity balance;
+ *   - `"none"`: no payoff metadata at all.
+ */
+export type PayoffMode = "pass" | "fail" | "prior-month" | "missing" | "none";
+
+export type FixtureOptions = {
+  includeUnreconciled?: boolean;
+  /** Add a nonzero derived-total row declared as a skipRow (must not import). */
+  includeSkipRow?: boolean;
+  /** Add a nonzero row that is neither mapped nor skipped (hard-error case). */
+  includeUnmappedNonzero?: boolean;
+  /** Make the January Mortgage balance negative (extract must fail). */
+  negativeBalance?: boolean;
+  /** Use a display-ugly liability header, exercising canonicalization. */
+  uglyLiabilityHeader?: boolean;
+  payoffMode?: PayoffMode;
+};
+
 export async function buildFixtureWorkbook(
-  opts: { includeUnreconciled?: boolean } = {},
+  opts: FixtureOptions = {},
 ): Promise<Buffer> {
+  const payoffMode = opts.payoffMode ?? "pass";
   const wb = new ExcelJS.Workbook();
 
   // ── Estimate tab ──
@@ -43,11 +73,11 @@ export async function buildFixtureWorkbook(
 
   // ── DebtsEquity tab (transposed: months down, liabilities across) ──
   const debts = wb.addWorksheet("DebtsEquity");
-  debts.getCell("B1").value = "Mortgage";
+  debts.getCell("B1").value = opts.uglyLiabilityHeader ? "Home Loan" : "Mortgage";
   debts.getCell("C1").value = "Total Debts"; // reader stops here…
   debts.getCell("D1").value = "Equity"; // …so this column is NOT a liability
   debts.getCell("A2").value = "January";
-  debts.getCell("B2").value = 300000;
+  debts.getCell("B2").value = opts.negativeBalance ? -300000 : 300000;
   debts.getCell("C2").value = 300000;
   debts.getCell("D2").value = 50000;
   debts.getCell("A3").value = "February";
@@ -68,9 +98,21 @@ export async function buildFixtureWorkbook(
   setCell(grid, "C2", 50, "1/31 - $50.00 (Costco)"); // paid in Jan, budgeted Feb
   setCell(grid, "D2", 0, "3/5 - $20.00 (Corner Store)\n3/6 - $20.00 (refund from Corner Store)");
 
-  // Row 3: Mortgage (expense) — Dec bill budgeted to January
+  // Row 3: Mortgage (expense) — Dec bill budgeted to January. Its cell comments
+  // also carry the mortgage-payoff metadata (an extra non-transaction line that
+  // parses as `unparsed` and is dropped from the reconciliation sum).
   grid.getCell("A3").value = "Mortgage";
-  setCell(grid, "B3", 1900, "12/28 - $1,900.00 (Chase)");
+  setCell(grid, "B3", 1900, mortgageComment(payoffMode));
+  if (payoffMode === "prior-month") {
+    // February: $301,000 is 0.67% from Feb's 299,000 (fails same-month) but
+    // 0.33% from Jan's 300,000 — passes only via the prior-month comparison.
+    // (ExcelJS drops a note on a valueless cell, so carry a real bill too.)
+    setCell(grid, "C3", 1900, "2/1 - $1,900.00 (Chase)\nPayoff Left - $301,000.00");
+  }
+  if (payoffMode === "missing") {
+    // April: neither April nor March has a DebtsEquity balance → unmatched.
+    setCell(grid, "E3", 1900, "4/28 - $1,900.00 (Chase)\nPayoff Left - $290,000.00");
+  }
 
   // Row 4: Brokerage (savings) — bare monthly total, no comment
   grid.getCell("A4").value = "Brokerage";
@@ -82,8 +124,39 @@ export async function buildFixtureWorkbook(
     setCell(grid, "B5", 100, "1/4 - $30.00 (Cafe)"); // 30 ≠ 100 → unreconciled
   }
 
+  if (opts.includeSkipRow) {
+    // A derived total the sheet computes: nonzero, unmapped, but declared a
+    // skipRow — must NOT trip the unmapped-nonzero hard error, must NOT import.
+    grid.getCell("A6").value = "Total";
+    grid.getCell("B6").value = 2552.1;
+  }
+
+  if (opts.includeUnmappedNonzero) {
+    // Neither mapped nor a skipRow, but nonzero → the hard-error case.
+    grid.getCell("A7").value = "Mystery Row";
+    grid.getCell("B7").value = 42;
+  }
+
   // exceljs's Buffer type drifts from @types/node's; bridge through unknown.
   return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
+}
+
+/**
+ * The Mortgage row's January comment: the true bill line plus, per mode, a
+ * `Payoff Left - $…` metadata line. Pass value is 300,150 vs a 300,000 balance
+ * (0.05% — under tolerance); fail is 305,000 (1.67% — over). `missing` keeps
+ * January clean and puts the payoff in a balance-less month (added separately).
+ */
+function mortgageComment(mode: PayoffMode): string {
+  const bill = "12/28 - $1,900.00 (Chase)";
+  switch (mode) {
+    case "pass":
+      return `${bill}\nPayoff Left - $300,150.00`;
+    case "fail":
+      return `${bill}\nPayoff Left - $305,000.00`;
+    default:
+      return bill;
+  }
 }
 
 function setCell(
@@ -106,6 +179,11 @@ export const fixtureMapping: CategoryMapping = {
     { canonicalName: "Dining", kind: "expense", icon: "Utensils", aliases: ["Dining"] },
   ],
   vendorRewrites: [{ match: "Chase", to: "Chase Mortgage", mode: "exact" }],
+  // "Home Loan" is the DebtsEquity header under `uglyLiabilityHeader`; it
+  // canonicalizes to "Mortgage" so both header spellings share one account.
+  liabilities: [{ canonicalName: "Mortgage", aliases: ["Mortgage", "Home Loan"] }],
+  // A derived total the sheet computes — nonzero, never imported.
+  skipRows: ["Total", "Remaining After Expenses & Savings"],
 };
 
 export const fixtureOverrides: OverridesConfig = {
