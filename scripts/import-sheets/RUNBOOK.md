@@ -159,3 +159,51 @@ taken *at* cutover (the checklist step above); from then on, any apply run
 (should one ever be needed) is preceded by a database backup — the danger-zone
 reset already spares imported docs by default (chunk 5), but a backup is the
 belt-and-braces step before any bulk write to a live, authoritative database.
+
+### Mechanics (Cosmos DB vCore free tier)
+
+The prod cluster's free tier has **no native backup/restore** (paid vCore tiers
+get automatic point-in-time restore with 35-day retention), so backups are
+scripted `mongodump` archives, stored in the private archive repo — the same
+privacy posture as the workbooks, and pushing doubles as the offsite copy. The
+whole database is single-digit MiB, so a full dump is the unit of backup.
+
+**Take a backup** (from the private archive repo checkout; prod `MONGODB_URI`
+from the secret store, never hard-coded):
+
+```
+mongodump --uri "$MONGODB_URI" --db budget \
+  --archive=backups/budget-prod-$(date +%Y-%m-%d).archive.gz --gzip
+git add backups/ && git commit -m "Backup $(date +%Y-%m-%d)" && git push
+```
+
+**Cadence:** after each monthly net-worth check-in (the natural heartbeat of
+hand-entered data), and unconditionally before any `import:apply` or other bulk
+write.
+
+### Recovery
+
+Restore replaces the database contents from an archive:
+
+```
+mongorestore --uri "$MONGODB_URI" --archive=backups/<file>.archive.gz \
+  --gzip --drop --noIndexRestore
+```
+
+- `--drop` clears each collection before restoring so the result mirrors the
+  backup exactly (no merged leftovers).
+- `--noIndexRestore` is required when restoring across engines: Cosmos vCore
+  stamps a `storageEngine.enableOrderedIndex` option on its indexes that plain
+  MongoDB rejects (and vice-versa metadata can round-trip oddly). Indexes are
+  not data: the app recreates every index it needs on boot
+  (`lib/db/indexes.ts`), so a restore never needs them from the archive.
+- Verify after restoring: `pnpm import:parity <archive-dir> --db budget` proves
+  the imported half; spot-check the newest hand-entered records in the app.
+- The same command against a scratch database (`--nsFrom "budget.*" --nsTo
+  "budget-restore-test.*"` on a local Mongo, no `--drop` needed) is the
+  restore *test* — run it when taking a backup you especially care about. The
+  cutover backup was verified this way (8,748 documents).
+
+**Worst case, total loss:** the 2020–2026 history is still reproducible from
+the workbooks + configs via `extract`/`apply` even with no backup at all; only
+post-cutover hand-entered data depends on the dumps.
