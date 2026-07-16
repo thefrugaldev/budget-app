@@ -113,15 +113,19 @@ async function main(): Promise<void> {
         }
         const rest = { ...doc };
         delete (rest as { _id?: string })._id;
-        // Upsert the new-id doc (no-op if a prior run already created it), then
-        // drop the old-id doc — idempotent across partial runs. `_id: newId`
-        // trails the spread so it's the effective primary key.
+        // Delete the old-id doc BEFORE inserting the new one: these collections
+        // carry a compound unique index (e.g. categoryTargets on
+        // householdId+categoryId+effectiveFrom), so the old and new docs — which
+        // share those fields — can't both exist even momentarily. We hold the
+        // full doc in memory, and the insert is a no-op upsert, so a re-run
+        // after a partial pass is idempotent. `_id: newId` trails the spread so
+        // it's the effective primary key.
+        await coll.deleteOne({ _id: oldId });
         await coll.updateOne(
           { _id: newId },
           { $setOnInsert: { ...rest, _id: newId } },
           { upsert: true },
         );
-        await coll.deleteOne({ _id: oldId });
       }
     }
 
