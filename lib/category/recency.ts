@@ -43,6 +43,28 @@ export function compareCategoriesByRecency(
   };
 }
 
+/** Default cap for the recent-activity peek (issue #166 story 7). */
+export const PEEK_LIMIT = 12;
+
+/**
+ * The most-recent transactions in one category, newest first, capped to `limit`
+ * — the data behind the Categories ledger's recent-activity peek (issue #166
+ * story 7). Recency is by calendar `date` descending; same-date ties break on
+ * `id` descending so the slice is deterministic across renders (mirrors the
+ * id tiebreak in `mostRecentTransactionInCategory`). Independent of the page's
+ * date range: the peek always shows the latest activity, not the in-range set.
+ */
+export function recentTransactionsInCategory(
+  transactions: Transaction[],
+  categoryId: string,
+  limit: number = PEEK_LIMIT,
+): Transaction[] {
+  return transactions
+    .filter((t) => t.categoryId === categoryId)
+    .sort((a, b) => (a.date !== b.date ? b.date.localeCompare(a.date) : b.id.localeCompare(a.id)))
+    .slice(0, limit);
+}
+
 /**
  * Compact "last active" stamp for a category row (issue #166 story 4) — e.g.
  * "Today", "Yesterday", "3d ago", "2w ago". `dateIso` is a `"YYYY-MM-DD"`

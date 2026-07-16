@@ -7,6 +7,7 @@ import {
 import {
   compareCategoriesByRecency,
   lastActivityByCategory,
+  recentTransactionsInCategory,
 } from "@/lib/category/recency";
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
 import type { RangeSelection } from "@/types/range";
@@ -75,6 +76,7 @@ export function CategoryLedgerList({
             denominator={agg?.denominator ?? 0}
             perMonthTarget={resolveTargetForMonth(category.id, range.ymEnd, targets)}
             lastActivity={lastActivity.get(category.id)}
+            recentTransactions={recentTransactionsInCategory(transactions, category.id)}
             now={now}
           />
         );

@@ -8,7 +8,7 @@ import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { fmt, targetLabel, thresholdColor } from "@/lib/budget";
 import { relativeDayLabel } from "@/lib/category/recency";
 import { cn } from "@/lib/utils";
-import type { Category } from "@/types/budget";
+import type { Category, Transaction } from "@/types/budget";
 
 /**
  * One dense row of the Categories ledger (issue #166 chunk 3). The row links to
@@ -24,6 +24,7 @@ export function CategoryLedgerRow({
   denominator,
   perMonthTarget,
   lastActivity,
+  recentTransactions,
   now,
 }: {
   category: Category;
@@ -35,6 +36,8 @@ export function CategoryLedgerRow({
   perMonthTarget: number;
   /** Most-recent transaction date ("YYYY-MM-DD"), or undefined if none. */
   lastActivity: string | undefined;
+  /** The category's most-recent transactions (newest first) for the peek. */
+  recentTransactions: Transaction[];
   now: Date;
 }) {
   const col = thresholdColor(category.kind, denominator, total);
@@ -71,7 +74,11 @@ export function CategoryLedgerRow({
           </span>
         </div>
       </Link>
-      <CategoryPeekTrigger categoryName={category.name} />
+      <CategoryPeekTrigger
+        category={category}
+        transactions={recentTransactions}
+        now={now}
+      />
     </li>
   );
 }
