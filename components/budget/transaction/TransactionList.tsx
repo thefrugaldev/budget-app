@@ -472,9 +472,9 @@ export function TransactionList({
     () =>
       transactions.filter((t) => {
         if (hiddenIds.has(t.id)) return false;
-        return matchesTransactionFilter(t, filter);
+        return matchesTransactionFilter(t, filter, categoryById);
       }),
-    [transactions, filter, hiddenIds],
+    [transactions, filter, hiddenIds, categoryById],
   );
 
   // Keep the selection within the visible set: when the filter (or the

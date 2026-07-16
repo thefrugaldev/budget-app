@@ -1,4 +1,4 @@
-import type { Transaction } from "./budget";
+import type { CategoryKind, Transaction } from "./budget";
 
 /**
  * Transaction-list filter set, shared by the filter row, the list, and the URL
@@ -16,6 +16,13 @@ export type TransactionFilter = {
    * "all categories".
    */
   categoryIds?: string[];
+  /**
+   * Kind constraint for the global `/transactions` list — an Expense / Savings
+   * / Income axis resolved from each row's category. A non-empty set keeps only
+   * rows whose category kind is in it; empty/undefined means "all kinds". The
+   * per-category detail list is single-kind, so this axis is `/transactions`-only.
+   */
+  kinds?: CategoryKind[];
 };
 
 /**
