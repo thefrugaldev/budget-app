@@ -23,6 +23,7 @@ export function TransactionFields({
   prefill,
   vendorOptions,
   useDateFromPrefill,
+  requireVendor,
   compact,
   submitButton,
 }: {
@@ -30,19 +31,24 @@ export function TransactionFields({
   prefill: Transaction | undefined;
   vendorOptions: string[];
   /**
-   * Add mode pre-fills vendor/amount/note from history but always defaults
-   * the date to today (story 31). Edit mode pre-fills the date from the row
-   * being edited as well, so the form can round-trip an existing transaction
-   * without surprising re-dating.
+   * Add mode opens blank — no pre-fill and no today-default (#166 story
+   * 21/25), so the owner enters the date they intend rather than accepting a
+   * default they might overlook. Edit mode pre-fills the date from the row
+   * being edited, so the form round-trips an existing transaction without
+   * surprising re-dating.
    */
   useDateFromPrefill: boolean;
+  /**
+   * Add mode requires a vendor (#166 story 23); edit mode leaves it optional so
+   * a vendorless imported row (e.g. an archive "Monthly total") still saves.
+   */
+  requireVendor: boolean;
   /** Compact one-row layout for the category detail page (issue #15 chunk 1). */
   compact: boolean;
   /** Rendered inside the compact row's trailing group so Add sits inline with the fields. */
   submitButton: React.ReactNode;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const initialDate = useDateFromPrefill ? prefill?.date ?? today : today;
+  const initialDate = useDateFromPrefill ? prefill?.date ?? "" : "";
   const [date, setDate] = useState(initialDate);
   const [amount, setAmount] = useState(prefill ? Math.abs(prefill.amount).toString() : "");
   const [sign, setSign] = useState<"+" | "-">(prefill && prefill.amount < 0 ? "-" : "+");
@@ -94,6 +100,7 @@ export function TransactionFields({
               onChange={setVendor}
               options={vendorOptions}
               placeholder={vendorPlaceholder}
+              required={requireVendor}
             />
           </CompactField>
 
@@ -167,6 +174,7 @@ export function TransactionFields({
           onChange={setVendor}
           options={vendorOptions}
           placeholder={vendorPlaceholder}
+          required={requireVendor}
         />
       </FieldRow>
 

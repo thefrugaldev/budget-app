@@ -42,8 +42,13 @@ describe("resolveSeedAction", () => {
 // boundary. Without this, a second household (or a re-bootstrap after a chunk-6
 // delete-household) dup-keys on `_id` and fails to seed.
 describe("seedDocId", () => {
-  it("namespaces a stable id under its household", () => {
-    expect(seedDocId("h1", "groceries")).toBe("h1:groceries");
+  it("produces a colon-free 32-char hex id (matches prod's hashImportRef shape)", () => {
+    // A `:` in a category `_id` breaks `/categories/[id]` on client-side
+    // navigation (404s the detail page). This guards the colon-free scheme so
+    // the bug can't regress via the seed.
+    const id = seedDocId("h1", "groceries");
+    expect(id).toMatch(/^[0-9a-f]{32}$/);
+    expect(id).not.toContain(":");
   });
 
   it("keeps two households' copies of the same seed id distinct", () => {

@@ -166,12 +166,16 @@ async function backfillMissingCategories(
   now: Date,
 ): Promise<void> {
   // A seed category counts as already present if this household has it under
-  // either the namespaced id (seeded after per-household namespacing) or the
-  // legacy bare id (a household first seeded before it, e.g. the owner's). We
-  // look for both forms so an already-seeded household is never re-inserted as
-  // duplicates; genuinely-missing categories are then inserted namespaced.
+  // any of its three historical id forms: the current colon-free hashed id, the
+  // legacy `${householdId}:${slug}` colon id (pre-hash), or the legacy bare
+  // `slug` id (pre-per-household namespacing, e.g. the owner's first DB). We
+  // look for all three so an already-seeded household — including one not yet
+  // run through the colon→hash migration — is never re-inserted as duplicates;
+  // genuinely-missing categories are then inserted under the current scheme.
+  const legacyColonId = (id: string) => `${householdId}:${id}`;
   const wantedIds = SEED_CATEGORIES.flatMap((c) => [
     c._id,
+    legacyColonId(c._id),
     seedDocId(householdId, c._id),
   ]);
   const existingIds = new Set(
@@ -187,7 +191,9 @@ async function backfillMissingCategories(
   );
   const missing = SEED_CATEGORIES.filter(
     (c) =>
-      !existingIds.has(c._id) && !existingIds.has(seedDocId(householdId, c._id)),
+      !existingIds.has(c._id) &&
+      !existingIds.has(legacyColonId(c._id)) &&
+      !existingIds.has(seedDocId(householdId, c._id)),
   );
   if (missing.length === 0) return;
 

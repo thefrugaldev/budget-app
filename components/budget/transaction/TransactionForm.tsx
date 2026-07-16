@@ -11,10 +11,7 @@ import { CategoryPicker } from "@/components/budget/category/CategoryPicker";
 import { TransactionFields } from "@/components/budget/transaction/TransactionFields";
 import { TransactionSubmitButton } from "@/components/budget/transaction/TransactionSubmitButton";
 import { useNotify } from "@/hooks/useNotify";
-import {
-  mostRecentTransactionInCategory,
-  vendorSuggestionsForCategory,
-} from "@/lib/budget";
+import { vendorSuggestionsForCategory } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
 
@@ -69,15 +66,12 @@ export function TransactionForm({
   const [resetCount, setResetCount] = useState(0);
 
   const selected = categoryId ? categoryMap.get(categoryId) : undefined;
-  // Edit mode always prefills from the editing row, even after the user
-  // re-categorizes (story 45) — we don't want to clobber typed values with
-  // "most recent in the new category".
-  const prefill = useMemo(() => {
-    if (editing) return editing;
-    return categoryId
-      ? mostRecentTransactionInCategory(transactions, categoryId)
-      : undefined;
-  }, [editing, categoryId, transactions]);
+  // Add mode opens blank on every load and after every submit (#166 story
+  // 21/22/25): no pre-fill from history, no today-default date, so a stale
+  // value can't be saved by mistake. Only edit mode prefills — from the row
+  // being edited, even after re-categorizing (story 45), so typed values
+  // aren't clobbered.
+  const prefill = editing;
   const vendorOptions = useMemo(
     () => (categoryId ? vendorSuggestionsForCategory(transactions, categoryId) : []),
     [categoryId, transactions],
@@ -146,6 +140,7 @@ export function TransactionForm({
         prefill={prefill}
         vendorOptions={vendorOptions}
         useDateFromPrefill={isEdit}
+        requireVendor={!isEdit}
         compact={compact}
         submitButton={compact ? submitButton : null}
       />

@@ -4,24 +4,37 @@
 // insert the demo data; new seed docs are stamped `source: "seed"` (#163) so
 // they're identifiable by provenance rather than by matching this content.
 
+import { createHash } from "node:crypto";
+
 import type { CategoryDocument, TransactionDocument } from "./documents";
 
 /**
- * Seed docs carry stable, human-readable `_id`s (`"groceries"`, `"t1"`, a
- * target's `` `${categoryId}:${effectiveFrom}` ``) that are shared across the
- * codebase and, by design, identical for every household. Namespacing them by
- * household keeps those stable ids unique across the tenancy boundary, so a
- * second household seeds without colliding on the primary key against another
- * household's already-stamped docs (#120 review). References between seed docs
- * (a target/transaction's `categoryId`) are namespaced the same way so they
- * still resolve within the household.
+ * Deterministic, colon-free `_id` for a seed doc, namespaced by household.
  *
- * NB: databases seeded before this namespacing existed (pre-#111 — local dev,
- * prod) hold the **bare** ids; `ensureSeeded`'s backfill still recognizes that
- * legacy form.
+ * The seed dataset uses stable, human-readable base ids (`"groceries"`, `"t1"`,
+ * a target's `` `${slug}:${effectiveFrom}` ``) that are shared across the
+ * codebase and, by design, identical for every household. This hashes
+ * `` `${householdId}:${baseId}` `` into a 32-char SHA-256 hex — the **exact**
+ * scheme prod uses (`scripts/import-sheets/import-ref.ts` → `hashImportRef`) —
+ * so seeded dev/preview ids match prod's shape. The hash keeps each household's
+ * copy of a shared base id unique across the tenancy boundary (#120), and is
+ * stable so re-seeding never duplicates.
+ *
+ * Why not the old `` `${householdId}:${baseId}` `` string form: a `:` in a
+ * category `_id` doesn't round-trip through the App Router's client-side
+ * `<Link>` navigation, so `/categories/[id]` 404'd for every seeded category on
+ * preview (prod, colon-free, was unaffected). Colon-free ids remove that class
+ * of bug entirely.
+ *
+ * NB: databases seeded before this scheme (bare ids pre-#111; colon ids
+ * pre-this-change) hold legacy `_id`s; `ensureSeeded`'s backfill recognizes
+ * both legacy forms so it never re-inserts them as duplicates.
  */
 export function seedDocId(householdId: string, id: string): string {
-  return `${householdId}:${id}`;
+  return createHash("sha256")
+    .update(`${householdId}:${id}`)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 export const SEED_ACTIVE_FROM = "2026-01";

@@ -63,7 +63,11 @@ export async function createTransactionAction(
 
     const date = parseIsoDate(formData.get("date"));
     const amount = applySign(parsePositiveAmount(formData.get("amount")), formData.get("sign"));
-    const vendor = optionalString(formData.get("vendor"));
+    // Vendor is required on Add (#166 story 23) so an incomplete new
+    // transaction can't be saved; the server is the boundary, the client
+    // `required` only hides the affordance. Edit stays optional (below) so a
+    // vendorless imported row still round-trips.
+    const vendor = parseVendorName(formData.get("vendor"));
     const note = optionalString(formData.get("note"));
 
     await createTransaction({ categoryId, date, amount, vendor, note });
