@@ -1,5 +1,12 @@
-import type { Transaction } from "@/types/budget";
+import type { Category, CategoryKind, Transaction } from "@/types/budget";
 import type { TransactionFilter } from "@/types/transaction";
+
+/** The category kinds, as a set for URL-param validation and the kind filter. */
+const CATEGORY_KINDS: readonly CategoryKind[] = ["expense", "savings", "income"];
+
+function isCategoryKind(value: string): value is CategoryKind {
+  return (CATEGORY_KINDS as readonly string[]).includes(value);
+}
 
 /**
  * Most-recent (by date, then insertion order) transaction in a category, used
@@ -72,16 +79,28 @@ export function vendorSuggestionsForCategory(
  * multi-select — empty/undefined means "all categories". Date bounds are
  * inclusive ISO `YYYY-MM-DD` strings — lexicographic comparison is safe
  * given the fixed shape.
+ *
+ * `kinds` is the global list's Expense / Savings / Income axis. A row's kind
+ * lives on its category, not the transaction, so the caller passes a
+ * `categoryById` map to resolve it (the `/transactions` list already holds
+ * one). The map is optional: the single-kind detail list never sets `kinds`,
+ * so it needn't supply one; when `kinds` is set but a row's category can't be
+ * resolved, the row is excluded (it can't satisfy the constraint).
  */
 export function matchesTransactionFilter(
   t: Transaction,
   f: TransactionFilter,
+  categoryById?: ReadonlyMap<string, Category>,
 ): boolean {
   if (f.dateFrom && t.date < f.dateFrom) return false;
   if (f.dateTo && t.date > f.dateTo) return false;
   if (f.vendor && t.vendor !== f.vendor) return false;
   if (f.categoryIds && f.categoryIds.length > 0 && !f.categoryIds.includes(t.categoryId)) {
     return false;
+  }
+  if (f.kinds && f.kinds.length > 0) {
+    const kind = categoryById?.get(t.categoryId)?.kind;
+    if (!kind || !f.kinds.includes(kind)) return false;
   }
   const text = f.text?.trim().toLowerCase();
   if (text) {
@@ -103,6 +122,7 @@ const FILTER_PARAMS = {
   dateFrom: "from",
   dateTo: "to",
   categoryIds: "cat",
+  kinds: "kind",
 } as const;
 
 /**
@@ -123,6 +143,10 @@ export function serializeTransactionFilter(
   const categoryIds = filter.categoryIds?.filter(Boolean) ?? [];
   if (categoryIds.length > 0) {
     params.set(FILTER_PARAMS.categoryIds, categoryIds.join(","));
+  }
+  const kinds = filter.kinds?.filter(Boolean) ?? [];
+  if (kinds.length > 0) {
+    params.set(FILTER_PARAMS.kinds, kinds.join(","));
   }
   return params;
 }
@@ -150,6 +174,14 @@ export function parseTransactionFilter(
     .map((id) => id.trim())
     .filter(Boolean);
   if (categoryIds && categoryIds.length > 0) filter.categoryIds = categoryIds;
+  // Drop any junk kind in the URL rather than trust it — the value drives a
+  // typed axis, and an unknown kind would just never match a real category.
+  const kinds = params
+    .get(FILTER_PARAMS.kinds)
+    ?.split(",")
+    .map((k) => k.trim())
+    .filter(isCategoryKind);
+  if (kinds && kinds.length > 0) filter.kinds = kinds;
   return filter;
 }
 
