@@ -18,6 +18,28 @@ const KIND_OPTIONS: readonly { kind: CategoryKind; label: string }[] = [
   { kind: "income", label: "Income" },
 ];
 
+/** All / Imported / Manual — single-select; `undefined` is the All state. */
+const PROVENANCE_OPTIONS: readonly {
+  value: TransactionFilter["provenance"];
+  label: string;
+}[] = [
+  { value: undefined, label: "All" },
+  { value: "imported", label: "Imported" },
+  { value: "manual", label: "Manual" },
+];
+
+/** Shared segmented-group shell (`bg-muted` track + hairline ring). */
+const SEGMENTED_GROUP =
+  "inline-flex rounded-md bg-muted p-0.5 text-xs ring-1 ring-border";
+/** Shared segment button; `active` swaps to the raised, filled state. */
+const segment = (active: boolean) =>
+  cn(
+    "cursor-pointer rounded-[5px] px-2.5 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    active
+      ? "bg-background text-foreground shadow-sm"
+      : "text-muted-foreground hover:text-foreground",
+  );
+
 /**
  * Filter controls above the transaction list: free-text search, a vendor
  * select, and a date-range field. The global `/transactions` list additionally
@@ -59,8 +81,8 @@ export function FilterRow({
   return (
     <div className="space-y-2 rounded-2xl bg-card p-3 ring-1 ring-border">
       {categories && (
-        <div role="group" aria-label="Filter by kind" className="flex">
-          <div className="inline-flex rounded-md bg-muted p-0.5 text-xs ring-1 ring-border">
+        <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Filter by kind" className={SEGMENTED_GROUP}>
             {KIND_OPTIONS.map(({ kind, label }) => {
               const active = selectedKinds.includes(kind);
               return (
@@ -69,12 +91,25 @@ export function FilterRow({
                   type="button"
                   onClick={() => toggleKind(kind)}
                   aria-pressed={active}
-                  className={cn(
-                    "cursor-pointer rounded-[5px] px-2.5 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    active
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
+                  className={segment(active)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {/* Provenance is single-select (All / Imported / Manual): exactly one
+              is active, and All (undefined) is the no-constraint default. */}
+          <div role="group" aria-label="Filter by source" className={SEGMENTED_GROUP}>
+            {PROVENANCE_OPTIONS.map(({ value, label }) => {
+              const active = filter.provenance === value;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onChange({ ...filter, provenance: value })}
+                  aria-pressed={active}
+                  className={segment(active)}
                 >
                   {label}
                 </button>

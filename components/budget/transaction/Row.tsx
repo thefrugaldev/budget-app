@@ -126,8 +126,26 @@ export function Row({
                 identifier); the full note is on hover and in the Edit sheet,
                 and stays in the DOM for screen readers. */}
             <p className="truncate">
-              <span className="sr-only">Vendor: </span>
-              <span className="text-foreground">{t.vendor ?? "—"}</span>
+              {t.vendor ? (
+                <>
+                  <span className="sr-only">Vendor: </span>
+                  <span className="text-foreground">{t.vendor}</span>
+                </>
+              ) : t.imported && kind === "savings" ? (
+                // Imported savings cells are month-level aggregates with no
+                // vendor (`emitSavingsCell`), not missing data — label them so
+                // they don't read as a broken em-dash (#165 chunk 3). Gated to
+                // savings kind: vendorless imported *expense* rows are ordinary
+                // transactions, not aggregates, and must keep the em-dash.
+                <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground ring-1 ring-border">
+                  Monthly total
+                </span>
+              ) : (
+                <>
+                  <span className="sr-only">Vendor: </span>
+                  <span className="text-foreground">—</span>
+                </>
+              )}
               {t.note && (
                 <span className="text-muted-foreground" title={t.note}>
                   <span aria-hidden> · </span>

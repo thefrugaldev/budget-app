@@ -18,7 +18,7 @@ import type {
 } from "./documents";
 import { AUTO_SEED_DISABLED_ID, autoSeedDisabledId } from "./seed-marker";
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, seedDocId } from "./seed-data";
-import type { SeedCategory } from "./seed-data";
+import type { SeedCategory, SeedTransaction } from "./seed-data";
 
 // The marker-id helpers moved to `./seed-marker`, and the seed dataset + id
 // scheme to `./seed-data` — both pure, no `next/server` — so non-Next callers
@@ -120,7 +120,7 @@ async function doSeed(householdId: string): Promise<void> {
 // createCategory's null-avoidance, which the readers in mappers.ts rely on).
 // Every doc is stamped with the seeding household so chunk 4's household-scoped
 // reads surface the demo data (a fresh install looks unchanged for the owner).
-function buildCategoryDoc(
+export function buildCategoryDoc(
   c: SeedCategory,
   householdId: string,
   now: Date,
@@ -128,6 +128,7 @@ function buildCategoryDoc(
   return {
     _id: seedDocId(householdId, c._id),
     householdId,
+    source: "seed",
     name: c.name,
     emoji: c.emoji,
     kind: c.kind,
@@ -142,7 +143,7 @@ function buildCategoryDoc(
 }
 
 // One-time income sources have no baseline, so they get no target row.
-function buildTargetDoc(
+export function buildTargetDoc(
   c: SeedCategory,
   householdId: string,
   now: Date,
@@ -151,6 +152,7 @@ function buildTargetDoc(
   return {
     _id: seedDocId(householdId, `${c._id}:${c.activeFrom}`),
     householdId,
+    source: "seed",
     categoryId: seedDocId(householdId, c._id),
     monthly: c.initialMonthly,
     effectiveFrom: c.activeFrom,
@@ -227,20 +229,31 @@ async function seedTargets(
     .insertMany(docs);
 }
 
-async function seedTransactions(
-  db: Db,
+export function buildTransactionDoc(
+  t: SeedTransaction,
   householdId: string,
   now: Date,
-): Promise<void> {
-  const docs: TransactionDocument[] = SEED_TRANSACTIONS.map((t) => ({
+): TransactionDocument {
+  return {
     ...t,
     _id: seedDocId(householdId, t._id),
     // Reference the namespaced category id so the seed transaction resolves to
     // its (also namespaced) category within this household.
     categoryId: seedDocId(householdId, t.categoryId),
     householdId,
+    source: "seed",
     createdAt: now,
-  }));
+  };
+}
+
+async function seedTransactions(
+  db: Db,
+  householdId: string,
+  now: Date,
+): Promise<void> {
+  const docs = SEED_TRANSACTIONS.map((t) =>
+    buildTransactionDoc(t, householdId, now),
+  );
   await db
     .collection<TransactionDocument>(COLLECTIONS.transactions)
     .insertMany(docs);

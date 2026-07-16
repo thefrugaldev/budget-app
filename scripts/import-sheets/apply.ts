@@ -6,7 +6,6 @@ import { type AnyBulkWriteOperation, type Db } from "mongodb";
 
 import { COLLECTIONS } from "@/lib/db/collections";
 import { autoSeedDisabledId } from "@/lib/db/seed-marker";
-import { SEED_CATEGORIES, seedDocId } from "@/lib/db/seed-data";
 import type { HouseholdDocument } from "@/lib/db/documents";
 
 import { hashImportRef } from "./import-ref";
@@ -22,10 +21,9 @@ import type {
  * decision 3). Idempotent per file — upsert by deterministic `_id`, then delete
  * orphaned imported docs for that file — so re-running the current year's
  * workbook updates and prunes rather than duplicating. `--dry-run` prints the
- * exact plan touching nothing; `--first-apply` wipes prod's seed/demo data and
- * disables auto-seed so imported data is the only data (stories 8, 12, 15, 16).
+ * exact plan touching nothing (stories 8, 12).
  *
- *   MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--first-apply] [--db <name>]
+ *   MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--db <name>]
  *
  * Net Worth liability history (chunk 7): a liability `Account` is derived per
  * distinct canonical liability name across all workbooks, and each DebtsEquity
@@ -46,10 +44,7 @@ export type CollectionSync = {
 
 export type ApplyReport = {
   dryRun: boolean;
-  firstApply: boolean;
   householdId: string;
-  /** Seed/demo docs removed by `--first-apply` (0 otherwise). */
-  seedWiped: number;
   syncs: CollectionSync[];
 };
 
@@ -72,14 +67,9 @@ export async function applyManifests(input: {
   categories: CategoriesManifest;
   workbooks: WorkbookManifest[];
   dryRun: boolean;
-  firstApply: boolean;
   now: Date;
 }): Promise<ApplyReport> {
-  const { db, householdId, categories, workbooks, dryRun, firstApply, now } = input;
-
-  const seedWiped = firstApply
-    ? await wipeSeedAndDisableAutoSeed({ db, householdId, dryRun, now })
-    : 0;
+  const { db, householdId, categories, workbooks, dryRun, now } = input;
 
   const syncs: CollectionSync[] = [];
 
@@ -129,7 +119,22 @@ export async function applyManifests(input: {
     );
   }
 
-  return { dryRun, firstApply, householdId, seedWiped, syncs };
+  // Disable auto-seed for this household: once real data is imported, a cold
+  // start must never back-fill the demo dataset (`ensureSeeded` → `doSeed`
+  // returns "backfill" for a populated-but-unmarked DB, and `backfillMissing‑
+  // Categories` matches seed slugs — which imported hash-id docs never are —
+  // so it would re-insert every demo category). Idempotent upsert; the earlier
+  // `--first-apply` bridge wrote this marker, and removing that bridge must not
+  // drop the guarantee. Skipped on a dry run (no writes).
+  if (!dryRun) {
+    await db.collection<StringIdDoc>(COLLECTIONS.meta).updateOne(
+      { _id: autoSeedDisabledId(householdId) },
+      { $set: { householdId, clearedAt: now } },
+      { upsert: true },
+    );
+  }
+
+  return { dryRun, householdId, syncs };
 }
 
 /** `_id`/importRef for a derived liability account, keyed by canonical name. */
@@ -348,108 +353,6 @@ async function syncCollection<T extends ImportedDoc>(input: {
   return { collection, scope, inserted, updated, deletedOrphans };
 }
 
-/**
- * First-prod-apply prep (story 15): remove the seed/demo data and write the
- * auto-seed-disabled marker so a cold start never re-seeds. Refuses to run once
- * imported data exists — `--first-apply` is for the initial apply only.
- *
- * Seed docs come in **two id forms**, and both must go:
- *   - the current per-household namespaced key (`<householdId>:…`, from
- *     `seedDocId`), matched by an anchored `^`-prefix regex on `_id`;
- *   - the LEGACY bare form on databases seeded before #111's namespacing
- *     (local dev, prod): bare category slugs (`"groceries"`), bare transaction
- *     ids (`"t1"`), and target ids (`"<categoryId>:<activeFrom>"`). These are
- *     only identifiable via the seed dataset itself (`SEED_CATEGORIES`, the
- *     pure `lib/db/seed-data` module), so categories match on the slug list
- *     and transactions/targets match on a **seed-slug `categoryId`** (bare or
- *     namespaced).
- *
- * **Contract: hand-entered docs survive UNLESS they are filed under a seed
- * category.** A transaction/target referencing a seed category (bare or
- * namespaced `categoryId`) is wiped even when its own `_id` is a hand-entered
- * UUID — sparing it would leave it dangling against a deleted category, and at
- * cutover anything filed under a demo category is demo-scoped test data. The
- * marker-free legacy seed makes a finer distinction impossible. Hand-entered
- * docs on the user's own (UUID/nanoid) categories — and, once synced, imported
- * docs on hash-id categories — never match and always survive; the wipe is NOT
- * "lacks an importRef".
- *
- * This content-matching bridge is deletable post-cutover; if seeding ever
- * grows again, new seed docs should carry a provenance marker (mirroring
- * `importRef`) so the wipe can match provenance, not content.
- *
- * Returns the number of seed docs removed (a projected count under `dryRun`).
- */
-async function wipeSeedAndDisableAutoSeed(input: {
-  db: Db;
-  householdId: string;
-  dryRun: boolean;
-  now: Date;
-}): Promise<number> {
-  const { db, householdId, dryRun, now } = input;
-  const seedCollections = [
-    COLLECTIONS.categories,
-    COLLECTIONS.categoryTargets,
-    COLLECTIONS.transactions,
-  ];
-
-  const importedCount = (
-    await Promise.all(
-      seedCollections.map((c) =>
-        db.collection(c).countDocuments({ householdId, importRef: { $exists: true } }),
-      ),
-    )
-  ).reduce((a, b) => a + b, 0);
-  if (importedCount > 0) {
-    throw new Error(
-      "--first-apply refused: imported data already present. It is for the " +
-        "initial apply only; re-run without it to sync updates.",
-    );
-  }
-
-  const legacyCategoryIds = SEED_CATEGORIES.map((c) => c._id);
-  const seedCategoryIdRefs = [
-    ...legacyCategoryIds,
-    ...legacyCategoryIds.map((id) => seedDocId(householdId, id)),
-  ];
-  const namespacedId = { $regex: `^${escapeRegExp(householdId)}:` };
-  // In each $or below, the `categoryId` branch is load-bearing for LEGACY seed
-  // docs (bare ids that no prefix matches) and, per the contract above, for
-  // hand-entered docs filed under a seed category; the `_id`-regex branch is
-  // load-bearing for namespaced seed docs — whose `categoryId` is also a seed
-  // ref by construction, so the branches overlap there. Kept as belt-and-braces.
-  const seedFilters: Record<string, Record<string, unknown>> = {
-    [COLLECTIONS.categories]: {
-      householdId,
-      $or: [{ _id: { $in: legacyCategoryIds } }, { _id: namespacedId }],
-    },
-    [COLLECTIONS.categoryTargets]: {
-      householdId,
-      $or: [{ categoryId: { $in: seedCategoryIdRefs } }, { _id: namespacedId }],
-    },
-    [COLLECTIONS.transactions]: {
-      householdId,
-      $or: [{ categoryId: { $in: seedCategoryIdRefs } }, { _id: namespacedId }],
-    },
-  };
-
-  let wiped = 0;
-  for (const c of seedCollections) {
-    const seedFilter = seedFilters[c];
-    wiped += await db.collection<StringIdDoc>(c).countDocuments(seedFilter);
-    if (!dryRun) await db.collection<StringIdDoc>(c).deleteMany(seedFilter);
-  }
-
-  if (!dryRun) {
-    await db.collection<StringIdDoc>(COLLECTIONS.meta).updateOne(
-      { _id: autoSeedDisabledId(householdId) },
-      { $set: { householdId, clearedAt: now } },
-      { upsert: true },
-    );
-  }
-  return wiped;
-}
-
 /** The single household in v1; apply stamps its id onto every imported doc. */
 export async function resolveHouseholdId(db: Db): Promise<string> {
   const households = await db
@@ -474,7 +377,7 @@ export async function runApply(argv: string[]): Promise<number> {
   const archiveDir = args.archiveDir;
   if (!archiveDir) {
     process.stderr.write(
-      "usage: MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--first-apply] [--db <name>]\n",
+      "usage: MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--db <name>]\n",
     );
     return 2;
   }
@@ -486,7 +389,7 @@ export async function runApply(argv: string[]): Promise<number> {
     const householdId = await resolveHouseholdId(db);
     const report = await applyManifests({
       db, householdId, categories, workbooks,
-      dryRun: args.dryRun, firstApply: args.firstApply, now: new Date(),
+      dryRun: args.dryRun, now: new Date(),
     });
     process.stdout.write(formatReport(report, db.databaseName));
     return 0;
@@ -519,7 +422,6 @@ function readJson<T>(path: string): T {
 function formatReport(report: ApplyReport, dbName: string): string {
   const verb = report.dryRun ? "DRY-RUN (no writes)" : "APPLIED";
   const lines = [`apply ${verb} → db "${dbName}", household ${report.householdId}`];
-  if (report.firstApply) lines.push(`  first-apply: ${report.seedWiped} seed doc(s) wiped, auto-seed disabled`);
   for (const s of report.syncs) {
     const scope = s.scope ?? "cross-year";
     lines.push(
@@ -536,14 +438,12 @@ function escapeRegExp(s: string): string {
 function parseArgs(argv: string[]): {
   archiveDir?: string;
   dryRun: boolean;
-  firstApply: boolean;
   db?: string;
 } {
   const { values, positionals } = nodeParseArgs({
     args: argv,
     options: {
       "dry-run": { type: "boolean", default: false },
-      "first-apply": { type: "boolean", default: false },
       db: { type: "string" },
     },
     allowPositionals: true,
@@ -552,7 +452,6 @@ function parseArgs(argv: string[]): {
   return {
     archiveDir: positionals[0],
     dryRun: values["dry-run"] ?? false,
-    firstApply: values["first-apply"] ?? false,
     db: values.db,
   };
 }

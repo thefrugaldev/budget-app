@@ -61,6 +61,9 @@ export function toTransaction(doc: TransactionDocument): Transaction {
     date: doc.date,
     vendor: doc.vendor,
     note: doc.note,
+    // Provenance surfaced for the filter + "Monthly total" chip (#165 chunk 3).
+    // `importRef`'s mere presence marks an archive-imported doc.
+    imported: doc.importRef !== undefined,
   };
 }
 

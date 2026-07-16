@@ -23,6 +23,12 @@ export type TransactionFilter = {
    * per-category detail list is single-kind, so this axis is `/transactions`-only.
    */
   kinds?: CategoryKind[];
+  /**
+   * Provenance constraint for the global `/transactions` list. `"imported"`
+   * keeps only archive-imported rows, `"manual"` only hand-entered ones;
+   * undefined means "all sources" (the All state).
+   */
+  provenance?: "imported" | "manual";
 };
 
 /**

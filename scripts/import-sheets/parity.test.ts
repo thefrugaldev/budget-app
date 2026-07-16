@@ -44,7 +44,7 @@ beforeEach(async () => {
   await coll("households").insertOne({ _id: HH, createdAt: NOW });
   await applyManifests({
     db: mongo.db, householdId: HH, categories: result.categories,
-    workbooks: result.workbooks, dryRun: false, firstApply: false, now: NOW,
+    workbooks: result.workbooks, dryRun: false, now: NOW,
   });
 });
 

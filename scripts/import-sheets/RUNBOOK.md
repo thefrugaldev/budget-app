@@ -49,12 +49,13 @@ before the first apply** — a bad run is fixed by re-running, not by restore.
    ```
    MONGODB_URI=… pnpm import:apply <archive-dir> --dry-run
    ```
-3. **First apply.** `--first-apply` wipes the seed/demo data and writes the
-   auto-seed-disabled marker so a cold start never re-seeds over imported data
-   (it refuses to run if imported docs already exist, so it can't clobber a real
-   import):
+3. **First apply.** Historically this used `--first-apply` to wipe the seed/demo
+   data before syncing. That content-matching wipe was removed post-cutover
+   (#163); the flag no longer exists. A plain apply now writes the
+   auto-seed-disabled marker itself, so a cold start never back-fills demo data
+   over the imported set:
    ```
-   MONGODB_URI=… pnpm import:apply <archive-dir> --first-apply
+   MONGODB_URI=… pnpm import:apply <archive-dir>
    ```
 4. **Parity-check** — the app's own aggregations must agree with the manifest
    sums for every category-month and category-year (exits non-zero on any drift,
@@ -75,8 +76,8 @@ idempotent per file:
 1. Save the workbook in Excel and close it.
 2. `pnpm import:extract <archive-dir>` → review the reconciliation report.
 3. `pnpm import:apply <archive-dir> --dry-run` → sanity-check the plan
-   (**no `--first-apply`** — the seed is already gone and hand-entered data, if
-   any, must be preserved).
+   (apply preserves hand-entered data — it only upserts imported rows and prunes
+   orphaned imported rows, scoped to the file's `importRef` prefix).
 4. `pnpm import:apply <archive-dir>` → upserts changed rows and prunes rows that
    vanished from the workbook, scoped to that file's `importRef` prefix.
 5. `pnpm import:parity <archive-dir>` → confirm the round-trip still holds.
@@ -127,9 +128,9 @@ The one-way switch from spreadsheet to app as system of record:
       payoff cross-checks all pass).
 - [ ] **Clear hand-entered/seeded net-worth test data.** Any accounts, snapshots,
       or `fireAssumptions` created while previewing #109/#110 must go before the
-      final apply. `--first-apply` **cannot** identify them — the net-worth seed
-      scripts use random UUIDs, indistinguishable from hand-entered data, so the
-      seed wipe deliberately does not touch these collections. Delete them
+      final apply. Apply **cannot** identify them — the net-worth seed scripts
+      use random UUIDs, indistinguishable from hand-entered data, and apply
+      never touches these collections. Delete them
       directly (a scoped `deleteMany` on `accounts`, `snapshots`, and
       `fireAssumptions` for the household), or use the Settings danger-zone reset
       (which now clears imported *and* hand-entered accounts/snapshots on the

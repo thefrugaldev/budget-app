@@ -88,6 +88,14 @@ export type Transaction = {
   date: string; // ISO date, e.g. "2026-06-05"
   vendor?: string;
   note?: string;
+  /**
+   * True when this transaction came from the Excel archive (its document
+   * carries an `importRef`), false for hand-entered rows. Drives the
+   * provenance filter and the "Monthly total" chip on vendorless aggregate
+   * rows (#165 chunk 3). Absent on shapes that predate the mapper change is
+   * treated as false.
+   */
+  imported?: boolean;
 };
 
 export type MonthlySpendByCategory = {
