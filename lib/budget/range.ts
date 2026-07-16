@@ -80,6 +80,39 @@ export function resolveRange(preset: RangePreset, today = new Date()): RangeSele
 }
 
 /**
+ * A preset resolved to inclusive ISO day bounds (`YYYY-MM-DD`) — the form the
+ * transaction date scope and CSV export consume. Bridges the month-key range
+ * language (`resolveRange`) to the day-granular bounds the list scopes by.
+ * Shared substrate for the unified date-scope control (issue #165 chunk 5) and
+ * the wider-reach work on Pulse (#160) / Income (#162).
+ */
+export function presetDateBounds(
+  preset: RangePreset,
+  today = new Date(),
+): { from: string; to: string } {
+  const { ymStart, ymEnd } = resolveRange(preset, today);
+  return { from: monthStartDate(ymStart), to: monthEndDate(ymEnd) };
+}
+
+/**
+ * Inverse of {@link presetDateBounds}: given inclusive ISO day bounds, returns
+ * the preset whose window matches exactly, or `null` for an arbitrary (custom)
+ * range. Drives which chip the date-scope selector highlights. `today` must be
+ * the same anchor the bounds were resolved against.
+ */
+export function presetForDateBounds(
+  from: string,
+  to: string,
+  today = new Date(),
+): RangePreset | null {
+  for (const preset of RANGE_PRESETS) {
+    const bounds = presetDateBounds(preset, today);
+    if (bounds.from === from && bounds.to === to) return preset;
+  }
+  return null;
+}
+
+/**
  * Yields every "YYYY-MM" key from `start` through `end`, inclusive. The two
  * strings are lexically comparable, which makes range checks elsewhere a
  * straight string comparison.

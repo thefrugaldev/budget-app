@@ -14,8 +14,6 @@ describe("transaction filter URL seam", () => {
   const full: TransactionFilter = {
     text: "coffee",
     vendors: ["Blue Bottle", "Costco"],
-    dateFrom: "2026-01-01",
-    dateTo: "2026-03-31",
     categoryIds: ["dining", "groceries"],
     kinds: ["expense", "savings"],
     provenance: "imported",
@@ -67,6 +65,19 @@ describe("transaction filter URL seam", () => {
       const next = applyTransactionFilterToParams(base, {});
       expect(next.toString()).toBe("range=ytd");
     });
+
+    it("preserves the date scope (from/to) — it's a separate axis, not a filter key", () => {
+      const base = new URLSearchParams("from=2024-01-01&to=2024-12-31&q=coffee");
+      const next = applyTransactionFilterToParams(base, { text: "tea" });
+      expect(next.get("from")).toBe("2024-01-01");
+      expect(next.get("to")).toBe("2024-12-31");
+      expect(next.get("q")).toBe("tea");
+    });
+  });
+
+  it("ignores the date-scope keys (from/to) when parsing a filter", () => {
+    const params = new URLSearchParams("from=2024-01-01&to=2024-12-31&q=coffee");
+    expect(parseTransactionFilter(params)).toEqual({ text: "coffee" });
   });
 
   describe("kinds axis", () => {
