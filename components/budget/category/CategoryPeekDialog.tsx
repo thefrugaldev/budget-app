@@ -84,11 +84,11 @@ export function CategoryPeekDialog({
               Recent activity in {category.name}
             </Dialog.Title>
             <Dialog.Description className="mt-1 text-xs text-muted-foreground">
-              The category&apos;s most recent transactions. Read-only — edit from
-              the category page.
+              The category’s most recent transactions. Read-only — edit from the
+              category page.
             </Dialog.Description>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
             <RoleProvider role="viewer">
               {dayGroups.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
@@ -110,6 +110,7 @@ export function CategoryPeekDialog({
                     onToggleStreak={toggleStreak}
                     onEdit={() => {}}
                     onDelete={() => {}}
+                    headerClassName="top-0 bg-card"
                   />
                 ))
               )}

@@ -39,6 +39,7 @@ export function DaySection({
   onToggleStreak,
   onEdit,
   onDelete,
+  headerClassName = "top-14 bg-background",
 }: {
   group: DayGroup;
   /** Single page category in detail mode; undefined on the global list. */
@@ -53,6 +54,15 @@ export function DaySection({
   onToggleStreak: (key: string) => void;
   onEdit: (t: Transaction) => void;
   onDelete: (t: Transaction) => void;
+  /**
+   * Sticky-header offset + background, defaulting to the page-shell values
+   * (`top-14` clears the 56px app nav; `bg-background` matches the page). A
+   * different scroll container — e.g. the category peek modal, whose own header
+   * is the scrollport top and whose surface is `bg-card` — passes `top-0
+   * bg-card` so the day header sticks flush and blends in. `sticky z-10` stays
+   * fixed; only the offset and background vary.
+   */
+  headerClassName?: string;
 }) {
   // A global day's subtotal nets across kinds, so it renders as a plain signed
   // sum (expense convention: no leading "+", no green); a detail day inherits
@@ -62,7 +72,12 @@ export function DaySection({
   const dayIds = useMemo(() => dayGroupIds(group), [group]);
   return (
     <section aria-label={`${group.label}, ${fmtExact(group.subtotal)}`}>
-      <h3 className="sticky top-14 z-10 flex items-baseline gap-2 border-b border-border bg-background px-1 pb-2.5 pt-4 text-sm font-semibold">
+      <h3
+        className={cn(
+          "sticky z-10 flex items-baseline gap-2 border-b border-border px-1 pb-2.5 pt-4 text-sm font-semibold",
+          headerClassName,
+        )}
+      >
         {selection.selectionMode && (
           <Checkbox
             label={`Select all on ${group.label}`}
