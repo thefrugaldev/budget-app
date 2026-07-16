@@ -104,6 +104,17 @@ export type MonthlySpendByCategory = {
   total: number;
 };
 
+/**
+ * Per-category output of `aggregateRange`: the signed in-range `total` and the
+ * `denominator` (summed effective target over the active in-range months).
+ * Both the fulfillment chip and Pulse's attention selector derive from it.
+ */
+export type RangeAggregate = {
+  categoryId: string;
+  total: number;
+  denominator: number;
+};
+
 /** Per-month datum for the category trend bar chart. */
 export type MonthBarDatum = {
   ym: string;

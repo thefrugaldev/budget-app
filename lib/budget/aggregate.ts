@@ -2,6 +2,7 @@ import type {
   Category,
   CategoryTarget,
   MonthlyTrendPoint,
+  RangeAggregate,
   TrailingActuals,
   Transaction,
 } from "@/types/budget";
@@ -249,12 +250,6 @@ export function isCategoryEnded(
 ): category is Category & { activeUntil: string } {
   return category.activeUntil !== undefined;
 }
-
-export type RangeAggregate = {
-  categoryId: string;
-  total: number;
-  denominator: number;
-};
 
 /**
  * Aggregates signed transaction amounts and effective-target sums over a
