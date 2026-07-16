@@ -3,6 +3,7 @@
 import { useId } from "react";
 
 import { CategoryMultiSelect } from "@/components/budget/category/CategoryMultiSelect";
+import { VendorMultiSelect } from "@/components/budget/transaction/VendorMultiSelect";
 import { DateRangeField } from "@/components/ui/DateRangeField";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind } from "@/types/budget";
@@ -42,7 +43,8 @@ const segment = (active: boolean) =>
 
 /**
  * Filter controls above the transaction list: free-text search, a vendor
- * select, and a date-range field. The global `/transactions` list additionally
+ * multi-select (OR-combined, with a "No vendor" pseudo-option), and a
+ * date-range field. The global `/transactions` list additionally
  * gets a category multi-select and an Expense / Savings / Income kind toggle
  * (both passed `categories`); the per-category detail list omits them — it is
  * single-kind (story 18, 24, 64).
@@ -64,7 +66,6 @@ export function FilterRow({
   // so the compact filter grid is unchanged; useId keeps each association unique
   // if two filter rows ever mount on one page.
   const searchId = useId();
-  const vendorId = useId();
   const dateId = useId();
   // Kind toggle is global-list-only. Rebuild from KIND_OPTIONS order so the
   // stored (and serialized) array is deterministic regardless of click order.
@@ -146,24 +147,11 @@ export function FilterRow({
           className="w-full rounded-md bg-background px-3 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
         />
       </div>
-      <div>
-        <label htmlFor={vendorId} className="sr-only">
-          Vendor
-        </label>
-        <select
-          id={vendorId}
-          value={filter.vendor ?? ""}
-          onChange={(e) => onChange({ ...filter, vendor: e.target.value })}
-          className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
-        >
-          <option value="">All vendors</option>
-          {vendorOptions.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
-      </div>
+      <VendorMultiSelect
+        vendorOptions={vendorOptions}
+        selected={filter.vendors ?? []}
+        onChange={(vendors) => onChange({ ...filter, vendors })}
+      />
       <div>
         <label htmlFor={dateId} className="sr-only">
           Date range
