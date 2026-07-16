@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 
-import { AddCategoryTile } from "@/components/budget/category/AddCategoryTile";
-import { AddMenu } from "@/components/budget/shared/AddMenu";
-import { CategoryCard } from "@/components/budget/category/CategoryCard";
-import { GrowthColumns } from "@/components/budget/pulse/GrowthColumns";
 import { HeaderIncome } from "@/components/budget/income/HeaderIncome";
+import { GrowthColumns } from "@/components/budget/pulse/GrowthColumns";
+import { NeedsAttention } from "@/components/budget/pulse/NeedsAttention";
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
-import { SectionHeading } from "@/components/ui/SectionHeading";
 import {
   aggregateRange,
   computeIncomeForRange,
@@ -19,7 +16,7 @@ import {
   planTargetForMonth,
   rangeLabel,
   resolveRange,
-  resolveTargetForMonth,
+  selectAttention,
 } from "@/lib/budget";
 import type { RangePreset } from "@/types/range";
 import { requireHouseholdId } from "@/lib/auth/session";
@@ -102,6 +99,12 @@ export default async function Home({
   const trend = monthlyTrend(transactions, categories, 6, now);
   const plan = planTargetForMonth(categories, targets, thisMonth);
 
+  // Overview, not ledger (story 17): Pulse surfaces only the exception rows for
+  // the active range — over-cap expenses, savings behind / not started /
+  // withdrawn, met goals — via the chunk-1 selector, capped with an overflow
+  // count. The full per-category ledger lives on /categories.
+  const attention = selectAttention(inRange, aggregates);
+
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28">
       {/* Thesis hero (#80 "Harvest+"): lead with the money and the momentum —
@@ -180,45 +183,7 @@ export default async function Home({
         <RangeSelector active={preset} basePath="/" />
       </div>
 
-      <SectionHeading amount={fmt(expenseTotal)}>Expenses · {rangeLower}</SectionHeading>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {expenses.map((c) => {
-          const agg = aggregateById.get(c.id);
-          return (
-            <CategoryCard
-              key={c.id}
-              category={c}
-              total={agg?.total ?? 0}
-              denominator={agg?.denominator ?? 0}
-              perMonthTarget={resolveTargetForMonth(c.id, range.ymEnd, targets)}
-              transactions={transactions}
-            />
-          );
-        })}
-        <AddCategoryTile kind="expense" />
-      </div>
-
-      <div className="mt-8">
-        <SectionHeading amount={fmt(savingsTotal)}>Savings · {rangeLower}</SectionHeading>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {savings.map((c) => {
-            const agg = aggregateById.get(c.id);
-            return (
-              <CategoryCard
-                key={c.id}
-                category={c}
-                total={agg?.total ?? 0}
-                denominator={agg?.denominator ?? 0}
-                perMonthTarget={resolveTargetForMonth(c.id, range.ymEnd, targets)}
-                transactions={transactions}
-              />
-            );
-          })}
-          <AddCategoryTile kind="savings" />
-        </div>
-      </div>
-
-      <AddMenu categories={categories} transactions={transactions} />
+      <NeedsAttention result={attention} />
     </div>
   );
 }
