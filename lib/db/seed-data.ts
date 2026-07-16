@@ -1,10 +1,8 @@
 // The demo-seed dataset and its id scheme — pure, dependency-free (type-only
 // imports). Split out of `seed.ts` (which pulls the `getDb` → `next/server`
-// chain) following the `seed-marker` precedent, so non-Next callers can reach
-// it: the archive `apply` CLI's `--first-apply` wipe (#118) must recognize
-// seed documents — including the LEGACY bare-id form below — without dragging
-// in the Next request runtime. `seed.ts` consumes these to insert; `apply.ts`
-// consumes them to delete.
+// chain) following the `seed-marker` precedent. `seed.ts` consumes these to
+// insert the demo data; new seed docs are stamped `source: "seed"` (#163) so
+// they're identifiable by provenance rather than by matching this content.
 
 import type { CategoryDocument, TransactionDocument } from "./documents";
 
@@ -19,8 +17,8 @@ import type { CategoryDocument, TransactionDocument } from "./documents";
  * still resolve within the household.
  *
  * NB: databases seeded before this namespacing existed (pre-#111 — local dev,
- * prod) hold the **bare** ids; `ensureSeeded`'s backfill and the apply CLI's
- * seed wipe both recognize that legacy form.
+ * prod) hold the **bare** ids; `ensureSeeded`'s backfill still recognizes that
+ * legacy form.
  */
 export function seedDocId(householdId: string, id: string): string {
   return `${householdId}:${id}`;

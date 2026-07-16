@@ -18,6 +18,7 @@ describe("transaction filter URL seam", () => {
     dateTo: "2026-03-31",
     categoryIds: ["dining", "groceries"],
     kinds: ["expense", "savings"],
+    provenance: "imported",
   };
 
   it("round-trips a full filter through params and back", () => {
@@ -89,6 +90,24 @@ describe("transaction filter URL seam", () => {
       expect(serializeTransactionFilter({ kinds: [] }).toString()).toBe("");
     });
   });
+
+  describe("provenance axis", () => {
+    it("round-trips imported / manual through params", () => {
+      for (const provenance of ["imported", "manual"] as const) {
+        const params = serializeTransactionFilter({ provenance });
+        expect(params.get("src")).toBe(provenance);
+        expect(parseTransactionFilter(params)).toEqual({ provenance });
+      }
+    });
+
+    it("drops an unknown provenance value from the URL", () => {
+      expect(parseTransactionFilter(new URLSearchParams("src=bogus"))).toEqual({});
+    });
+
+    it("emits nothing for the All state (undefined provenance)", () => {
+      expect(serializeTransactionFilter({ provenance: undefined }).toString()).toBe("");
+    });
+  });
 });
 
 describe("matchesTransactionFilter — kinds axis", () => {
@@ -135,5 +154,37 @@ describe("matchesTransactionFilter — kinds axis", () => {
     expect(
       matchesTransactionFilter(tx("orphan"), { kinds: ["savings"] }, categoryById),
     ).toBe(false);
+  });
+});
+
+describe("matchesTransactionFilter — provenance axis", () => {
+  const imported: Transaction = {
+    id: "i1",
+    categoryId: "hysa",
+    amount: -500,
+    date: "2026-02-01",
+    imported: true,
+  };
+  const manual: Transaction = {
+    id: "m1",
+    categoryId: "hysa",
+    amount: 20,
+    date: "2026-02-02",
+    imported: false,
+  };
+
+  it("keeps only imported rows when provenance is 'imported'", () => {
+    expect(matchesTransactionFilter(imported, { provenance: "imported" })).toBe(true);
+    expect(matchesTransactionFilter(manual, { provenance: "imported" })).toBe(false);
+  });
+
+  it("keeps only hand-entered rows when provenance is 'manual'", () => {
+    expect(matchesTransactionFilter(manual, { provenance: "manual" })).toBe(true);
+    expect(matchesTransactionFilter(imported, { provenance: "manual" })).toBe(false);
+  });
+
+  it("keeps both when provenance is undefined (All)", () => {
+    expect(matchesTransactionFilter(imported, {})).toBe(true);
+    expect(matchesTransactionFilter(manual, {})).toBe(true);
   });
 });

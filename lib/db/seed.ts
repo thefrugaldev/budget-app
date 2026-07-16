@@ -128,6 +128,7 @@ function buildCategoryDoc(
   return {
     _id: seedDocId(householdId, c._id),
     householdId,
+    source: "seed",
     name: c.name,
     emoji: c.emoji,
     kind: c.kind,
@@ -151,6 +152,7 @@ function buildTargetDoc(
   return {
     _id: seedDocId(householdId, `${c._id}:${c.activeFrom}`),
     householdId,
+    source: "seed",
     categoryId: seedDocId(householdId, c._id),
     monthly: c.initialMonthly,
     effectiveFrom: c.activeFrom,
@@ -239,6 +241,7 @@ async function seedTransactions(
     // its (also namespaced) category within this household.
     categoryId: seedDocId(householdId, t.categoryId),
     householdId,
+    source: "seed",
     createdAt: now,
   }));
   await db

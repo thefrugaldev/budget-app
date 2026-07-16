@@ -102,6 +102,8 @@ export function matchesTransactionFilter(
     const kind = categoryById?.get(t.categoryId)?.kind;
     if (!kind || !f.kinds.includes(kind)) return false;
   }
+  if (f.provenance === "imported" && !t.imported) return false;
+  if (f.provenance === "manual" && t.imported) return false;
   const text = f.text?.trim().toLowerCase();
   if (text) {
     const inVendor = t.vendor?.toLowerCase().includes(text) ?? false;
@@ -123,6 +125,7 @@ const FILTER_PARAMS = {
   dateTo: "to",
   categoryIds: "cat",
   kinds: "kind",
+  provenance: "src",
 } as const;
 
 /**
@@ -148,6 +151,7 @@ export function serializeTransactionFilter(
   if (kinds.length > 0) {
     params.set(FILTER_PARAMS.kinds, kinds.join(","));
   }
+  if (filter.provenance) params.set(FILTER_PARAMS.provenance, filter.provenance);
   return params;
 }
 
@@ -182,6 +186,10 @@ export function parseTransactionFilter(
     .map((k) => k.trim())
     .filter(isCategoryKind);
   if (kinds && kinds.length > 0) filter.kinds = kinds;
+  const provenance = params.get(FILTER_PARAMS.provenance);
+  if (provenance === "imported" || provenance === "manual") {
+    filter.provenance = provenance;
+  }
   return filter;
 }
 

@@ -26,7 +26,17 @@ type Imported = {
   importRef?: string;
 };
 
-export type CategoryDocument = HouseholdOwned & Imported & {
+// Provenance for demo/seed documents (#163). Present only on docs written by
+// the seeder, mirroring how `importRef` marks archive-imported docs. Its mere
+// presence identifies seed data — recognition is `{ source: "seed" }`, immune
+// to seed-slug drift, so a hand-entered doc filed under a seed category is
+// cleanly distinguishable from seed. Scoped to the three collections the
+// seeder writes (categories, targets, transactions).
+type Seeded = {
+  source?: "seed";
+};
+
+export type CategoryDocument = HouseholdOwned & Imported & Seeded & {
   _id: string;
   name: string;
   // Legacy display glyph. Absent on new icon-based docs (#80 chunk 4).
@@ -45,7 +55,7 @@ export type CategoryDocument = HouseholdOwned & Imported & {
   createdAt: Date;
 };
 
-export type CategoryTargetDocument = HouseholdOwned & Imported & {
+export type CategoryTargetDocument = HouseholdOwned & Imported & Seeded & {
   _id: string;
   categoryId: string;
   monthly: number;
@@ -53,7 +63,7 @@ export type CategoryTargetDocument = HouseholdOwned & Imported & {
   createdAt: Date;
 };
 
-export type TransactionDocument = HouseholdOwned & Imported & {
+export type TransactionDocument = HouseholdOwned & Imported & Seeded & {
   _id: string;
   categoryId: string;
   // Signed: positive = outflow/contribution/income, negative = refund/withdrawal/reversed.
