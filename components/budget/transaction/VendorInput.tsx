@@ -12,11 +12,13 @@ export function VendorInput({
   onChange,
   options,
   placeholder,
+  required = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: string[];
   placeholder: string;
+  required?: boolean;
 }) {
   // No options → plain input. Autocomplete with an empty list works but it
   // noisily renders an empty popup on focus.
@@ -27,6 +29,7 @@ export function VendorInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        required={required}
         className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
       />
     );
@@ -41,6 +44,7 @@ export function VendorInput({
       <Autocomplete.Input
         name="vendor"
         placeholder={placeholder}
+        required={required}
         className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
       />
       <Autocomplete.Portal>
