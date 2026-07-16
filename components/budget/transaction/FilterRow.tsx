@@ -4,7 +4,6 @@ import { useId } from "react";
 
 import { CategoryMultiSelect } from "@/components/budget/category/CategoryMultiSelect";
 import { VendorMultiSelect } from "@/components/budget/transaction/VendorMultiSelect";
-import { DateRangeField } from "@/components/ui/DateRangeField";
 import { cn } from "@/lib/utils";
 import type { Category, CategoryKind } from "@/types/budget";
 import type { TransactionFilter } from "@/types/transaction";
@@ -42,12 +41,16 @@ const segment = (active: boolean) =>
   );
 
 /**
- * Filter controls above the transaction list: free-text search, a vendor
- * multi-select (OR-combined, with a "No vendor" pseudo-option), and a
- * date-range field. The global `/transactions` list additionally
- * gets a category multi-select and an Expense / Savings / Income kind toggle
- * (both passed `categories`); the per-category detail list omits them — it is
- * single-kind (story 18, 24, 64).
+ * Row-attribute filter controls above the transaction list: free-text search
+ * and a vendor multi-select (OR-combined, with a "No vendor" pseudo-option).
+ * The global `/transactions` list additionally gets a category multi-select and
+ * an Expense / Savings / Income kind toggle (both passed `categories`); the
+ * per-category detail list omits them — it is single-kind (story 18, 24, 64).
+ *
+ * The date window is *not* here (issue #165 chunk 5): it's a page-level scope
+ * control (`DateScopeSelector` on `/transactions`, `RangeSelector` on the detail
+ * page) that pre-windows the rows, so a preset and a custom range can't
+ * intersect to empty.
  */
 export function FilterRow({
   filter,
@@ -66,7 +69,6 @@ export function FilterRow({
   // so the compact filter grid is unchanged; useId keeps each association unique
   // if two filter rows ever mount on one page.
   const searchId = useId();
-  const dateId = useId();
   // Kind toggle is global-list-only. Rebuild from KIND_OPTIONS order so the
   // stored (and serialized) array is deterministic regardless of click order.
   const selectedKinds = filter.kinds ?? [];
@@ -123,8 +125,8 @@ export function FilterRow({
         className={cn(
           "grid grid-cols-1 gap-2",
           categories
-            ? "sm:grid-cols-[minmax(160px,1fr)_1fr_160px_minmax(220px,1fr)]"
-            : "sm:grid-cols-[1fr_160px_minmax(220px,1fr)]",
+            ? "sm:grid-cols-[minmax(160px,1fr)_1fr_minmax(160px,240px)]"
+            : "sm:grid-cols-[1fr_minmax(160px,240px)]",
         )}
       >
         {categories && (
@@ -152,20 +154,6 @@ export function FilterRow({
         selected={filter.vendors ?? []}
         onChange={(vendors) => onChange({ ...filter, vendors })}
       />
-      <div>
-        <label htmlFor={dateId} className="sr-only">
-          Date range
-        </label>
-        <DateRangeField
-          id={dateId}
-          from={filter.dateFrom ?? ""}
-          to={filter.dateTo ?? ""}
-          onChange={({ from, to }) =>
-            onChange({ ...filter, dateFrom: from, dateTo: to })
-          }
-          placeholder="Any date"
-        />
-        </div>
       </div>
     </div>
   );

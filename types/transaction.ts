@@ -15,8 +15,6 @@ export type TransactionFilter = {
    * without having to type their magic note string.
    */
   vendors?: string[];
-  dateFrom?: string;
-  dateTo?: string;
   /**
    * Cross-category constraint for the global `/transactions` list. A non-empty
    * set keeps only rows whose `categoryId` is in it; empty/undefined means

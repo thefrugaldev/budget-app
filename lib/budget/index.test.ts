@@ -20,6 +20,8 @@ import {
   monthsInRange,
   mostRecentTransactionInCategory,
   nextMonth,
+  presetDateBounds,
+  presetForDateBounds,
   rangeLabel,
   resolveRange,
   planTargetForMonth,
@@ -993,6 +995,52 @@ describe("monthStartDate / monthEndDate", () => {
   });
 });
 
+describe("presetDateBounds", () => {
+  const today = new Date("2026-06-08T00:00:00Z");
+
+  it("resolves each preset to inclusive ISO day bounds", () => {
+    expect(presetDateBounds("this-month", today)).toEqual({
+      from: "2026-06-01",
+      to: "2026-06-30",
+    });
+    expect(presetDateBounds("last-3-months", today)).toEqual({
+      from: "2026-04-01",
+      to: "2026-06-30",
+    });
+    expect(presetDateBounds("ytd", today)).toEqual({
+      from: "2026-01-01",
+      to: "2026-06-30",
+    });
+    expect(presetDateBounds("last-12-months", today)).toEqual({
+      from: "2025-07-01",
+      to: "2026-06-30",
+    });
+  });
+});
+
+describe("presetForDateBounds", () => {
+  const today = new Date("2026-06-08T00:00:00Z");
+
+  it("round-trips every preset back from its bounds", () => {
+    for (const preset of [
+      "this-month",
+      "last-month",
+      "last-3-months",
+      "ytd",
+      "last-12-months",
+    ] as const) {
+      const { from, to } = presetDateBounds(preset, today);
+      expect(presetForDateBounds(from, to, today)).toBe(preset);
+    }
+  });
+
+  it("returns null for an arbitrary (custom) range", () => {
+    expect(presetForDateBounds("2024-03-01", "2024-09-14", today)).toBeNull();
+    // A window that is close to a preset but not an exact month boundary.
+    expect(presetForDateBounds("2026-06-02", "2026-06-30", today)).toBeNull();
+  });
+});
+
 describe("isRangePreset", () => {
   it("accepts every preset", () => {
     expect(isRangePreset("this-month")).toBe(true);
@@ -1182,13 +1230,6 @@ describe("matchesTransactionFilter", () => {
     expect(matchesTransactionFilter(t, { vendors: [] })).toBe(true);
   });
 
-  it("enforces inclusive dateFrom / dateTo bounds", () => {
-    expect(matchesTransactionFilter(t, { dateFrom: "2026-06-05" })).toBe(true);
-    expect(matchesTransactionFilter(t, { dateFrom: "2026-06-06" })).toBe(false);
-    expect(matchesTransactionFilter(t, { dateTo: "2026-06-05" })).toBe(true);
-    expect(matchesTransactionFilter(t, { dateTo: "2026-06-04" })).toBe(false);
-  });
-
   it("filters by category membership (global multi-select)", () => {
     expect(matchesTransactionFilter(t, { categoryIds: ["groc"] })).toBe(true);
     expect(matchesTransactionFilter(t, { categoryIds: ["rent", "groc"] })).toBe(true);
@@ -1204,8 +1245,7 @@ describe("matchesTransactionFilter", () => {
       matchesTransactionFilter(t, {
         text: "weekly",
         vendors: ["Whole Foods"],
-        dateFrom: "2026-06-01",
-        dateTo: "2026-06-30",
+        categoryIds: ["groc"],
       }),
     ).toBe(true);
     // Vendor mismatch alone is enough to fail.
@@ -1213,8 +1253,7 @@ describe("matchesTransactionFilter", () => {
       matchesTransactionFilter(t, {
         text: "weekly",
         vendors: ["Trader Joe's"],
-        dateFrom: "2026-06-01",
-        dateTo: "2026-06-30",
+        categoryIds: ["groc"],
       }),
     ).toBe(false);
   });

@@ -77,10 +77,13 @@ export function vendorSuggestionsForCategory(
  * OR-combined vendor multi-select: a row passes if its (trimmed) vendor is in
  * the set; the empty-string member `""` matches vendorless rows (the "No
  * vendor" pseudo-option). Empty/undefined means "all vendors". `categoryIds`
- * is the global list's category
- * multi-select — empty/undefined means "all categories". Date bounds are
- * inclusive ISO `YYYY-MM-DD` strings — lexicographic comparison is safe
- * given the fixed shape.
+ * is the global list's category multi-select — empty/undefined means "all
+ * categories".
+ *
+ * The date scope is deliberately *not* an axis here (issue #165 chunk 5): a
+ * single page-level control owns the from/to window and pre-scopes the rows
+ * handed to this predicate, so the preset chips and a custom range can't
+ * intersect to empty. This predicate only covers the row-attribute filters.
  *
  * `kinds` is the global list's Expense / Savings / Income axis. A row's kind
  * lives on its category, not the transaction, so the caller passes a
@@ -94,8 +97,6 @@ export function matchesTransactionFilter(
   f: TransactionFilter,
   categoryById?: ReadonlyMap<string, Category>,
 ): boolean {
-  if (f.dateFrom && t.date < f.dateFrom) return false;
-  if (f.dateTo && t.date > f.dateTo) return false;
   if (f.vendors && f.vendors.length > 0) {
     // "" is the No-vendor pseudo-option; normalise the row the same way so a
     // vendorless row matches it and no real (trimmed, non-empty) vendor can.
@@ -122,14 +123,15 @@ export function matchesTransactionFilter(
 
 /**
  * Query-param keys for the transaction filter set. Kept short, and deliberately
- * distinct from `range` — which the `/transactions` page already owns for its
- * preset selector — so the filter and the range preset coexist in one URL.
+ * distinct from the date-scope keys `from`/`to` (owned by the page-level scope
+ * control, `useDateScope`) — the filter and the date scope are independent axes
+ * that coexist in one URL. Because these keys don't include `from`/`to`, a
+ * filter write via {@link applyTransactionFilterToParams} preserves the active
+ * date scope untouched.
  */
 const FILTER_PARAMS = {
   text: "q",
   vendor: "vendor",
-  dateFrom: "from",
-  dateTo: "to",
   categoryIds: "cat",
   kinds: "kind",
   provenance: "src",
@@ -153,8 +155,6 @@ export function serializeTransactionFilter(
   for (const vendor of filter.vendors ?? []) {
     params.append(FILTER_PARAMS.vendor, vendor.trim());
   }
-  if (filter.dateFrom) params.set(FILTER_PARAMS.dateFrom, filter.dateFrom);
-  if (filter.dateTo) params.set(FILTER_PARAMS.dateTo, filter.dateTo);
   const categoryIds = filter.categoryIds?.filter(Boolean) ?? [];
   if (categoryIds.length > 0) {
     params.set(FILTER_PARAMS.categoryIds, categoryIds.join(","));
@@ -184,10 +184,6 @@ export function parseTransactionFilter(
     ...new Set(params.getAll(FILTER_PARAMS.vendor).map((v) => v.trim())),
   ];
   if (vendors.length > 0) filter.vendors = vendors;
-  const dateFrom = params.get(FILTER_PARAMS.dateFrom);
-  if (dateFrom) filter.dateFrom = dateFrom;
-  const dateTo = params.get(FILTER_PARAMS.dateTo);
-  if (dateTo) filter.dateTo = dateTo;
   const categoryIds = params
     .get(FILTER_PARAMS.categoryIds)
     ?.split(",")
