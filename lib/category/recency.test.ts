@@ -5,6 +5,7 @@ import type { Category, Transaction } from "@/types/budget";
 import {
   compareCategoriesByRecency,
   lastActivityByCategory,
+  recentTransactionsInCategory,
   relativeDayLabel,
 } from "./recency";
 
@@ -118,5 +119,59 @@ describe("relativeDayLabel", () => {
     const lateNow = new Date("2026-06-20T23:30:00");
     expect(relativeDayLabel("2026-06-20", lateNow)).toBe("Today");
     expect(relativeDayLabel("2026-06-18", lateNow)).toBe("2d ago");
+  });
+});
+
+describe("recentTransactionsInCategory", () => {
+  it("returns only the given category's transactions, newest first", () => {
+    const recent = recentTransactionsInCategory(
+      [
+        tx("groc", "2026-06-01"),
+        tx("rent", "2026-06-30"),
+        tx("groc", "2026-06-20"),
+        tx("groc", "2026-06-10"),
+      ],
+      "groc",
+    );
+    expect(recent.map((t) => t.date)).toEqual([
+      "2026-06-20",
+      "2026-06-10",
+      "2026-06-01",
+    ]);
+  });
+
+  it("caps to the limit (default 12), keeping the most recent", () => {
+    const txns = Array.from({ length: 20 }, (_, i) =>
+      tx("groc", `2026-06-${String(i + 1).padStart(2, "0")}`),
+    );
+    const recent = recentTransactionsInCategory(txns, "groc");
+    expect(recent).toHaveLength(12);
+    expect(recent[0].date).toBe("2026-06-20");
+    expect(recent[11].date).toBe("2026-06-09");
+  });
+
+  it("honors a custom limit", () => {
+    const txns = [
+      tx("groc", "2026-06-03"),
+      tx("groc", "2026-06-02"),
+      tx("groc", "2026-06-01"),
+    ];
+    expect(recentTransactionsInCategory(txns, "groc", 2)).toHaveLength(2);
+  });
+
+  it("breaks same-date ties on id descending for a stable slice", () => {
+    const recent = recentTransactionsInCategory(
+      [
+        tx("groc", "2026-06-10", "a"),
+        tx("groc", "2026-06-10", "c"),
+        tx("groc", "2026-06-10", "b"),
+      ],
+      "groc",
+    );
+    expect(recent.map((t) => t.id)).toEqual(["c", "b", "a"]);
+  });
+
+  it("returns an empty array when the category has no transactions", () => {
+    expect(recentTransactionsInCategory([tx("groc", "2026-06-01")], "rent")).toEqual([]);
   });
 });

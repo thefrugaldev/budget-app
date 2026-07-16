@@ -62,7 +62,7 @@ export default async function CategoryDetail({
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
       <div className="mb-4">
-        <BackLink href="/" label="Pulse" />
+        <BackLink href="/categories" label="Categories" />
       </div>
       <div className="mb-6">
         <RangeSelector active={preset} basePath={`/categories/${category.id}`} />
