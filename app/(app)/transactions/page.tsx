@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { AddMenu } from "@/components/budget/shared/AddMenu";
 import { DateScopeSelector } from "@/components/budget/shared/DateScopeSelector";
 import { UrlFilteredTransactionList } from "@/components/budget/transaction/UrlFilteredTransactionList";
 import { requireHouseholdId } from "@/lib/auth/session";
@@ -62,6 +63,10 @@ export default async function TransactionsPage() {
           now={now}
         />
       </Suspense>
+
+      {/* Quick entry from the other working surface (#166 story 12).
+          Desktop-only + self-hides for viewers. */}
+      <AddMenu categories={categories} transactions={transactions} />
     </div>
   );
 }

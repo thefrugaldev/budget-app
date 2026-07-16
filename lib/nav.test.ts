@@ -26,8 +26,23 @@ describe("NAV_ITEMS", () => {
     }
   });
 
-  it("the redundant Categories index is no longer a destination (#79)", () => {
-    expect(NAV_ITEMS.some((item) => item.href === "/categories")).toBe(false);
+  it("the Categories index is a destination again (reinstated in #166)", () => {
+    const categories = NAV_ITEMS.find((item) => item.href === "/categories");
+    expect(categories).toBeDefined();
+    // Review-only phone keeps the entry surface in the More overflow (story 15).
+    expect(categories?.mobileTab).toBe("more");
+  });
+
+  it("mobile primaries are the review surfaces (story 14)", () => {
+    const primary = NAV_ITEMS.filter((i) => i.mobileTab === "primary").map(
+      (i) => i.href,
+    );
+    expect(primary).toEqual(["/", "/fire", "/net-worth", "/transactions"]);
+  });
+
+  it("the More overflow holds the entry/rarely-opened surfaces (story 15)", () => {
+    const more = NAV_ITEMS.filter((i) => i.mobileTab === "more").map((i) => i.href);
+    expect(more).toEqual(["/categories", "/income", "/settings"]);
   });
 
   it("FIRE is a live destination — its placeholder marker came off with #110 chunk 6", () => {
@@ -40,14 +55,13 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.some((item) => item.placeholder)).toBe(false);
   });
 
-  // Story 16: the /categories/[id] detail page is not itself a nav destination,
-  // so no tab should light up while you're on it (the old /categories item used
-  // to claim it via prefix match).
-  it("no nav item is active on a category detail path", () => {
+  // The /categories index owns its detail pages, so the Categories tab lights
+  // up while on /categories/[id] via prefix match (reinstated with #166).
+  it("only the Categories nav item is active on a category detail path", () => {
     const active = NAV_ITEMS.filter((item) =>
       isActive("/categories/groceries", item.href),
     );
-    expect(active).toEqual([]);
+    expect(active.map((i) => i.href)).toEqual(["/categories"]);
   });
 });
 

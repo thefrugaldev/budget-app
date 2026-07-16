@@ -42,3 +42,29 @@ export function compareCategoriesByRecency(
     return a.name.localeCompare(b.name);
   };
 }
+
+/**
+ * Compact "last active" stamp for a category row (issue #166 story 4) — e.g.
+ * "Today", "Yesterday", "3d ago", "2w ago". `dateIso` is a `"YYYY-MM-DD"`
+ * calendar date (a transaction date, or the value from
+ * {@link lastActivityByCategory}); `undefined` means the category has no
+ * activity yet. Diff is computed in whole calendar days (both sides pinned to
+ * UTC midnight so DST/timezone can't shift the count), and a future-dated row
+ * (a bill dated ahead per story 26) reads "Today" rather than a negative age.
+ */
+export function relativeDayLabel(
+  dateIso: string | undefined,
+  now: Date,
+): string {
+  if (dateIso === undefined) return "No activity";
+  const [y, m, d] = dateIso.split("-").map(Number);
+  const then = Date.UTC(y, m - 1, d);
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((today - then) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  if (days < 28) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}

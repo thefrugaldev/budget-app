@@ -4,23 +4,40 @@
  * slot in by adding one entry.
  */
 
-import { Activity, Flame, Receipt, Settings, TrendingUp, Wallet } from "lucide-react";
+import {
+  Activity,
+  Flame,
+  LayoutList,
+  Receipt,
+  Settings,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 
 import type { NavItem } from "@/types/nav";
 
+// Order here drives desktop nav (all items, left→right) and the mobile bottom
+// tab (which additionally splits on `mobileTab`, preserving this order within
+// each group). Tuned for the #166 desktop-entry / mobile-review split: mobile
+// primaries are the review surfaces (Pulse, FIRE, Net worth, Transactions —
+// story 14), while the data-entry / rarely-opened surfaces (Categories, Income,
+// Settings — story 15) live in the More overflow. Keeps 4 primaries so
+// BottomTabNav's `grid-cols-5` (4 + More) still fits.
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: "Pulse", href: "/", icon: Activity, mobileTab: "primary" },
-  // FIRE takes the slot vacated by the dropped Categories index (#79): category
-  // management lives on Pulse + the /categories/[id] detail page, so the index
-  // was redundant. Live as of #110 — the "Soon" marker came off with chunk 6
-  // (the page now renders the KPI strip, live assumptions, and the projection
-  // chart), mirroring how Net Worth's marker came off with #109.
+  // Categories index reinstated in #166 (it was dropped in #79 when its job was
+  // folded into Pulse + the /categories/[id] detail page). It's the working
+  // ledger for per-category budgeting; on desktop it sits up front as a primary
+  // entry surface (story 13), on mobile it's in More (review-only phone).
+  { label: "Categories", href: "/categories", icon: LayoutList, mobileTab: "more" },
+  // FIRE is live as of #110 — the "Soon" marker came off with chunk 6 (KPI
+  // strip, live assumptions, projection chart), mirroring Net Worth (#109).
   { label: "FIRE", href: "/fire", icon: Flame, mobileTab: "primary" },
-  { label: "Income", href: "/income", icon: Wallet, mobileTab: "primary" },
-  { label: "Transactions", href: "/transactions", icon: Receipt, mobileTab: "primary" },
+  { label: "Income", href: "/income", icon: Wallet, mobileTab: "more" },
   // Net Worth is live as of #109 — the "Soon" marker came off with chunk 9
-  // (the page now renders real accounts and a recorded-history trajectory).
-  { label: "Net worth", href: "/net-worth", icon: TrendingUp, mobileTab: "more" },
+  // (real accounts + a recorded-history trajectory).
+  { label: "Net worth", href: "/net-worth", icon: TrendingUp, mobileTab: "primary" },
+  { label: "Transactions", href: "/transactions", icon: Receipt, mobileTab: "primary" },
   { label: "Settings", href: "/settings", icon: Settings, mobileTab: "more" },
 ];
 
