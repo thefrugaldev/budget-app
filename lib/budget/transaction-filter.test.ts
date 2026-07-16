@@ -13,7 +13,7 @@ import {
 describe("transaction filter URL seam", () => {
   const full: TransactionFilter = {
     text: "coffee",
-    vendor: "Blue Bottle",
+    vendors: ["Blue Bottle", "Costco"],
     dateFrom: "2026-01-01",
     dateTo: "2026-03-31",
     categoryIds: ["dining", "groceries"],
@@ -28,7 +28,7 @@ describe("transaction filter URL seam", () => {
 
   it("serializes an empty filter to a clean (empty) URL", () => {
     expect(serializeTransactionFilter({}).toString()).toBe("");
-    expect(serializeTransactionFilter({ text: "", vendor: "" }).toString()).toBe("");
+    expect(serializeTransactionFilter({ text: "", vendors: [] }).toString()).toBe("");
     expect(serializeTransactionFilter({ categoryIds: [] }).toString()).toBe("");
   });
 
@@ -41,10 +41,9 @@ describe("transaction filter URL seam", () => {
     expect(parseTransactionFilter(params)).toEqual({ text: "coffee" });
   });
 
-  it("trims whitespace and drops blank text/vendor", () => {
-    const params = serializeTransactionFilter({ text: "  tea  ", vendor: "   " });
+  it("trims whitespace and drops blank text", () => {
+    const params = serializeTransactionFilter({ text: "  tea  " });
     expect(params.get("q")).toBe("tea");
-    expect(params.has("vendor")).toBe(false);
   });
 
   describe("applyTransactionFilterToParams", () => {
@@ -107,6 +106,87 @@ describe("transaction filter URL seam", () => {
     it("emits nothing for the All state (undefined provenance)", () => {
       expect(serializeTransactionFilter({ provenance: undefined }).toString()).toBe("");
     });
+  });
+
+  describe("vendors axis", () => {
+    it("emits one repeated vendor key per selection and round-trips it", () => {
+      const params = serializeTransactionFilter({ vendors: ["Blue Bottle", "Costco"] });
+      expect(params.getAll("vendor")).toEqual(["Blue Bottle", "Costco"]);
+      expect(parseTransactionFilter(params)).toEqual({ vendors: ["Blue Bottle", "Costco"] });
+    });
+
+    it("round-trips a vendor containing a comma without splitting it", () => {
+      const params = serializeTransactionFilter({ vendors: ["Smith, Jones LLC"] });
+      expect(parseTransactionFilter(params)).toEqual({ vendors: ["Smith, Jones LLC"] });
+    });
+
+    it("round-trips the No-vendor sentinel as a bare vendor= param", () => {
+      const params = serializeTransactionFilter({ vendors: [""] });
+      expect(params.toString()).toBe("vendor=");
+      expect(parseTransactionFilter(params)).toEqual({ vendors: [""] });
+    });
+
+    it("keeps a named vendor alongside the No-vendor sentinel", () => {
+      const params = serializeTransactionFilter({ vendors: ["Costco", ""] });
+      expect(parseTransactionFilter(params)).toEqual({ vendors: ["Costco", ""] });
+    });
+
+    it("dedupes repeated vendor keys when parsing", () => {
+      expect(parseTransactionFilter(new URLSearchParams("vendor=Costco&vendor=Costco"))).toEqual({
+        vendors: ["Costco"],
+      });
+    });
+
+    it("serializes an empty vendors array to a clean URL", () => {
+      expect(serializeTransactionFilter({ vendors: [] }).toString()).toBe("");
+    });
+
+    it("preserves multiple vendors through applyTransactionFilterToParams", () => {
+      const base = new URLSearchParams("range=ytd");
+      const next = applyTransactionFilterToParams(base, { vendors: ["Costco", ""] });
+      expect(next.get("range")).toBe("ytd");
+      expect(next.getAll("vendor")).toEqual(["Costco", ""]);
+    });
+  });
+});
+
+describe("matchesTransactionFilter — vendors axis", () => {
+  const tx = (id: string, vendor?: string): Transaction => ({
+    id,
+    categoryId: "groceries",
+    amount: 10,
+    date: "2026-02-01",
+    vendor,
+  });
+
+  it("keeps a row whose vendor is in the set (OR within the axis)", () => {
+    const f: TransactionFilter = { vendors: ["Costco", "Blue Bottle"] };
+    expect(matchesTransactionFilter(tx("a", "Costco"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("b", "Blue Bottle"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("c", "Trader Joe's"), f)).toBe(false);
+  });
+
+  it("matches any vendor when the set is empty/absent", () => {
+    expect(matchesTransactionFilter(tx("a", "Costco"), {})).toBe(true);
+    expect(matchesTransactionFilter(tx("a", "Costco"), { vendors: [] })).toBe(true);
+  });
+
+  it("the No-vendor sentinel matches only vendorless rows", () => {
+    const f: TransactionFilter = { vendors: [""] };
+    expect(matchesTransactionFilter(tx("a"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("b", "   "), f)).toBe(true); // whitespace trims to no vendor
+    expect(matchesTransactionFilter(tx("c", "Costco"), f)).toBe(false);
+  });
+
+  it("mixes a named vendor with No-vendor (either passes)", () => {
+    const f: TransactionFilter = { vendors: ["Costco", ""] };
+    expect(matchesTransactionFilter(tx("a", "Costco"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("b"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("c", "Blue Bottle"), f)).toBe(false);
+  });
+
+  it("normalises the row vendor before matching (trims)", () => {
+    expect(matchesTransactionFilter(tx("a", "  Costco  "), { vendors: ["Costco"] })).toBe(true);
   });
 });
 

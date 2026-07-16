@@ -7,7 +7,14 @@ import type { CategoryKind, Transaction } from "./budget";
  */
 export type TransactionFilter = {
   text?: string;
-  vendor?: string;
+  /**
+   * Vendor constraint — OR within the axis. A non-empty array keeps rows whose
+   * vendor is in it; empty/undefined means "all vendors". The empty-string
+   * member `""` is the explicit **No vendor** pseudo-option, matching rows with
+   * no vendor (the imported aggregate rows that render "Monthly total" / "—")
+   * without having to type their magic note string.
+   */
+  vendors?: string[];
   dateFrom?: string;
   dateTo?: string;
   /**

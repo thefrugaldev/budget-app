@@ -44,7 +44,6 @@ import type { TransactionFilter } from "@/types/transaction";
 const UNDO_WINDOW_MS = 5000;
 const EMPTY_FILTER: TransactionFilter = {
   text: "",
-  vendor: "",
   dateFrom: "",
   dateTo: "",
 };

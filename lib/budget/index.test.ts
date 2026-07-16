@@ -1173,13 +1173,13 @@ describe("matchesTransactionFilter", () => {
     expect(matchesTransactionFilter(bare, { text: "anything" })).toBe(false);
   });
 
-  it("filters by exact vendor", () => {
-    expect(matchesTransactionFilter(t, { vendor: "Whole Foods" })).toBe(true);
-    expect(matchesTransactionFilter(t, { vendor: "Trader Joe's" })).toBe(false);
+  it("filters by vendor (OR within the axis)", () => {
+    expect(matchesTransactionFilter(t, { vendors: ["Whole Foods"] })).toBe(true);
+    expect(matchesTransactionFilter(t, { vendors: ["Trader Joe's"] })).toBe(false);
   });
 
-  it("treats empty vendor as 'all vendors'", () => {
-    expect(matchesTransactionFilter(t, { vendor: "" })).toBe(true);
+  it("treats an empty vendors list as 'all vendors'", () => {
+    expect(matchesTransactionFilter(t, { vendors: [] })).toBe(true);
   });
 
   it("enforces inclusive dateFrom / dateTo bounds", () => {
@@ -1203,7 +1203,7 @@ describe("matchesTransactionFilter", () => {
     expect(
       matchesTransactionFilter(t, {
         text: "weekly",
-        vendor: "Whole Foods",
+        vendors: ["Whole Foods"],
         dateFrom: "2026-06-01",
         dateTo: "2026-06-30",
       }),
@@ -1212,7 +1212,7 @@ describe("matchesTransactionFilter", () => {
     expect(
       matchesTransactionFilter(t, {
         text: "weekly",
-        vendor: "Trader Joe's",
+        vendors: ["Trader Joe's"],
         dateFrom: "2026-06-01",
         dateTo: "2026-06-30",
       }),

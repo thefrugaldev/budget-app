@@ -73,9 +73,11 @@ export function vendorSuggestionsForCategory(
 /**
  * Predicate behind the transaction filter row — the category-detail list
  * (stories 24, 64) and the global `/transactions` list (chunk 5).
- * Free-text matches `vendor` and `note` case-insensitively. `vendor` is an
- * exact-match constraint used by the vendor dropdown; an empty/undefined
- * value means "all vendors". `categoryIds` is the global list's category
+ * Free-text matches `vendor` and `note` case-insensitively. `vendors` is the
+ * OR-combined vendor multi-select: a row passes if its (trimmed) vendor is in
+ * the set; the empty-string member `""` matches vendorless rows (the "No
+ * vendor" pseudo-option). Empty/undefined means "all vendors". `categoryIds`
+ * is the global list's category
  * multi-select — empty/undefined means "all categories". Date bounds are
  * inclusive ISO `YYYY-MM-DD` strings — lexicographic comparison is safe
  * given the fixed shape.
@@ -94,7 +96,12 @@ export function matchesTransactionFilter(
 ): boolean {
   if (f.dateFrom && t.date < f.dateFrom) return false;
   if (f.dateTo && t.date > f.dateTo) return false;
-  if (f.vendor && t.vendor !== f.vendor) return false;
+  if (f.vendors && f.vendors.length > 0) {
+    // "" is the No-vendor pseudo-option; normalise the row the same way so a
+    // vendorless row matches it and no real (trimmed, non-empty) vendor can.
+    const vendorKey = t.vendor?.trim() ?? "";
+    if (!f.vendors.includes(vendorKey)) return false;
+  }
   if (f.categoryIds && f.categoryIds.length > 0 && !f.categoryIds.includes(t.categoryId)) {
     return false;
   }
@@ -139,8 +146,13 @@ export function serializeTransactionFilter(
   const params = new URLSearchParams();
   const text = filter.text?.trim();
   if (text) params.set(FILTER_PARAMS.text, text);
-  const vendor = filter.vendor?.trim();
-  if (vendor) params.set(FILTER_PARAMS.vendor, vendor);
+  // Vendors are free text (commas, "&" and all), so they can't share a
+  // delimiter-joined param like categoryIds/kinds — emit one repeated `vendor`
+  // key per selection. The "" No-vendor sentinel round-trips as a bare
+  // `vendor=` (no real vendor trims to empty, so there's no collision).
+  for (const vendor of filter.vendors ?? []) {
+    params.append(FILTER_PARAMS.vendor, vendor.trim());
+  }
   if (filter.dateFrom) params.set(FILTER_PARAMS.dateFrom, filter.dateFrom);
   if (filter.dateTo) params.set(FILTER_PARAMS.dateTo, filter.dateTo);
   const categoryIds = filter.categoryIds?.filter(Boolean) ?? [];
@@ -166,8 +178,12 @@ export function parseTransactionFilter(
   const filter: TransactionFilter = {};
   const text = params.get(FILTER_PARAMS.text)?.trim();
   if (text) filter.text = text;
-  const vendor = params.get(FILTER_PARAMS.vendor)?.trim();
-  if (vendor) filter.vendor = vendor;
+  // getAll (not get) collects every repeated `vendor` key; dedupe but keep the
+  // "" No-vendor sentinel. A bare `vendor=` yields [""] → the No-vendor filter.
+  const vendors = [
+    ...new Set(params.getAll(FILTER_PARAMS.vendor).map((v) => v.trim())),
+  ];
+  if (vendors.length > 0) filter.vendors = vendors;
   const dateFrom = params.get(FILTER_PARAMS.dateFrom);
   if (dateFrom) filter.dateFrom = dateFrom;
   const dateTo = params.get(FILTER_PARAMS.dateTo);
@@ -204,8 +220,11 @@ export function applyTransactionFilterToParams(
 ): URLSearchParams {
   const next = new URLSearchParams(base.toString());
   for (const key of Object.values(FILTER_PARAMS)) next.delete(key);
+  // append, not set: the vendor axis emits the key repeatedly (one per
+  // selection) and set() would collapse them to the last one. The keys were
+  // just cleared, so appending single-valued keys once is equivalent to set.
   for (const [key, value] of serializeTransactionFilter(filter)) {
-    next.set(key, value);
+    next.append(key, value);
   }
   return next;
 }
