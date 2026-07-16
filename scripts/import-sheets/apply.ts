@@ -5,6 +5,7 @@ import { parseArgs as nodeParseArgs } from "node:util";
 import { type AnyBulkWriteOperation, type Db } from "mongodb";
 
 import { COLLECTIONS } from "@/lib/db/collections";
+import { autoSeedDisabledId } from "@/lib/db/seed-marker";
 import type { HouseholdDocument } from "@/lib/db/documents";
 
 import { hashImportRef } from "./import-ref";
@@ -115,6 +116,21 @@ export async function applyManifests(input: {
         db, collection: COLLECTIONS.snapshots, docs: snapshotDocs(wb.liabilitySnapshots),
         householdId, now, scope: wb.file, dryRun,
       }),
+    );
+  }
+
+  // Disable auto-seed for this household: once real data is imported, a cold
+  // start must never back-fill the demo dataset (`ensureSeeded` → `doSeed`
+  // returns "backfill" for a populated-but-unmarked DB, and `backfillMissing‑
+  // Categories` matches seed slugs — which imported hash-id docs never are —
+  // so it would re-insert every demo category). Idempotent upsert; the earlier
+  // `--first-apply` bridge wrote this marker, and removing that bridge must not
+  // drop the guarantee. Skipped on a dry run (no writes).
+  if (!dryRun) {
+    await db.collection<StringIdDoc>(COLLECTIONS.meta).updateOne(
+      { _id: autoSeedDisabledId(householdId) },
+      { $set: { householdId, clearedAt: now } },
+      { upsert: true },
     );
   }
 

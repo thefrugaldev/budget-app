@@ -131,10 +131,12 @@ export function Row({
                   <span className="sr-only">Vendor: </span>
                   <span className="text-foreground">{t.vendor}</span>
                 </>
-              ) : t.imported ? (
-                // Vendorless archive aggregates (savings monthly totals, some
-                // liability rows) are intentional, not missing data — label
-                // them so they don't read as a broken em-dash (#165 chunk 3).
+              ) : t.imported && kind === "savings" ? (
+                // Imported savings cells are month-level aggregates with no
+                // vendor (`emitSavingsCell`), not missing data — label them so
+                // they don't read as a broken em-dash (#165 chunk 3). Gated to
+                // savings kind: vendorless imported *expense* rows are ordinary
+                // transactions, not aggregates, and must keep the em-dash.
                 <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground ring-1 ring-border">
                   Monthly total
                 </span>

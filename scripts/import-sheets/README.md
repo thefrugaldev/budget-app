@@ -96,21 +96,21 @@ DebtsEquity balance also hard-fails, naming the cell.
 ## Apply CLI (chunk 3)
 
 ```
-MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--first-apply] [--db <name>]
+MONGODB_URI=… pnpm import:apply <archive-dir> [--dry-run] [--db <name>]
 ```
 
 Syncs the manifests into MongoDB. Idempotent per file — upsert by deterministic
 `_id`, then delete orphaned imported docs for that file — so re-running the
 current year's workbook updates and prunes rather than duplicating.
-`--dry-run` prints the plan and touches nothing; `--first-apply` wipes the
-seed/demo data — recognized by the household-namespaced `_id` prefix **or** the
-legacy bare seed ids/category refs from pre-namespacing databases (the seed
-dataset lives in the pure `lib/db/seed-data`, consumed by both the seeder and
-this wipe); hand-entered docs (UUID ids, UUID category refs) survive — and
-writes the auto-seed-disabled marker so a cold start never re-seeds (and
-refuses to run once imported data exists). `householdId` is stamped from the
-single household document; each existing doc's `createdAt` is preserved so
-re-applies don't churn.
+`--dry-run` prints the plan and touches nothing. A live apply also writes the
+auto-seed-disabled marker, so a populated-but-unmarked database never
+back-fills the demo dataset on a cold start (`ensureSeeded`). `householdId` is
+stamped from the single household document; each existing doc's `createdAt` is
+preserved so re-applies don't churn.
+
+(The pre-cutover `--first-apply` seed-wipe was removed post-cutover in #163 —
+seed docs now carry a `source: "seed"` provenance marker instead of being
+recognized by content.)
 
 Apply also syncs the Net Worth liability history: one liability `Account` is
 derived per distinct canonical liability name (cross-year, upsert-only), and each
@@ -122,10 +122,10 @@ fields are revisited on re-apply **only while still import-derived**: `balance`
 advances to the new latest snapshot when the current value equals the previous
 apply's latest imported snapshot (the pre-cutover re-run cadence), and a derived
 `closedAt` is un-set the same way — a post-cutover check-in/edit (a value that no
-longer matches the imported provenance) is never clobbered. `--first-apply` does
-**not** wipe seeded/hand-entered accounts or snapshots (net-worth seed uses
-random UUIDs, indistinguishable from real data); clearing that test data at
-cutover is an explicit RUNBOOK step.
+longer matches the imported provenance) is never clobbered. Apply does **not**
+wipe seeded/hand-entered accounts or snapshots (net-worth seed uses random
+UUIDs, indistinguishable from real data); clearing that test data at cutover was
+an explicit RUNBOOK step.
 
 | Module | Responsibility |
 | --- | --- |

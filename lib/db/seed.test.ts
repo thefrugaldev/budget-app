@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { autoSeedDisabledId, resolveSeedAction, seedDocId } from "./seed";
+import {
+  autoSeedDisabledId,
+  buildCategoryDoc,
+  buildTargetDoc,
+  buildTransactionDoc,
+  resolveSeedAction,
+  seedDocId,
+} from "./seed";
 
 describe("resolveSeedAction", () => {
   it("seeds a fresh, never-touched database", () => {
@@ -59,5 +66,49 @@ describe("autoSeedDisabledId", () => {
 
   it("gives different households different marker ids (no reset dup-key)", () => {
     expect(autoSeedDisabledId("h1")).not.toBe(autoSeedDisabledId("h2"));
+  });
+});
+
+describe("seed builders stamp provenance (#163)", () => {
+  // The `source: "seed"` marker lets a future recognizer identify demo data by
+  // provenance instead of content-matching seed slugs (the fragile bridge PR
+  // #169 removed). Locked in here so a builder that forgets to stamp it fails.
+  const now = new Date("2026-01-01T00:00:00Z");
+  const HH = "hh1";
+
+  it("stamps source: 'seed' on category docs (namespaced id)", () => {
+    const doc = buildCategoryDoc(
+      { _id: "groceries", name: "Groceries", kind: "expense", activeFrom: "2026-01" },
+      HH,
+      now,
+    );
+    expect(doc.source).toBe("seed");
+    expect(doc._id).toBe(seedDocId(HH, "groceries"));
+  });
+
+  it("stamps source: 'seed' on target docs", () => {
+    const doc = buildTargetDoc(
+      {
+        _id: "groceries",
+        name: "Groceries",
+        kind: "expense",
+        activeFrom: "2026-01",
+        initialMonthly: 800,
+      },
+      HH,
+      now,
+    );
+    expect(doc?.source).toBe("seed");
+  });
+
+  it("stamps source: 'seed' on transaction docs (namespaced refs)", () => {
+    const doc = buildTransactionDoc(
+      { _id: "t1", categoryId: "groceries", amount: 10, date: "2026-01-05" },
+      HH,
+      now,
+    );
+    expect(doc.source).toBe("seed");
+    expect(doc._id).toBe(seedDocId(HH, "t1"));
+    expect(doc.categoryId).toBe(seedDocId(HH, "groceries"));
   });
 });

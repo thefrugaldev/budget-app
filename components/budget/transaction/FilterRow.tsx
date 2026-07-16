@@ -102,7 +102,7 @@ export function FilterRow({
               is active, and All (undefined) is the no-constraint default. */}
           <div role="group" aria-label="Filter by source" className={SEGMENTED_GROUP}>
             {PROVENANCE_OPTIONS.map(({ value, label }) => {
-              const active = (filter.provenance ?? undefined) === value;
+              const active = filter.provenance === value;
               return (
                 <button
                   key={label}

@@ -104,6 +104,28 @@ describe("applyManifests — dry run", () => {
     expect(await coll("transactions").countDocuments()).toBe(0);
     expect(await coll("categories").countDocuments({ importRef: { $exists: true } })).toBe(0);
   });
+
+  it("does not write the auto-seed-disabled marker on a dry run", async () => {
+    await apply({ dryRun: true });
+    expect(await coll("meta").countDocuments({ _id: `autoSeedDisabled:${HH}` })).toBe(0);
+  });
+});
+
+describe("applyManifests — auto-seed guard", () => {
+  // Once real data is imported, a cold start must never back-fill the demo
+  // dataset. A live apply writes the auto-seed-disabled marker so
+  // `resolveSeedAction` returns "skip" rather than "backfill" (regression guard
+  // for the removed --first-apply marker write, PR #169 review finding 2).
+  it("writes the auto-seed-disabled marker on a live apply", async () => {
+    await apply();
+    expect(await coll("meta").countDocuments({ _id: `autoSeedDisabled:${HH}` })).toBe(1);
+  });
+
+  it("keeps the marker idempotent across re-applies", async () => {
+    await apply();
+    await apply();
+    expect(await coll("meta").countDocuments({ _id: `autoSeedDisabled:${HH}` })).toBe(1);
+  });
 });
 
 describe("applyManifests — liability accounts & snapshots", () => {
