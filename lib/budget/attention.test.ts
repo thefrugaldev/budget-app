@@ -109,6 +109,24 @@ describe("selectAttention — ordering & cap", () => {
     expect(hiddenCount).toBe(5);
   });
 
+  it("returns every match with no cap when limit is Infinity", () => {
+    const categories = Array.from({ length: 6 }, (_, i) =>
+      cat(`e${i}`, "expense", `Cat ${i}`),
+    );
+    const aggregates = categories.map((c) => agg(c.id, 200, 100));
+    const { rows, hiddenCount } = selectAttention(categories, aggregates, Infinity);
+    expect(rows).toHaveLength(6);
+    expect(hiddenCount).toBe(0);
+  });
+
+  it("treats a negative limit as zero rows (all counted hidden), not a slice surprise", () => {
+    const categories = [cat("a", "expense"), cat("b", "expense")];
+    const aggregates = [agg("a", 200, 100), agg("b", 200, 100)];
+    const { rows, hiddenCount } = selectAttention(categories, aggregates, -1);
+    expect(rows).toEqual([]);
+    expect(hiddenCount).toBe(2);
+  });
+
   it("reports zero hidden when everything fits", () => {
     const { rows, hiddenCount } = selectAttention(
       [cat("e", "expense")],

@@ -4,6 +4,7 @@ import type {
   AttentionResult,
   AttentionRow,
 } from "@/types/attention";
+import type { ThresholdDescriptor } from "@/types/threshold";
 
 import { thresholdDescriptor } from "./threshold";
 
@@ -24,30 +25,36 @@ const ATTENTION_SEVERITY: Record<AttentionReason, number> = {
 };
 
 /**
- * Classify one category against its in-range aggregate, or `null` if it's on
- * track (no attention needed). A category with no cap/goal this month
- * (`denominator <= 0`) can't be over or behind anything, so it's never an
- * exception. Signal semantics come from `thresholdDescriptor` — the single
- * source shared with the meter/trend (Harvest ADR 0002), so nothing disagrees.
+ * Classify one category against its in-range aggregate. Returns the reason plus
+ * the `thresholdDescriptor` it was derived from (so the caller reuses it for the
+ * row rather than recomputing), or `null` if the category is on track (no
+ * attention needed). A category with no cap/goal this month (`denominator <= 0`)
+ * can't be over or behind anything, so it's never an exception. Signal
+ * semantics come from `thresholdDescriptor` — the single source shared with the
+ * meter/trend (Harvest ADR 0002), so nothing disagrees.
+ *
+ * Note the `withdrawn` (`total < 0`) and `not-started` (`total === 0`) branches
+ * mirror the special cases `thresholdDescriptor` itself encodes for savings (it
+ * labels them "Withdrawn" / "Not started"); the `AttentionReason` enum and the
+ * display label are separate concerns but must stay in lockstep — change one,
+ * revisit the other.
  */
 function classify(
   kind: Category["kind"],
   total: number,
   denominator: number,
-): AttentionReason | null {
+): { reason: AttentionReason; descriptor: ThresholdDescriptor } | null {
   if (denominator <= 0) return null;
+  const descriptor = thresholdDescriptor(kind, denominator, total);
   if (kind === "expense") {
     // Only an exceeded cap is attention; under/near/at read as fine.
-    return thresholdDescriptor(kind, denominator, total).state === "over"
-      ? "over-cap"
-      : null;
+    return descriptor.state === "over" ? { reason: "over-cap", descriptor } : null;
   }
   if (kind === "savings") {
-    if (total < 0) return "withdrawn"; // net reversal/withdrawal
-    if (total === 0) return "not-started"; // goal set, untouched
-    const { state } = thresholdDescriptor(kind, denominator, total);
-    if (state === "over") return "goal-met"; // reached (positive exception)
-    if (state === "under") return "behind"; // < 70% of goal
+    if (total < 0) return { reason: "withdrawn", descriptor }; // net reversal/withdrawal
+    if (total === 0) return { reason: "not-started", descriptor }; // goal set, untouched
+    if (descriptor.state === "over") return { reason: "goal-met", descriptor }; // reached
+    if (descriptor.state === "under") return { reason: "behind", descriptor }; // < 70% of goal
     return null; // near / at goal → on track
   }
   return null; // income is out of scope for this module
@@ -61,6 +68,10 @@ function classify(
  * (see `ATTENTION_SEVERITY`), then by name for a stable order, and capped to
  * `limit` — `hiddenCount` reports the overflow so the caller never truncates
  * silently.
+ *
+ * `limit` is the **maximum number of rows** to return; pass `Infinity` for no
+ * cap. It's floored at 0, so a stray negative yields no rows (with every match
+ * counted in `hiddenCount`) rather than JS's negative-`slice` surprise.
  */
 export function selectAttention(
   categories: Category[],
@@ -72,12 +83,12 @@ export function selectAttention(
   for (const category of categories) {
     const agg = aggById.get(category.id);
     if (!agg) continue;
-    const reason = classify(category.kind, agg.total, agg.denominator);
-    if (!reason) continue;
+    const hit = classify(category.kind, agg.total, agg.denominator);
+    if (!hit) continue;
     all.push({
       category,
-      reason,
-      descriptor: thresholdDescriptor(category.kind, agg.denominator, agg.total),
+      reason: hit.reason,
+      descriptor: hit.descriptor,
       total: agg.total,
       denominator: agg.denominator,
     });
@@ -89,6 +100,6 @@ export function selectAttention(
     return a.category.name.localeCompare(b.category.name);
   });
 
-  const rows = limit >= 0 ? all.slice(0, limit) : all;
-  return { rows, hiddenCount: Math.max(0, all.length - rows.length) };
+  const rows = all.slice(0, Math.max(0, limit));
+  return { rows, hiddenCount: all.length - rows.length };
 }
