@@ -27,10 +27,8 @@ import type { CategoryDocument, TransactionDocument } from "./documents";
  * of bug entirely.
  *
  * NB: databases seeded before this scheme (bare ids pre-#111; colon ids
- * pre-this-change — local dev, preview) hold legacy `_id`s;
- * `ensureSeeded`'s backfill recognizes both legacy forms so it never
- * re-inserts them as duplicates. A one-off migration (`scripts/migrate-seed-ids.ts`)
- * rewrites existing colon ids to this scheme.
+ * pre-this-change) hold legacy `_id`s; `ensureSeeded`'s backfill recognizes
+ * both legacy forms so it never re-inserts them as duplicates.
  */
 export function seedDocId(householdId: string, id: string): string {
   return createHash("sha256")
