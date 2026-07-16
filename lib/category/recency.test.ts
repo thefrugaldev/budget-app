@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { Category, Transaction } from "@/types/budget";
 
-import { compareCategoriesByRecency, lastActivityByCategory } from "./recency";
+import {
+  compareCategoriesByRecency,
+  lastActivityByCategory,
+  relativeDayLabel,
+} from "./recency";
 
 const cat = (id: string, name: string): Category => ({
   id,
@@ -82,5 +86,37 @@ describe("compareCategoriesByRecency", () => {
     const cats = [cat("y", "Yak"), cat("x", "Xerus")];
     const sorted = [...cats].sort(compareCategoriesByRecency(new Map()));
     expect(sorted.map((c) => c.id)).toEqual(["x", "y"]);
+  });
+});
+
+describe("relativeDayLabel", () => {
+  const now = new Date("2026-06-20T12:00:00");
+
+  it("labels undefined activity", () => {
+    expect(relativeDayLabel(undefined, now)).toBe("No activity");
+  });
+
+  it("labels today and yesterday", () => {
+    expect(relativeDayLabel("2026-06-20", now)).toBe("Today");
+    expect(relativeDayLabel("2026-06-19", now)).toBe("Yesterday");
+  });
+
+  it("labels days, weeks, months, years", () => {
+    expect(relativeDayLabel("2026-06-17", now)).toBe("3d ago");
+    expect(relativeDayLabel("2026-06-06", now)).toBe("2w ago");
+    expect(relativeDayLabel("2026-05-15", now)).toBe("1mo ago");
+    expect(relativeDayLabel("2025-01-01", now)).toBe("1y ago");
+  });
+
+  it("treats a future-dated row as Today (no negative age)", () => {
+    expect(relativeDayLabel("2026-07-01", now)).toBe("Today");
+  });
+
+  it("pins to UTC midnight so the day count is timezone-stable", () => {
+    // Late-evening local `now` must not tip a same-calendar-day date into
+    // "Yesterday" or a 1-day gap into "2d ago".
+    const lateNow = new Date("2026-06-20T23:30:00");
+    expect(relativeDayLabel("2026-06-20", lateNow)).toBe("Today");
+    expect(relativeDayLabel("2026-06-18", lateNow)).toBe("2d ago");
   });
 });

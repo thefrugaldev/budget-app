@@ -45,14 +45,12 @@ export function AddMenu({
         <Menu.Trigger
           aria-label="Add"
           /*
-           * Mobile: the FAB clears the ~56px bottom-tab nav (`bottom-24` =
-           * 96px leaves ~40px of breathing room above it) and an iOS
-           * safe-area inset margin keeps it above the home indicator. The
-           * Pulse page pads its bottom by FAB height + this clearance +
-           * safe-area so the last card always scrolls clear of the FAB.
+           * Desktop-only (#166 story 16): data entry happens on desktop, so the
+           * FAB is hidden on mobile (a review-only device) via `hidden
+           * md:inline-flex`. No mobile bottom-tab clearance or safe-area inset
+           * to manage anymore — it only ever renders at the desktop position.
            */
-          style={{ marginBottom: "env(safe-area-inset-bottom)" }}
-          className="fixed bottom-24 right-4 z-10 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-medium text-primary-foreground shadow-lg ring-1 ring-black/10 hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:bottom-8 md:right-8"
+          className="fixed bottom-8 right-8 z-10 hidden items-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-medium text-primary-foreground shadow-lg ring-1 ring-black/10 hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:inline-flex"
         >
           <Plus className="size-5" aria-hidden />
           <span>Add</span>
