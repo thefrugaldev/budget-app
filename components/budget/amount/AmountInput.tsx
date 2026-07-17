@@ -87,10 +87,12 @@ export function AmountInput({
   const canonical = value !== "" ? value : allowZero ? "0" : "";
   const ph = placeholder ?? (precision === "whole" ? "$0" : "$0.00");
 
-  // The field shows the grouped value directly; the display variant's input is
-  // transparent (the spans below render the pretty value), so it carries the
-  // raw canonical — no commas means nothing can shift the caret mid-entry.
-  const inputValue = isDisplay ? value : formatted;
+  // Both variants carry the grouped value. The display variant's input is
+  // transparent (the spans below render the pretty value), but it still holds
+  // the formatted string so its selection highlight lines up with the visible
+  // number rather than a narrower middle slice; the caret-pin below keeps commas
+  // from shifting the caret mid-entry.
+  const inputValue = formatted;
 
   // Pin the caret to the end after every edit. A layout effect (post-commit)
   // beats React's selection restoration, which would otherwise drop the caret
@@ -163,7 +165,7 @@ export function AmountInput({
           className="peer absolute inset-0 w-full cursor-text text-center text-transparent caret-transparent outline-none"
         />
         <span className="relative inline-flex items-baseline border-b-2 border-transparent pb-1 transition-colors peer-focus:border-ring">
-          <span aria-hidden className="pointer-events-none">
+          <span aria-hidden className="pointer-events-none select-none">
             {isEmpty ? (
               <span className="text-muted-foreground/40">{ph}</span>
             ) : (
