@@ -94,10 +94,13 @@ export function AmountInput({
 
   // Pin the caret to the end after every edit. A layout effect (post-commit)
   // beats React's selection restoration, which would otherwise drop the caret
-  // back into the middle of the grouped number on a fast keystroke.
+  // back into the middle of the grouped number on a fast keystroke. Skip while a
+  // range is selected (select-all on focus) so we don't collapse it — during
+  // typing the selection is already collapsed, which is the case that needs the
+  // fix.
   useIsoLayoutEffect(() => {
     const el = ref.current;
-    if (el && document.activeElement === el) {
+    if (el && document.activeElement === el && el.selectionStart === el.selectionEnd) {
       el.setSelectionRange(el.value.length, el.value.length);
     }
   }, [inputValue]);
@@ -114,10 +117,10 @@ export function AmountInput({
     autoFocus,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
       onChange(sanitizeAmount(e.target.value, precision, maxDigits)),
-    onFocus: (e: React.FocusEvent<HTMLInputElement>) => {
-      const end = e.target.value.length;
-      e.target.setSelectionRange(end, end);
-    },
+    // Select the whole value on focus so the field behaves like a standard
+    // amount entry: focus (click / tab / autoFocus) then type to overwrite, or
+    // Backspace to clear back to the placeholder — no need to hunt for the ✕.
+    onFocus: (e: React.FocusEvent<HTMLInputElement>) => e.target.select(),
     onBlur: () => onChange(padOnBlur(value, precision)),
   };
 
