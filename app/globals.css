@@ -217,3 +217,15 @@
   --rdp-range_end-color: var(--primary-foreground);
   --rdp-range_end-date-background-color: var(--primary);
 }
+
+/*
+ * Ring today's cell so the user can find "now" at a glance without it being
+ * selected. `:not(.rdp-selected)` yields to the selected-day border once today
+ * is actually picked, so the two never stack. Outline (not border) avoids any
+ * layout shift in the day grid.
+ */
+.rdp-today:not(.rdp-selected) .rdp-day_button {
+  outline: 2px solid var(--rdp-today-color);
+  outline-offset: -2px;
+  border-radius: 9999px;
+}
