@@ -84,7 +84,9 @@ export function MonthBarChart({
           // bold label, not by fading the rest — dimming would spotlight the one
           // in-progress (partial, often-empty) bar over the complete history.
           const targetY = baseline - yScale.length(d.target);
-          const label = `${monthLabel(d.ym)} · ${usd(d.total)}${d.target > 0 ? ` of ${usd(d.target)}` : ""}`;
+          // Value only — the dashed cap line already shows the target, so
+          // repeating it here just bloats the tooltip.
+          const label = `${monthLabel(d.ym)} · ${usd(d.total)}`;
           return (
             <g key={d.ym}>
               <rect x={x} y={y} width={barW} height={h} rx={3} className={color} />
@@ -142,9 +144,6 @@ export function MonthBarChart({
           <span className="tabular-nums">
             {" · "}
             {usd(active.total)}
-            {active.target > 0 && (
-              <span className="text-muted-foreground"> of {usd(active.target)}</span>
-            )}
           </span>
         </div>
       )}
