@@ -217,3 +217,22 @@
   --rdp-range_end-color: var(--primary-foreground);
   --rdp-range_end-date-background-color: var(--primary);
 }
+
+/*
+ * Distinguish "selected" from "today" by emphasis, not by two identical rings.
+ * Selected is a filled disc (committed, high emphasis); today is a subtle
+ * outline ring (a reference marker). `:not(.rdp-selected)` drops the ring once
+ * today is the selected day, so it renders as the filled disc alone. Outline
+ * (not border) avoids any layout shift in the day grid.
+ */
+.rdp-selected .rdp-day_button {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  border-radius: 9999px;
+}
+.rdp-today:not(.rdp-selected) .rdp-day_button {
+  outline: 2px solid var(--rdp-today-color);
+  outline-offset: -2px;
+  border-radius: 9999px;
+}
