@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { CategoryKind, MonthBarDatum } from "@/types/budget";
-import { barTone, monthLabel, monthLabelShort } from "@/lib/budget";
+import { barTone, fmt, monthLabel, monthLabelShort } from "@/lib/budget";
 import { bandScale, domainMax, linearScale } from "@/lib/charts/scale";
 import type { ThresholdTone } from "@/types/threshold";
 
@@ -16,9 +16,6 @@ const TONE_FILL: Record<ThresholdTone, string> = {
   warn: "fill-signal-warn",
   bad: "fill-signal-bad",
 };
-
-const usd = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 export function MonthBarChart({
   data,
@@ -68,7 +65,7 @@ export function MonthBarChart({
           textAnchor="end"
           className="fill-current text-[9px]"
         >
-          {usd(labelTarget)}
+          {fmt(labelTarget)}
         </text>
 
         {data.map((d, i) => {
@@ -86,7 +83,7 @@ export function MonthBarChart({
           const targetY = baseline - yScale.length(d.target);
           // Value only — the dashed cap line already shows the target, so
           // repeating it here just bloats the tooltip.
-          const label = `${monthLabel(d.ym)} · ${usd(d.total)}`;
+          const label = `${monthLabel(d.ym)} · ${fmt(d.total)}`;
           return (
             <g key={d.ym}>
               <rect x={x} y={y} width={barW} height={h} rx={3} className={color} />
@@ -143,7 +140,7 @@ export function MonthBarChart({
           <span className="font-medium">{monthLabel(active.ym)}</span>
           <span className="tabular-nums">
             {" · "}
-            {usd(active.total)}
+            {fmt(active.total)}
           </span>
         </div>
       )}
