@@ -3,10 +3,11 @@ import Link from "next/link";
 import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { FulfillmentChip } from "@/components/budget/category/FulfillmentChip";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
+import { PendingNote } from "@/components/budget/pulse/PendingNote";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { thresholdColor } from "@/lib/budget";
 import { cn } from "@/lib/utils";
-import type { AttentionResult, PendingRow } from "@/types/attention";
+import type { AttentionResult } from "@/types/attention";
 
 /**
  * Pulse's "Needs attention" module (issue #166 chunk 5; pace-aware in #178):
@@ -92,30 +93,5 @@ export function NeedsAttention({ result }: { result: AttentionResult }) {
         </Link>
       )}
     </section>
-  );
-}
-
-/**
- * The calm, dashed group for goals not funded yet this early in the month — one
- * quiet line with a count, never a stack of exception rows (story 4). A dashed
- * (not solid) border signals "note, not problem"; the copy names it as normal.
- */
-function PendingNote({
-  pending,
-  className,
-}: {
-  pending: PendingRow[];
-  className?: string;
-}) {
-  const n = pending.length;
-  return (
-    <p
-      className={cn(
-        "rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground",
-        className,
-      )}
-    >
-      {n} {n === 1 ? "goal" : "goals"} not funded yet — normal this early in the month.
-    </p>
   );
 }
