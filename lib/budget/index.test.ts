@@ -25,6 +25,7 @@ import {
   presetForDateBounds,
   rangeLabel,
   resolveRange,
+  savingsRateToneClass,
   planTargetForMonth,
   resolveTargetForMonth,
   signLabelsFor,
@@ -360,6 +361,26 @@ describe("nextMonth", () => {
 
   it("rolls December to January of the next year", () => {
     expect(nextMonth("2026-12")).toBe("2027-01");
+  });
+});
+
+describe("savingsRateToneClass", () => {
+  it("is never good at or below zero (0% is not a success)", () => {
+    expect(savingsRateToneClass(0)).toBe("text-foreground");
+    expect(savingsRateToneClass(0.1)).toBe("text-foreground"); // positive but not healthy
+  });
+
+  it("is good only once healthy (>= 20%)", () => {
+    expect(savingsRateToneClass(0.2)).toBe("text-signal-good-foreground");
+    expect(savingsRateToneClass(0.45)).toBe("text-signal-good-foreground");
+  });
+
+  it("is bad when net-negative (drawing down)", () => {
+    expect(savingsRateToneClass(-0.1)).toBe("text-signal-bad-foreground");
+  });
+
+  it("falls back to neutral when there is no rate", () => {
+    expect(savingsRateToneClass(null)).toBe("text-foreground");
   });
 });
 
