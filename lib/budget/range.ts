@@ -14,6 +14,20 @@ export function currentYearStart(today = new Date()): string {
   return `${today.getUTCFullYear()}-01-01`;
 }
 
+/**
+ * Fraction of the current month elapsed by `today`, in (0, 1]: day D of an
+ * N-day month is `D / N` (day 1 of a 30-day month → ~0.03, the last day → 1).
+ * The straight-line "expected by now" pace the attention selector compares a
+ * savings goal's funding against for the in-progress current month (#178).
+ * UTC to match the rest of the month-key math.
+ */
+export function monthProgress(today = new Date()): number {
+  const y = today.getUTCFullYear();
+  const m = today.getUTCMonth();
+  const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return today.getUTCDate() / daysInMonth;
+}
+
 export const RANGE_PRESETS = [
   "this-month",
   "last-month",

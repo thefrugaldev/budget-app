@@ -13,6 +13,7 @@ import {
   longDateLabel,
   matchesTransactionFilter,
   monthEndDate,
+  monthProgress,
   monthStartDate,
   monthTotalsByCategory,
   monthlyTotalsLastN,
@@ -359,6 +360,19 @@ describe("nextMonth", () => {
 
   it("rolls December to January of the next year", () => {
     expect(nextMonth("2026-12")).toBe("2027-01");
+  });
+});
+
+describe("monthProgress", () => {
+  it("is the day-of-month fraction, ~0 early and 1 on the last day", () => {
+    expect(monthProgress(new Date("2026-01-01T00:00:00Z"))).toBeCloseTo(1 / 31);
+    expect(monthProgress(new Date("2026-01-31T00:00:00Z"))).toBe(1);
+    expect(monthProgress(new Date("2026-01-16T00:00:00Z"))).toBeCloseTo(16 / 31);
+  });
+
+  it("accounts for month length (Feb, leap year)", () => {
+    expect(monthProgress(new Date("2026-02-28T00:00:00Z"))).toBe(1); // 28-day Feb
+    expect(monthProgress(new Date("2024-02-29T00:00:00Z"))).toBe(1); // leap-year Feb
   });
 });
 
