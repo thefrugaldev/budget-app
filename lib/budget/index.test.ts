@@ -25,6 +25,7 @@ import {
   presetForDateBounds,
   rangeLabel,
   resolveRange,
+  savedTrendDirection,
   savingsRateToneClass,
   planTargetForMonth,
   resolveTargetForMonth,
@@ -361,6 +362,72 @@ describe("nextMonth", () => {
 
   it("rolls December to January of the next year", () => {
     expect(nextMonth("2026-12")).toBe("2027-01");
+  });
+});
+
+describe("savedTrendDirection", () => {
+  const pt = (ym: string, saved: number) => ({ ym, spent: 0, saved });
+
+  it("reads rising when later months save more", () => {
+    expect(
+      savedTrendDirection([
+        pt("2026-01", 100),
+        pt("2026-02", 100),
+        pt("2026-03", 200),
+        pt("2026-04", 200),
+      ]),
+    ).toBe("rising");
+  });
+
+  it("reads falling when later months save less", () => {
+    expect(
+      savedTrendDirection([
+        pt("2026-01", 200),
+        pt("2026-02", 200),
+        pt("2026-03", 100),
+        pt("2026-04", 100),
+      ]),
+    ).toBe("falling");
+  });
+
+  it("reads flat within the 5% dead-band", () => {
+    expect(
+      savedTrendDirection([
+        pt("2026-01", 100),
+        pt("2026-02", 100),
+        pt("2026-03", 102),
+        pt("2026-04", 100),
+      ]),
+    ).toBe("flat");
+  });
+
+  it("drops the in-progress current month so a partial bar isn't a fall", () => {
+    // Established uptrend, but the last (current) month is only partway funded.
+    expect(
+      savedTrendDirection([
+        pt("2026-01", 100),
+        pt("2026-02", 120),
+        pt("2026-03", 140),
+        pt("2026-04", 10), // partial, in progress
+      ]),
+    ).toBe("rising");
+  });
+
+  it("treats a zero baseline growing to positive as rising", () => {
+    // Growth in the completed months (the last, in-progress point is dropped).
+    expect(
+      savedTrendDirection([
+        pt("2026-01", 0),
+        pt("2026-02", 0),
+        pt("2026-03", 50),
+        pt("2026-04", 55),
+      ]),
+    ).toBe("rising");
+  });
+
+  it("is flat with too little history", () => {
+    expect(savedTrendDirection([])).toBe("flat");
+    expect(savedTrendDirection([pt("2026-01", 100)])).toBe("flat");
   });
 });
 

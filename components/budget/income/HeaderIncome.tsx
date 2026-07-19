@@ -34,8 +34,11 @@ export function HeaderIncome({
   return (
     <div className="flex items-start gap-3">
       <div className="text-right">
+        {/* "Annual" disambiguates this baseline figure from the hero's
+            this-month "you brought in" actual (#178 story 11) — two income
+            numbers side by side otherwise read as a discrepancy. */}
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
-          Current total income
+          Annual income
         </p>
         <p className="font-heading text-2xl font-semibold tabular-nums">
           {fmt(totalYearly)}
