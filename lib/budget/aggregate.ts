@@ -103,6 +103,32 @@ export function monthlyTrend(
 }
 
 /**
+ * Direction of the savings trend across the {@link monthlyTrend} columns, for
+ * the chart caption (#178 story 10) — so the subtitle reflects the bars rather
+ * than a static optimistic claim that can contradict them. The in-progress
+ * current month (the last point) is a partial bar, so it's dropped from the
+ * comparison when there's enough history: a not-yet-complete month must not read
+ * as a fall. Compares the mean saved of the first half against the second half
+ * with a 5% dead-band, so noise reads as flat (neutral).
+ */
+export function savedTrendDirection(
+  data: MonthlyTrendPoint[],
+): "rising" | "falling" | "flat" {
+  const series = data.length > 2 ? data.slice(0, -1) : data;
+  const saved = series.map((d) => Math.max(0, d.saved));
+  if (saved.length < 2) return "flat";
+  const mid = Math.floor(saved.length / 2);
+  const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  const firstHalf = mean(saved.slice(0, mid));
+  const secondHalf = mean(saved.slice(saved.length - mid));
+  if (firstHalf === 0) return secondHalf > 0 ? "rising" : "flat";
+  const change = (secondHalf - firstHalf) / firstHalf;
+  if (change > 0.05) return "rising";
+  if (change < -0.05) return "falling";
+  return "flat";
+}
+
+/**
  * Trailing-full-month expense and savings averages — the data-derived defaults
  * for the FIRE assumptions (#110 chunk 1, stories 7/8). Averages the signed
  * expense and savings-contribution totals over the full calendar months ending

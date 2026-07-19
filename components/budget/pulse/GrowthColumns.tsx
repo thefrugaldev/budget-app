@@ -2,9 +2,17 @@
 
 import { useRef, useState } from "react";
 
-import { fmt, monthLabelShort } from "@/lib/budget";
+import { fmt, monthLabelShort, savedTrendDirection } from "@/lib/budget";
 import { bandScale, domainMax, linearScale } from "@/lib/charts/scale";
 import type { MonthlyTrendPoint } from "@/types/budget";
+
+// Caption derived from the bars (#178 story 10), not a static claim: the
+// subtitle can never contradict the trend it sits above.
+const TREND_CAPTION: Record<ReturnType<typeof savedTrendDirection>, string> = {
+  rising: "Savings trending up",
+  falling: "Savings trending down",
+  flat: "Savings holding steady",
+};
 
 /**
  * The Pulse signature (#80 — the chosen "Harvest+" direction). A trailing stack
@@ -111,7 +119,7 @@ export function GrowthColumns({
             Momentum
           </h2>
           <p className="text-sm text-muted-foreground">
-            Savings climbing over spending
+            {TREND_CAPTION[savedTrendDirection(data)]}
             {plan > 0 ? ` · ${fmt(plan)}/mo plan` : ""}
           </p>
         </div>
@@ -124,7 +132,7 @@ export function GrowthColumns({
           </span>
           <span className="flex items-center gap-1.5">
             <span aria-hidden className="size-2.5 rounded-[3px] bg-chart-2" />
-            Saved (canopy)
+            Saved
           </span>
         </div>
       </div>

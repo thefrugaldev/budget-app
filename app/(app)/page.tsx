@@ -212,12 +212,16 @@ export default async function Home({
         </div>
       </header>
 
+      {/* Directly under the hero so it visibly governs the range-scoped content
+          it sits above — the hero figures and "Needs attention" (#178 story
+          12). The trend chart below stays a fixed trailing-6-month backdrop,
+          independent of this selector. */}
       <div className="mb-8">
-        <GrowthColumns data={trend} plan={plan} />
+        <RangeSelector active={preset} basePath="/" />
       </div>
 
       <div className="mb-8">
-        <RangeSelector active={preset} basePath="/" />
+        <GrowthColumns data={trend} plan={plan} />
       </div>
 
       <NeedsAttention result={attention} />
