@@ -60,6 +60,27 @@ export function thresholdColor(
   return SIGNAL.good;
 }
 
+/**
+ * A healthy monthly savings rate. At or above this the Pulse rate figure reads
+ * "good"; below it (but positive) is neutral, not yet a success. Tuned constant
+ * (#178) — the common personal-finance ~20% benchmark.
+ */
+export const HEALTHY_SAVINGS_RATE = 0.2;
+
+/**
+ * Text-color class for the Pulse savings-rate figure, tied to its value so 0%
+ * is never styled as if it were good (#178 story 9): a net-negative rate is bad
+ * (drawing down savings), 0 up to `HEALTHY_SAVINGS_RATE` is neutral
+ * (`foreground`), and at or above it is good. Reuses the shared signal palette
+ * so the figure agrees with the rest of Harvest (ADR 0002); `null` (no income
+ * source, so no rate) falls back to the neutral foreground.
+ */
+export function savingsRateToneClass(rate: number | null): string {
+  if (rate !== null && rate < 0) return SIGNAL.bad.text;
+  if (rate !== null && rate >= HEALTHY_SAVINGS_RATE) return SIGNAL.good.text;
+  return "text-foreground";
+}
+
 // "over" means opposite things by kind, so the words diverge: a maxed expense
 // is bad ("Over cap"), a maxed savings goal is good ("Goal met").
 const EXPENSE_LABELS: Record<ThresholdState, string> = {

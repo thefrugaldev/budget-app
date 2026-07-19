@@ -17,8 +17,10 @@ import {
   planTargetForMonth,
   rangeLabel,
   resolveRange,
+  savingsRateToneClass,
   selectAttention,
 } from "@/lib/budget";
+import { cn } from "@/lib/utils";
 import type { RangePreset } from "@/types/range";
 import { requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
@@ -125,10 +127,17 @@ export default async function Home({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Pulse · {rangeText}
           </p>
-          <h1 className="mt-3 font-heading text-hero font-semibold tracking-tight">
+          {/* Pace-resilient lead (#178 stories 1/2): never open with a zero
+              verdict. A month with contributions leads with what was kept/drawn;
+              an untouched month leads with the income that's landed (or a neutral
+              "getting started"), so the headline is useful on day 2 and day 28
+              alike. `text-balance` keeps the display-face line from breaking
+              awkwardly; the nbsp binds each figure to its verb so a number never
+              orphans to a new line. */}
+          <h1 className="mt-3 text-balance font-heading text-hero font-semibold tracking-tight">
             {savingsTotal > 0 ? (
               <>
-                You kept{" "}
+                You kept{" "}
                 <span className="text-signal-good-foreground tabular-nums">
                   {fmt(savingsTotal)}
                 </span>{" "}
@@ -136,32 +145,44 @@ export default async function Home({
               </>
             ) : savingsTotal < 0 ? (
               <>
-                You drew{" "}
+                You drew{" "}
                 <span className="text-signal-bad-foreground tabular-nums">
                   {fmt(Math.abs(savingsTotal))}
                 </span>{" "}
                 from savings {rangeLower}.
               </>
+            ) : incomeForRange > 0 ? (
+              <>
+                You&rsquo;ve brought in{" "}
+                <span className="tabular-nums">{fmt(incomeForRange)}</span> {rangeLower}.
+              </>
             ) : (
-              <>Nothing set aside yet {rangeLower}.</>
+              <>Your {rangeLower} is just getting started.</>
             )}
           </h1>
           <p className="mt-3 text-base text-muted-foreground">
             {ratePct === null ? (
               <>Add an income source to see your savings rate.</>
-            ) : (
+            ) : savingsTotal !== 0 ? (
               <>
-                That&rsquo;s {ratePct}% of the{" "}
+                That&rsquo;s {ratePct}% of the{" "}
                 <span className="tabular-nums">{fmt(incomeForRange)}</span> you brought in
                 {expenseTotal > 0 ? (
                   <>
-                    , with{" "}
+                    , with{" "}
                     <span className="tabular-nums">{fmt(expenseTotal)}</span> spent.
                   </>
                 ) : (
                   "."
                 )}
               </>
+            ) : expenseTotal > 0 ? (
+              <>
+                You&rsquo;ve spent{" "}
+                <span className="tabular-nums">{fmt(expenseTotal)}</span> {rangeLower}.
+              </>
+            ) : (
+              <>Nothing tracked yet {rangeLower}.</>
             )}
           </p>
         </div>
@@ -171,7 +192,14 @@ export default async function Home({
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Savings rate
               </p>
-              <p className="mt-1 font-heading text-display font-semibold tabular-nums text-signal-good-foreground">
+              {/* Colour tracks the value (#178 story 9): neutral at 0, good
+                  only when healthy, bad when net-negative — 0% is never green. */}
+              <p
+                className={cn(
+                  "mt-1 font-heading text-display font-semibold tabular-nums",
+                  savingsRateToneClass(savingsRate),
+                )}
+              >
                 {ratePct}%
               </p>
             </div>
