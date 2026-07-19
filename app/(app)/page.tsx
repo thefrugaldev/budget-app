@@ -12,6 +12,7 @@ import {
   fmt,
   isCategoryActiveInRange,
   isRangePreset,
+  monthProgress,
   monthlyTrend,
   planTargetForMonth,
   rangeLabel,
@@ -100,10 +101,18 @@ export default async function Home({
   const plan = planTargetForMonth(categories, targets, thisMonth);
 
   // Overview, not ledger (story 17): Pulse surfaces only the exception rows for
-  // the active range — over-cap expenses, savings behind / not started /
-  // withdrawn, met goals — via the chunk-1 selector, capped with an overflow
-  // count. The full per-category ledger lives on /categories.
-  const attention = selectAttention(inRange, aggregates);
+  // the active range — over-cap expenses, savings behind / withdrawn / (closed
+  // windows) not started, met goals — via the selector, capped with an overflow
+  // count. The full per-category ledger lives on /categories. Pace-awareness
+  // (#178): pass month-progress only when the range *is* the in-progress
+  // current month, so a not-yet-funded goal reads as pending early rather than
+  // as a missed exception; any wider/closed window keeps $0 as genuinely missed.
+  const attention = selectAttention(
+    inRange,
+    aggregates,
+    undefined,
+    preset === "this-month" ? { pace: { monthProgress: monthProgress(now) } } : undefined,
+  );
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28">
