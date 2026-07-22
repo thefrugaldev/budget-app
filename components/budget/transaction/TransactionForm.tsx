@@ -72,8 +72,14 @@ export function TransactionForm({
   // being edited, even after re-categorizing (story 45), so typed values
   // aren't clobbered.
   const prefill = editing;
+  // With a category selected, its own vendors rank first; before one is
+  // chosen (the FAB Add flow opens without a category) we pass "" — no real
+  // category id ever equals "", so it yields the global vendor list ranked by
+  // frequency, and re-ranks category-first once a category is picked. The
+  // popup itself is capped via `limit` in VendorInput, so a large list here is
+  // fine.
   const vendorOptions = useMemo(
-    () => (categoryId ? vendorSuggestionsForCategory(transactions, categoryId) : []),
+    () => vendorSuggestionsForCategory(transactions, categoryId ?? ""),
     [categoryId, transactions],
   );
 
