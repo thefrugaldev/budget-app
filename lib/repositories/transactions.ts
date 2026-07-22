@@ -39,7 +39,9 @@ type TransactionPatch = {
   amount?: number;
   date?: string;
   vendor?: string;
-  note?: string;
+  // `null` explicitly clears the field (→ `$unset`), distinct from `undefined`
+  // which leaves it untouched. Lets the edit form blank out an existing note.
+  note?: string | null;
 };
 
 // Returns true when a matching transaction was found (and thus patched).
@@ -48,18 +50,27 @@ export async function updateTransaction(
   id: string,
   patch: TransactionPatch,
 ): Promise<boolean> {
-  // Drop explicitly-undefined keys so `$set` doesn't translate them to
-  // `null` in the document. Clearing a field needs a separate `$unset`.
+  // Three states per key: `undefined` → omit (leave the field untouched, so a
+  // partial patch doesn't clobber unrelated fields); `null` → `$unset` (clear
+  // it); any other value → `$set`. Without the `$unset` path, blanking a note
+  // silently reverted to the stored value.
   const set: Record<string, unknown> = {};
+  const unset: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
-    if (value !== undefined) set[key] = value;
+    if (value === undefined) continue;
+    if (value === null) unset[key] = "";
+    else set[key] = value;
   }
-  if (Object.keys(set).length === 0) return false;
+
+  const update: Record<string, unknown> = {};
+  if (Object.keys(set).length > 0) update.$set = set;
+  if (Object.keys(unset).length > 0) update.$unset = unset;
+  if (Object.keys(update).length === 0) return false;
 
   const transactions = await scopedCollection<TransactionDocument>(
     COLLECTIONS.transactions,
   );
-  const result = await transactions.updateOne({ _id: id }, { $set: set });
+  const result = await transactions.updateOne({ _id: id }, update);
   return result.matchedCount > 0;
 }
 

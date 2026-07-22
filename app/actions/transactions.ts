@@ -34,6 +34,20 @@ function optionalString(raw: FormDataEntryValue | null): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
+/**
+ * Like `optionalString`, but for edit fields the user can deliberately clear.
+ * Returns `undefined` when the field is absent (leave the stored value
+ * untouched), `null` when it's present but blank (clear it — the repository
+ * translates `null` to a `$unset`), or the trimmed value otherwise. Without
+ * the `null` case, blanking a note collapsed to `undefined` and reverted to
+ * the stored note instead of removing it.
+ */
+function clearableString(raw: FormDataEntryValue | null): string | null | undefined {
+  if (raw === null || typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 function success(prev: TransactionActionState): TransactionActionState {
   return { error: null, ok: prev.ok + 1 };
 }
@@ -102,7 +116,9 @@ export async function updateTransactionAction(
     const date = parseIsoDate(formData.get("date"));
     const amount = applySign(parsePositiveAmount(formData.get("amount")), formData.get("sign"));
     const vendor = optionalString(formData.get("vendor"));
-    const note = optionalString(formData.get("note"));
+    // Editable notes are clearable: blanking the field removes the note rather
+    // than reverting to the stored value (see `clearableString`).
+    const note = clearableString(formData.get("note"));
 
     const hit = await updateTransaction(id, { categoryId, date, amount, vendor, note });
     if (!hit) throw new Error("Transaction not found");
