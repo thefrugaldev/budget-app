@@ -37,6 +37,12 @@ export function VendorInput({
   return (
     <Autocomplete.Root
       items={options}
+      // Cap how many suggestions render, not which vendors are searchable:
+      // Base UI filters the full `items` list by the query first, then shows
+      // up to `limit` matches. So an empty query shows the top 50 by
+      // frequency, but typing any vendor's name still surfaces it however it
+      // ranks — and the popup never mounts more than 50 nodes.
+      limit={50}
       value={value}
       onValueChange={(next) => onChange(next)}
       openOnInputClick

@@ -1277,6 +1277,17 @@ describe("vendorSuggestionsForCategory", () => {
     ]);
   });
 
+  it("yields the global vendor list for the \"\" no-category sentinel (FAB Add flow)", () => {
+    // TransactionForm passes `categoryId ?? ""` before a category is chosen;
+    // no real category id is "", so this must fall through to globals rather
+    // than returning nothing — that's what populates the FAB autocomplete.
+    expect(vendorSuggestionsForCategory(txs, "")).toEqual([
+      "Whole Foods",
+      "Sushi Ran",
+      "Trader Joe's",
+    ]);
+  });
+
   it("breaks frequency ties alphabetically for stable ordering", () => {
     const tied: Transaction[] = [
       { id: "1", categoryId: "groc", amount: 5, date: "2026-06-01", vendor: "Whole Foods" },
