@@ -50,7 +50,11 @@ export function VendorInput({
       <Autocomplete.Portal>
         <Autocomplete.Positioner sideOffset={4} className="z-[60] outline-none">
           <Autocomplete.Popup className="max-h-56 overflow-auto rounded-md bg-card p-1 text-sm shadow-md ring-1 ring-border outline-none">
-            <Autocomplete.Empty className="px-2 py-1.5 text-xs text-muted-foreground">
+            {/* Base UI keeps this live region mounted at all times so a
+                screen reader announces the empty state; collapse its vertical
+                padding while it's empty so it doesn't leave a blank sliver
+                above the suggestions. */}
+            <Autocomplete.Empty className="px-2 py-0 text-xs text-muted-foreground [&:not(:empty)]:py-1.5">
               No matches — type a new vendor.
             </Autocomplete.Empty>
             <Autocomplete.List>
