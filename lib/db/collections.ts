@@ -12,6 +12,9 @@ export const COLLECTIONS = {
   quotes: "quotes",
   // FIRE assumptions (#110 chunk 3) — one document per household.
   fireAssumptions: "fireAssumptions",
+  // Target-suggestion dismissals (#186 chunk 3) — one row per (household,
+  // category), the only persisted state of the suggestions feature (ADR 0006).
+  targetSuggestionDismissals: "targetSuggestionDismissals",
   // Auth + tenancy (#111 chunk 2). See ADR 0004.
   users: "users",
   households: "households",

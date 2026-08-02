@@ -126,6 +126,14 @@ function buildIndexes(db: Db): Promise<void> {
     // filter — so `householdId` is the unique key, backstopping a concurrent
     // double-save from creating a second row past the by-household upsert filter.
     db.collection(COLLECTIONS.fireAssumptions).createIndex({ householdId: 1 }, { unique: true }),
+    // Target-suggestion dismissals (#186 chunk 3). At most one row per
+    // (household, category) — the dismiss upsert targets it by categoryId, so
+    // the composite is unique. Its `householdId` prefix also serves the
+    // household-only list read. A fresh collection, so a plain unique create (no
+    // migration from a prior non-unique form).
+    db
+      .collection(COLLECTIONS.targetSuggestionDismissals)
+      .createIndex({ householdId: 1, categoryId: 1 }, { unique: true }),
     // Auth collections (#111 chunk 2). A user has exactly one identity record
     // and at most one membership in v1, so both lookups are unique. Invites
     // are listed per household (matching is in-app via `matchInvite`).

@@ -5,6 +5,7 @@ import type {
   HouseholdDocument,
   InviteDocument,
   MemberDocument,
+  TargetSuggestionDismissalDocument,
   TransactionDocument,
   UserDocument,
 } from "./documents";
@@ -13,6 +14,7 @@ import {
   toHousehold,
   toInvite,
   toMember,
+  toTargetSuggestionDismissal,
   toTransaction,
   toUser,
 } from "./mappers";
@@ -181,6 +183,25 @@ describe("toInvite", () => {
       email: "Spouse@Example.com",
       role: "viewer",
       status: "pending",
+    });
+  });
+});
+
+describe("toTargetSuggestionDismissal", () => {
+  it("drops persistence fields and projects dismissedAt to an ISO string", () => {
+    const doc: TargetSuggestionDismissalDocument = {
+      _id: "d1",
+      householdId: "h1",
+      categoryId: "daycare",
+      dismissedMedian: 1300,
+      dismissedAgainstTarget: 1000,
+      dismissedAt: new Date("2026-07-15T12:34:56Z"),
+    };
+    expect(toTargetSuggestionDismissal(doc)).toEqual({
+      categoryId: "daycare",
+      dismissedMedian: 1300,
+      dismissedAgainstTarget: 1000,
+      dismissedAt: "2026-07-15T12:34:56.000Z",
     });
   });
 });
