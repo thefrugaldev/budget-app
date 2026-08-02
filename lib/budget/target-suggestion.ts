@@ -79,18 +79,15 @@ function medianOf(values: number[]): number {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
-/** True once `now` is at least `SNOOZE_MONTHS` calendar months past the dismissal. */
+/**
+ * True once `now` has reached the month `SNOOZE_MONTHS` after the dismissal.
+ * Month-grained on purpose — it matches the detector's complete-month window and
+ * sidesteps day-of-month overflow (adding 3 to a Jan-31 date would spill into
+ * May). A dismissal anywhere in month M clears the snooze at the start of M+3.
+ */
 function snoozeElapsed(dismissedAt: string, now: Date): boolean {
-  const d = new Date(dismissedAt);
-  const threshold = Date.UTC(
-    d.getUTCFullYear(),
-    d.getUTCMonth() + SNOOZE_MONTHS,
-    d.getUTCDate(),
-    d.getUTCHours(),
-    d.getUTCMinutes(),
-    d.getUTCSeconds(),
-  );
-  return now.getTime() >= threshold;
+  const dismissedMonth = dismissedAt.slice(0, 7);
+  return currentMonthKey(now) >= shiftMonth(dismissedMonth, SNOOZE_MONTHS);
 }
 
 /**
@@ -157,6 +154,10 @@ function dismissalSuppresses(
  *
  * Kind-aware but expense-only in output for v1: savings goals and income
  * baselines are deliberately not emitted yet.
+ *
+ * Cost is a single bucketing pass over `transactions` plus O(1) per
+ * category-month — no per-category rescans — so it stays cheap on every Pulse
+ * render even against years of imported history.
  */
 export function selectTargetSuggestions(
   categories: Category[],
@@ -170,6 +171,17 @@ export function selectTargetSuggestions(
   const windowStart = shiftMonth(lastFull, -(WINDOW_MONTHS - 1));
   const windowMonths: string[] = [];
   for (let i = 0; i < WINDOW_MONTHS; i++) windowMonths.push(shiftMonth(windowStart, i));
+  const windowSet = new Set(windowMonths);
+
+  // Bucket in-window transaction sums by category+month in one pass, so the
+  // per-category loop below is O(1) reads rather than a full rescan each time.
+  const totalsByCatMonth = new Map<string, number>();
+  for (const t of transactions) {
+    const ym = t.date.slice(0, 7);
+    if (!windowSet.has(ym)) continue;
+    const key = `${t.categoryId}|${ym}`;
+    totalsByCatMonth.set(key, (totalsByCatMonth.get(key) ?? 0) + t.amount);
+  }
 
   const dismissalByCategory = new Map(dismissals.map((d) => [d.categoryId, d]));
   const suggestions: { suggestion: TargetSuggestion; name: string }[] = [];
@@ -192,13 +204,9 @@ export function selectTargetSuggestions(
     if (currentTarget <= 0) continue; // unbudgeted — nothing to drift from (story 17)
 
     // Per-month totals across the window, and the same-side persistence vote.
-    const totals = windowMonths.map((ym) => {
-      let total = 0;
-      for (const t of transactions) {
-        if (t.categoryId === category.id && t.date.startsWith(ym)) total += t.amount;
-      }
-      return total;
-    });
+    const totals = windowMonths.map(
+      (ym) => totalsByCatMonth.get(`${category.id}|${ym}`) ?? 0,
+    );
     const overBand = currentTarget * (1 + DEAD_BAND);
     const underBand = currentTarget * (1 - DEAD_BAND);
     const overCount = totals.filter((t) => t > overBand).length;
@@ -215,7 +223,10 @@ export function selectTargetSuggestions(
     if (gap < MAGNITUDE_PCT * currentTarget || gap < MAGNITUDE_ABS) continue;
 
     const proposedTarget = proposeTargetFromMedian(median);
-    if (proposedTarget === currentTarget) continue; // rounding erased the change
+    // Defensive: the magnitude gate + round-up already keep the proposal strictly
+    // off the cap, so this can't currently fire — it's insurance against a future
+    // loosening of the thresholds proposing a no-op change.
+    if (proposedTarget === currentTarget) continue;
 
     const dismissal = dismissalByCategory.get(category.id);
     if (

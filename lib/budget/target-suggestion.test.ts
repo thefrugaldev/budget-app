@@ -155,6 +155,17 @@ describe("selectTargetSuggestions — triggers", () => {
     expect(selectTargetSuggestions(cats, txns, targets, [], NOW)).toEqual([]);
   });
 
+  it("pins the persistence quorum at 5 of 6 (4-over is silent, 5-over fires)", () => {
+    const cats = [expenseCat("daycare")];
+    const targets = [target("daycare", 1000)];
+    // 4 over + 2 at-cap (neutral) → quorum not met.
+    const four = monthlyTxns("daycare", [1300, 1300, 1300, 1300, 1000, 1000]);
+    expect(selectTargetSuggestions(cats, four, targets, [], NOW)).toEqual([]);
+    // 5 over + 1 at-cap → quorum met.
+    const five = monthlyTxns("daycare", [1300, 1300, 1300, 1300, 1300, 1000]);
+    expect(selectTargetSuggestions(cats, five, targets, [], NOW)).toHaveLength(1);
+  });
+
   it("does not fire for a lumpy category whose months scatter across the cap", () => {
     // Annual-insurance shape: alternating $0 and big months — 3 over, 3 under.
     const cats = [expenseCat("insurance")];
@@ -281,6 +292,14 @@ describe("selectTargetSuggestions — dismissals", () => {
     const flipped = monthlyTxns("daycare", [700, 700, 700, 700, 700, 700]);
     const out = selectTargetSuggestions(cats, flipped, targets, [dismissal()], NOW);
     expect(out[0]?.direction).toBe("lower");
+  });
+
+  it("clears the snooze month-grained, ignoring the dismissal day-of-month", () => {
+    // Dismissed on the 31st: month-grained, May + 3 = Aug, and now is Aug → the
+    // snooze has elapsed regardless of the day (guards the old day-overflow bug).
+    const monthEnd = dismissal({ dismissedAt: "2026-05-31T00:00:00Z" });
+    const out = selectTargetSuggestions(cats, txns, targets, [monthEnd], NOW);
+    expect(out.map((s) => s.categoryId)).toEqual(["daycare"]);
   });
 
   it("ignores a stale dismissal recorded against a now-changed cap", () => {

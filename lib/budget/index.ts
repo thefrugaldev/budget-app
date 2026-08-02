@@ -19,6 +19,8 @@ export * from "./range";
 export * from "./threshold";
 export * from "./aggregate";
 export * from "./attention";
-export * from "./target-suggestion";
+// Only the detector is public API; `proposeTargetFromMedian` is an internal
+// helper (its own tests import it directly from the module).
+export { selectTargetSuggestions } from "./target-suggestion";
 export * from "./labels";
 export * from "./transaction-filter";
