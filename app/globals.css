@@ -152,6 +152,15 @@
   }
   html {
     @apply font-sans;
+    /*
+     * Reserve the scrollbar gutter so it never toggles. Without this, any
+     * overlay that grows the document past the viewport (e.g. the category
+     * switcher's dropdown on a short page) summons the vertical scrollbar,
+     * which shifts the centered layout by the scrollbar width — and un-shifts
+     * on close. A no-op under overlay scrollbars (mac default); it removes the
+     * jitter for classic/always-on scrollbars.
+     */
+    scrollbar-gutter: stable;
   }
 }
 
