@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,7 @@ export function CategoryPicker({
   hideLabel = false,
   autoFocusSearch = false,
   triggerAriaLabel,
+  overlayPanel = false,
 }: {
   categories: Category[];
   selectedId: string | undefined;
@@ -48,10 +49,43 @@ export function CategoryPicker({
    * trigger reads the current category but needs to announce "Switch category").
    */
   triggerAriaLabel?: string;
+  /**
+   * Float the panel as an absolute overlay instead of expanding inline. Off by
+   * default so form usages keep pushing content down (their column has room);
+   * the header-band CategorySwitcher opts in so opening the dropdown doesn't
+   * reflow the page. Overlay mode also dismisses on outside-click / Escape.
+   */
+  overlayPanel?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
   const selected = selectedId ? categories.find((c) => c.id === selectedId) : undefined;
+
+  // A floating panel covers content, so it needs the dismissal affordances an
+  // inline panel doesn't: click-away and Escape. Scoped to overlay mode so form
+  // usages are untouched.
+  useEffect(() => {
+    if (!overlayPanel || !open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [overlayPanel, open]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -65,7 +99,7 @@ export function CategoryPicker({
   }, [categories, query]);
 
   return (
-    <div className="space-y-1">
+    <div ref={rootRef} className={cn("space-y-1", overlayPanel && "relative")}>
       {!hideLabel && (
         <span className="block text-xs font-medium text-muted-foreground">{label}</span>
       )}
@@ -93,7 +127,14 @@ export function CategoryPicker({
       </button>
 
       {open && (
-        <div className="rounded-md bg-card p-2 ring-1 ring-border">
+        <div
+          className={cn(
+            "rounded-md p-2 ring-1 ring-border",
+            overlayPanel
+              ? "absolute left-0 right-0 top-full z-20 mt-1 bg-popover shadow-md"
+              : "bg-card",
+          )}
+        >
           <div className="mb-2 flex items-center gap-2 rounded-md bg-background px-2 py-1 ring-1 ring-border">
             <Search className="size-3.5 text-muted-foreground" aria-hidden />
             <input

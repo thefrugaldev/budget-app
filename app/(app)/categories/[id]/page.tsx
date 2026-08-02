@@ -62,7 +62,7 @@ export default async function CategoryDetail({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <BackLink href="/categories" label="Categories" />
         <CategorySwitcher categories={categories} currentId={category.id} rangePreset={preset} />
       </div>

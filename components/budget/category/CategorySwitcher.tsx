@@ -35,6 +35,7 @@ export function CategorySwitcher({
         categories={switchable}
         selectedId={currentId}
         hideLabel
+        overlayPanel
         triggerAriaLabel="Switch category"
         onChange={(id) => {
           if (id === currentId) return;
