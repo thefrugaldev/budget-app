@@ -63,6 +63,22 @@ export type CategoryTargetDocument = HouseholdOwned & Imported & Seeded & {
   createdAt: Date;
 };
 
+// The persisted memory that a Target suggestion was dismissed (#186, ADR 0006).
+// The *only* new state the suggestions feature stores — suggestions themselves
+// are computed on read, never materialized. One row per category (a
+// `(householdId, categoryId)` unique index, added with the repository in a later
+// chunk); re-dismissing upserts. `dismissedMedian` / `dismissedAgainstTarget`
+// snapshot the observed level so the detector can re-surface on a materially
+// larger divergence, and `dismissedAt` is the snooze clock. Not household-exempt:
+// a dismissal is household data like every other user document.
+export type TargetSuggestionDismissalDocument = HouseholdOwned & {
+  _id: string;
+  categoryId: string;
+  dismissedMedian: number;
+  dismissedAgainstTarget: number;
+  dismissedAt: Date;
+};
+
 export type TransactionDocument = HouseholdOwned & Imported & Seeded & {
   _id: string;
   categoryId: string;
