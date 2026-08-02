@@ -27,6 +27,18 @@ describe("proposeTargetFromMedian — friendly round-up", () => {
     expect(proposeTargetFromMedian(3001)).toBe(3050);
   });
 
+  it("keeps the top $50 band open-ended at large magnitudes", () => {
+    expect(proposeTargetFromMedian(100000)).toBe(100000);
+    expect(proposeTargetFromMedian(100013)).toBe(100050);
+  });
+
+  it("does not let the epsilon collapse a value sitting just above an increment", () => {
+    // 90.5 is above the $90 increment and must round up to $95, not be pulled
+    // back to $90 — the epsilon only absorbs float error at the increment.
+    expect(proposeTargetFromMedian(90.5)).toBe(95);
+    expect(proposeTargetFromMedian(150.01)).toBe(160);
+  });
+
   it("chooses the band from the input figure, then rounds up across boundaries", () => {
     // 98 is in the sub-$100 ($5) band and rounds up onto the $100 boundary.
     expect(proposeTargetFromMedian(98)).toBe(100);
