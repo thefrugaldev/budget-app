@@ -1,5 +1,6 @@
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
 import type { FireAssumptionOverrides } from "@/types/fire";
+import type { TargetSuggestionDismissal } from "@/types/target-suggestion";
 import type { Account, Snapshot } from "@/types/net-worth";
 import type { Household, Invite, Member, User } from "@/types/auth";
 import type {
@@ -11,6 +12,7 @@ import type {
   InviteDocument,
   MemberDocument,
   SnapshotDocument,
+  TargetSuggestionDismissalDocument,
   TransactionDocument,
   UserDocument,
 } from "./documents";
@@ -50,6 +52,20 @@ export function toCategoryTarget(doc: CategoryTargetDocument): CategoryTarget {
     categoryId: doc.categoryId,
     monthly: doc.monthly,
     effectiveFrom: doc.effectiveFrom,
+  };
+}
+
+// Target-suggestion dismissal (#186 chunk 3). Drops the persistence fields
+// (`_id`, `householdId`) and projects the stored `dismissedAt` Date to an ISO
+// string, matching the domain shape the detector reads.
+export function toTargetSuggestionDismissal(
+  doc: TargetSuggestionDismissalDocument,
+): TargetSuggestionDismissal {
+  return {
+    categoryId: doc.categoryId,
+    dismissedMedian: doc.dismissedMedian,
+    dismissedAgainstTarget: doc.dismissedAgainstTarget,
+    dismissedAt: doc.dismissedAt.toISOString(),
   };
 }
 
