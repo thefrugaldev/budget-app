@@ -23,7 +23,7 @@ const HOUSEHOLD_SCOPED_MODULES = [
   "./monthly-spend.ts",
   "./accounts.ts",
   "./snapshots.ts",
-  "./targetSuggestionDismissals.ts",
+  "./target-suggestion-dismissals.ts",
   "../db/reset.ts",
 ];
 

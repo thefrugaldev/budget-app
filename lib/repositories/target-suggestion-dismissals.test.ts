@@ -14,7 +14,7 @@ import {
   deleteTargetSuggestionDismissal,
   listTargetSuggestionDismissals,
   upsertTargetSuggestionDismissal,
-} from "./targetSuggestionDismissals";
+} from "./target-suggestion-dismissals";
 
 const HH = "hh-test";
 let mongo: MemoryMongo;
