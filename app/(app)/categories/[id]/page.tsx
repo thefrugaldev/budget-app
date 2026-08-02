@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CategoryDetailBody } from "@/components/budget/category/CategoryDetailBody";
+import { CategorySwitcher } from "@/components/budget/category/CategorySwitcher";
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
 import { BackLink } from "@/components/shell/BackLink";
 import {
@@ -61,8 +62,9 @@ export default async function CategoryDetail({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <BackLink href="/categories" label="Categories" />
+        <CategorySwitcher categories={categories} currentId={category.id} rangePreset={preset} />
       </div>
       <div className="mb-6">
         <RangeSelector active={preset} basePath={`/categories/${category.id}`} />
