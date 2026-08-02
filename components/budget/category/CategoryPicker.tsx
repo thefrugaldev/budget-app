@@ -34,6 +34,7 @@ export function CategoryPicker({
   label = "Category",
   hideLabel = false,
   autoFocusSearch = false,
+  triggerAriaLabel,
 }: {
   categories: Category[];
   selectedId: string | undefined;
@@ -41,6 +42,12 @@ export function CategoryPicker({
   label?: string;
   hideLabel?: boolean;
   autoFocusSearch?: boolean;
+  /**
+   * Accessible name for the trigger button when the visible `label` is hidden
+   * or doesn't convey the action (e.g. the header-band CategorySwitcher, whose
+   * trigger reads the current category but needs to announce "Switch category").
+   */
+  triggerAriaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -66,6 +73,7 @@ export function CategoryPicker({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-label={triggerAriaLabel}
         className="flex w-full items-center justify-between rounded-md bg-background px-2 py-1.5 text-left text-sm ring-1 ring-border outline-none focus:ring-ring"
       >
         {selected ? (
