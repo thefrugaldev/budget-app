@@ -25,6 +25,10 @@ _Avoid_: Earnings, paycheck (overloaded), revenue.
 The monthly dollar value associated with a category — a cap for expense categories, a goal for savings categories. Targets are **effective-dated**: a category has a history of targets, and the target in effect for a given month is the most recent one whose `effectiveFrom` is on or before that month.
 _Avoid_: Threshold (reserved for the *state* computed from amount vs. target), limit, budget (overloaded — means the whole app).
 
+**Target suggestion**:
+A system-detected proposal to change a category's Target, derived from a sustained divergence between recent activity and the target in effect. The owner **accepts** it (writing a new Target) or **dismisses** it. A suggestion is deliberately calm and occasional — distinct in register from a **Threshold state** (this-month status) and from "Needs attention" (this-month problems); it is a slow, structural observation that the plan has drifted from reality. Not a Target until accepted. A **dismissal** is the persisted memory that a suggestion was declined at a given observed level, used to avoid re-nagging until the picture materially changes.
+_Avoid_: Recommendation, nudge, insight, alert (too urgent).
+
 **Threshold state**:
 A category's status for a given month relative to its target: `under`, `near`, `at`, or `over`. Drives the UI color. Same vocabulary for both kinds, but the *meaning* flips: `over` is bad for expense categories, good for savings categories.
 _Avoid_: Status, level.
