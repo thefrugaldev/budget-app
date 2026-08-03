@@ -6,7 +6,7 @@ import { ToastDefaultBody } from "@/components/notify/ToastDefaultBody";
 import { ToastUndoBody } from "@/components/notify/ToastUndoBody";
 import { cn } from "@/lib/utils";
 
-import type { NotifyData, NotifyType, UndoDeleteData } from "@/types/notify";
+import type { NotifyData, NotifyType, UndoActionData } from "@/types/notify";
 
 /**
  * Bottom-left viewport for all toasts. Mounted by `<NotifyRoot>` once at the
@@ -38,8 +38,8 @@ export function NotifyViewport() {
                   : "ring-border",
               )}
             >
-              {type === "undo-delete" ? (
-                <ToastUndoBody toast={t as { data?: UndoDeleteData; title: React.ReactNode }} />
+              {type === "undo-delete" || type === "undo-action" ? (
+                <ToastUndoBody toast={t as { data?: UndoActionData; title: React.ReactNode }} />
               ) : (
                 <ToastDefaultBody type={type} title={t.title} description={t.description} />
               )}

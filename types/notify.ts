@@ -10,13 +10,23 @@
  * its render path on these. Kept narrow on purpose; new variants should be
  * added here so the renderer covers them exhaustively.
  */
-export type NotifyType = "success" | "error" | "undo-delete";
+export type NotifyType = "success" | "error" | "undo-delete" | "undo-action";
 
-/** Payload shape for the bespoke undo-delete toast. */
-export type UndoDeleteData = {
-  vendorLabel: string;
+/**
+ * The minimal payload any action-carrying toast needs: an undo handler and an
+ * `inFlight` flag that disables the button once the underlying mutation has
+ * started. `undo-delete` extends it with a vendor label for its title copy;
+ * `undo-action` (e.g. accepting a Target suggestion) carries nothing extra —
+ * its title is passed straight through.
+ */
+export type UndoActionData = {
   inFlight: boolean;
   onUndo: () => void;
 };
 
-export type NotifyData = UndoDeleteData;
+/** Payload shape for the bespoke undo-delete toast. */
+export type UndoDeleteData = UndoActionData & {
+  vendorLabel: string;
+};
+
+export type NotifyData = UndoDeleteData | UndoActionData;

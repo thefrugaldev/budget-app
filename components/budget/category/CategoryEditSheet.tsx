@@ -53,6 +53,7 @@ export function CategoryEditSheet({
   now,
   open,
   onOpenChange,
+  initialTargetOverride,
 }: {
   category: Category;
   targets: CategoryTarget[];
@@ -60,6 +61,15 @@ export function CategoryEditSheet({
   now: Date;
   open: boolean;
   onOpenChange: (next: boolean) => void;
+  /**
+   * Seed the target input to this value on open instead of the persisted
+   * current target — used by "Adjust…" on a Target suggestion (#186) to open
+   * the sheet pre-filled with the proposed cap. In the section's display unit
+   * (monthly; suggestions are expense-only so never the yearly income unit).
+   * Applies only to the close→open transition; a save landing while open
+   * re-seeds from the freshly persisted value as usual.
+   */
+  initialTargetOverride?: number;
 }) {
   const thisMonth = currentMonthKey(now);
   const myTargets = useMemo(
@@ -113,7 +123,13 @@ export function CategoryEditSheet({
     setActiveFrom(category.activeFrom);
     setActiveUntil(category.activeUntil ?? "");
     setShowEndDate(category.activeUntil !== undefined);
-    setTargetInput(currentTargetDisplay.toString());
+    // On a fresh open with a proposed value ("Adjust…"), seed to the proposal;
+    // otherwise (and always after an in-place save) seed to the persisted cap.
+    const seedTarget =
+      justOpened && initialTargetOverride !== undefined
+        ? initialTargetOverride
+        : currentTargetDisplay;
+    setTargetInput(seedTarget.toString());
     setApplyThisMonth(false);
   } else if (prev.open !== open) {
     setPrev({ ...prev, open });
