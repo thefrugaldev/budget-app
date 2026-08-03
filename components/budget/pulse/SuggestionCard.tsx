@@ -17,11 +17,18 @@ import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { Sparkline } from "@/components/budget/category/Sparkline";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { useNotify } from "@/hooks/useNotify";
-import { currentMonthKey, fmt, monthLabel, nextMonth } from "@/lib/budget";
+import {
+  currentMonthKey,
+  fmt,
+  monthLabel,
+  nextMonth,
+  thresholdColor,
+} from "@/lib/budget";
+import { cn } from "@/lib/utils";
 import type { TargetSuggestionView } from "@/types/target-suggestion";
 
 const secondaryButton =
-  "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+  "cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
 /**
  * One "Worth revisiting" row (#186): the evidence for a single Target
@@ -122,6 +129,11 @@ export function SuggestionCard({
   }
 
   const verb = direction === "raise" ? "Raise" : "Lower";
+  // Tone the direction chip from the *shared* signal source (not a bespoke
+  // raise→red map) so it agrees with the meter: a category running over its
+  // stale cap reads `bad`, one with comfortable headroom reads `good`. The word
+  // carries the meaning; colour is reinforcement (accessibility baseline).
+  const directionToneText = thresholdColor(category.kind, currentTarget, median).text;
   const pending = acceptPending || dismissPending;
   const error = acceptState.error ?? dismissState.error;
 
@@ -138,13 +150,20 @@ export function SuggestionCard({
             Typically <span className="tabular-nums">{fmt(median)}</span>/mo over
             the last 6 months.
           </p>
-          <p className="mt-1.5 text-sm font-medium">
-            <span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-foreground">
+          <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium">
+            <span
+              className={cn(
+                "inline-flex shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium leading-none",
+                directionToneText,
+              )}
+            >
               {verb}
             </span>
-            <span className="tabular-nums">{fmt(currentTarget)}</span>
-            {" → "}
-            <span className="tabular-nums">{fmt(proposedTarget)}</span>/mo
+            <span>
+              <span className="tabular-nums">{fmt(currentTarget)}</span>
+              {" → "}
+              <span className="tabular-nums">{fmt(proposedTarget)}</span>/mo
+            </span>
           </p>
         </div>
       </div>
@@ -154,7 +173,7 @@ export function SuggestionCard({
           type="button"
           onClick={handleAccept}
           disabled={pending}
-          className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="cursor-pointer rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           {acceptPending ? "Accepting…" : "Accept"}
         </button>
