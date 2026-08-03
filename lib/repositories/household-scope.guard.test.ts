@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
  */
 const HOUSEHOLD_SCOPED_MODULES = [
   "./categories.ts",
-  "./categoryTargets.ts",
+  "./category-targets.ts",
   "./transactions.ts",
   "./monthly-spend.ts",
   "./accounts.ts",

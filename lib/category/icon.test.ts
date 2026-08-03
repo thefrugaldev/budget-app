@@ -9,7 +9,7 @@ import {
   ALL_ICONS,
   catalogIconByName,
   searchIcons,
-} from "@/lib/category/iconCatalog";
+} from "@/lib/category/icon-catalog";
 
 // The emoji every seed category ships with (lib/db/seed.ts). Each must resolve
 // to a real, non-default curated icon so a freshly-seeded app renders instantly

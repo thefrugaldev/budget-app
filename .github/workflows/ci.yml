@@ -46,3 +46,6 @@ jobs:
 
       - name: Design tokens
         run: pnpm lint:design
+
+      - name: File naming
+        run: pnpm lint:names

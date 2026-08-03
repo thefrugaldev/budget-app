@@ -1,4 +1,4 @@
-import { catalogIconByName } from "@/lib/category/iconCatalog";
+import { catalogIconByName } from "@/lib/category/icon-catalog";
 
 import type { CategoryMapping, IncomeConfig } from "./types";
 

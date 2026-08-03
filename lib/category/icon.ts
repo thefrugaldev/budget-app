@@ -104,7 +104,7 @@ import {
 /**
  * The category icon system's LIGHT render path (#80 chunk 4). Categories store
  * a lucide icon name in `Category.icon`; the picker can choose from the entire
- * lucide set (see `iconCatalog.ts`).
+ * lucide set (see `icon-catalog.ts`).
  *
  * This module bundles only a curated ~100-icon set — the seed categories plus
  * common budget concepts — so the broad render path (Pulse cards, pills, etc.)

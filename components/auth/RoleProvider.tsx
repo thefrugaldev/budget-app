@@ -1,6 +1,6 @@
 "use client";
 
-import { RoleContext } from "@/hooks/roleContext";
+import { RoleContext } from "@/hooks/role-context";
 import type { Role } from "@/types/auth";
 
 /**

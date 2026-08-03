@@ -2,7 +2,7 @@
 
 import { createElement } from "react";
 
-import { catalogIconByName } from "@/lib/category/iconCatalog";
+import { catalogIconByName } from "@/lib/category/icon-catalog";
 import { DEFAULT_CATEGORY_ICON } from "@/lib/category/icon";
 
 /**

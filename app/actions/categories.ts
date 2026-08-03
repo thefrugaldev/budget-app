@@ -17,7 +17,7 @@ import {
   deleteCategoryTarget,
   listCategoryTargetsFor,
   upsertCategoryTarget,
-} from "@/lib/repositories/categoryTargets";
+} from "@/lib/repositories/category-targets";
 import { countTransactionsForCategory } from "@/lib/repositories/transactions";
 
 import {

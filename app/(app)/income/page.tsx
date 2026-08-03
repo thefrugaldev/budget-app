@@ -13,7 +13,7 @@ import type { OneTimeReceiptSummary } from "@/types/budget";
 import { requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
-import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
+import { listCategoryTargets } from "@/lib/repositories/category-targets";
 import { listAllTransactions } from "@/lib/repositories/transactions";
 
 export const metadata: Metadata = {

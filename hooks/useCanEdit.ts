@@ -4,7 +4,7 @@ import { useContext } from "react";
 
 import { roleSatisfies } from "@/lib/auth";
 
-import { RoleContext } from "./roleContext";
+import { RoleContext } from "./role-context";
 
 /**
  * Whether the current member may mutate data — true for `editor` and `owner`,

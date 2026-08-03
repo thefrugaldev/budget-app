@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
-import { ALL_ICONS, searchIcons } from "@/lib/category/iconCatalog";
+import { ALL_ICONS, searchIcons } from "@/lib/category/icon-catalog";
 import { cn } from "@/lib/utils";
 
 /**
