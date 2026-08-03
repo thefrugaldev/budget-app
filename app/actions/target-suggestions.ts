@@ -71,6 +71,7 @@ export async function acceptTargetSuggestionAction(
     const proposedTarget = parseSuggestionAmount(
       formData.get("proposedTarget"),
       "proposedTarget",
+      { allowZero: false },
     );
 
     const cat = await getCategoryById(categoryId);

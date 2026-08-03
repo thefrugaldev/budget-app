@@ -23,8 +23,18 @@ describe("parseSuggestionAmount", () => {
     expect(parseSuggestionAmount("1300.5", "dismissedMedian")).toBe(1300.5);
   });
 
-  it("permits zero", () => {
+  it("permits zero by default", () => {
     expect(parseSuggestionAmount("0", "dismissedMedian")).toBe(0);
+  });
+
+  it("rejects zero when allowZero is false (a proposed cap is never legitimately 0)", () => {
+    expect(() =>
+      parseSuggestionAmount("0", "proposedTarget", { allowZero: false }),
+    ).toThrow(/proposedTarget must be greater than 0/);
+    // still accepts a positive value under the same flag
+    expect(parseSuggestionAmount("450", "proposedTarget", { allowZero: false })).toBe(
+      450,
+    );
   });
 
   it("trims surrounding whitespace", () => {

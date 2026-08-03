@@ -18,12 +18,18 @@ export function parseCategoryId(raw: FormDataEntryValue | null): string {
  * A non-negative money amount carried on a suggestion (the proposed Target, the
  * observed median, or the current Target it was measured against). Values are
  * plain numeric strings from hidden inputs, so a bare `Number` parse is enough —
- * no currency-symbol stripping like the human-facing `parseMonthlyTarget`. Zero
- * is permitted; a negative is a garbled post and throws.
+ * no currency-symbol stripping like the human-facing `parseMonthlyTarget`. A
+ * negative is a garbled post and throws.
+ *
+ * Zero is permitted by default (a `dismissedMedian` could legitimately be 0),
+ * but pass `allowZero: false` where 0 is nonsensical — the accepted
+ * `proposedTarget` is never legitimately 0, so a forged 0 there would write a
+ * `$0` (unbudgeted) cap and should be rejected.
  */
 export function parseSuggestionAmount(
   raw: FormDataEntryValue | null,
   field: string,
+  { allowZero = true }: { allowZero?: boolean } = {},
 ): number {
   if (typeof raw !== "string" || raw.trim() === "") {
     throw new Error(`${field} is required`);
@@ -34,6 +40,9 @@ export function parseSuggestionAmount(
   }
   if (n < 0) {
     throw new Error(`${field} cannot be negative`);
+  }
+  if (n === 0 && !allowZero) {
+    throw new Error(`${field} must be greater than 0`);
   }
   return n;
 }
