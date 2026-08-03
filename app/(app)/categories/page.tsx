@@ -7,7 +7,7 @@ import { requireHouseholdId } from "@/lib/auth/session";
 import { isRangePreset, rangeLabel, resolveRange } from "@/lib/budget";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
-import { listCategoryTargets } from "@/lib/repositories/categoryTargets";
+import { listCategoryTargets } from "@/lib/repositories/category-targets";
 import { listAllTransactions } from "@/lib/repositories/transactions";
 import type { RangePreset } from "@/types/range";
 
