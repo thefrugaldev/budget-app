@@ -21,6 +21,7 @@ import {
   monthsInRange,
   mostRecentTransactionInCategory,
   nextMonth,
+  nextScheduledTarget,
   presetDateBounds,
   presetForDateBounds,
   rangeLabel,
@@ -129,6 +130,48 @@ describe("resolveTargetForMonth", () => {
 
   it("returns 0 when the history is empty", () => {
     expect(resolveTargetForMonth("groc", "2026-06", [])).toBe(0);
+  });
+});
+
+describe("nextScheduledTarget", () => {
+  const history: CategoryTarget[] = [
+    { categoryId: "groc", monthly: 800, effectiveFrom: "2026-01" },
+    { categoryId: "groc", monthly: 350, effectiveFrom: "2026-09" },
+    { categoryId: "groc", monthly: 400, effectiveFrom: "2026-12" },
+    { categoryId: "rent", monthly: 2000, effectiveFrom: "2026-10" },
+  ];
+
+  it("returns the soonest future-dated row, not a later one", () => {
+    expect(nextScheduledTarget("groc", "2026-08", history)).toEqual({
+      categoryId: "groc",
+      monthly: 350,
+      effectiveFrom: "2026-09",
+    });
+  });
+
+  it("treats a row effective this month as not upcoming (strictly after)", () => {
+    expect(nextScheduledTarget("groc", "2026-09", history)).toEqual({
+      categoryId: "groc",
+      monthly: 400,
+      effectiveFrom: "2026-12",
+    });
+  });
+
+  it("returns undefined when nothing is scheduled ahead", () => {
+    expect(nextScheduledTarget("groc", "2026-12", history)).toBeUndefined();
+  });
+
+  it("ignores rows for other categories", () => {
+    expect(nextScheduledTarget("rent", "2026-08", history)).toEqual({
+      categoryId: "rent",
+      monthly: 2000,
+      effectiveFrom: "2026-10",
+    });
+  });
+
+  it("returns undefined for an unknown category or empty history", () => {
+    expect(nextScheduledTarget("unknown", "2026-08", history)).toBeUndefined();
+    expect(nextScheduledTarget("groc", "2026-08", [])).toBeUndefined();
   });
 });
 

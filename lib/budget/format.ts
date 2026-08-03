@@ -72,3 +72,14 @@ export function monthLabelShort(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "short", timeZone: "UTC" });
 }
+
+/** Abbreviated month with year, e.g. `"2026-09"` → `"Sep 2026"` — compact enough
+ * for an inline chip where the full `monthLabel` ("September 2026") is too long. */
+export function monthShortYear(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}

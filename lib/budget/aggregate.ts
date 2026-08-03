@@ -233,6 +233,30 @@ export function resolveTargetForMonth(
 }
 
 /**
+ * The nearest **future-dated** target row for a category — the soonest one whose
+ * `effectiveFrom` is strictly after `thisMonth` — or `undefined` when none is
+ * scheduled. A target edited with the "apply next month" default (a manual edit
+ * or an accepted suggestion) writes such a row, so the current view is unchanged
+ * until the month arrives; callers use this to flag the upcoming change inline
+ * (e.g. a `Cap $800/mo · ↓ $350/mo from Sep` header chip). Deliberately generic
+ * — any future-dated row, not suggestion-specific — and reads target rows the
+ * page already holds.
+ */
+export function nextScheduledTarget(
+  categoryId: string,
+  thisMonth: string,
+  targetHistory: CategoryTarget[],
+): CategoryTarget | undefined {
+  let soonest: CategoryTarget | undefined;
+  for (const row of targetHistory) {
+    if (row.categoryId !== categoryId) continue;
+    if (row.effectiveFrom <= thisMonth) continue;
+    if (!soonest || row.effectiveFrom < soonest.effectiveFrom) soonest = row;
+  }
+  return soonest;
+}
+
+/**
  * Inclusive lifecycle check against `activeFrom`/`activeUntil`. `activeUntil`
  * is optional — undefined means "no end". A row whose `activeUntil === ym`
  * is still active here (the month is part of its window); the income page's

@@ -19,8 +19,12 @@ export * from "./range";
 export * from "./threshold";
 export * from "./aggregate";
 export * from "./attention";
-// Only the detector is public API; `proposeTargetFromMedian` is an internal
+// The detector and the view-enricher are public API (both Pulse and the
+// category-detail loader use them); `proposeTargetFromMedian` stays an internal
 // helper (its own tests import it directly from the module).
-export { selectTargetSuggestions } from "./target-suggestion";
+export {
+  buildTargetSuggestionView,
+  selectTargetSuggestions,
+} from "./target-suggestion";
 export * from "./labels";
 export * from "./transaction-filter";
