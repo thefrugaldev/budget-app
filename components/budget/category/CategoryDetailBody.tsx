@@ -18,7 +18,7 @@ import {
   aggregateRange,
   currentMonthKey,
   fmt,
-  monthLabel,
+  monthShortYear,
   monthlyTotalsLastN,
   nextScheduledTarget,
   resolveTargetForMonth,
@@ -126,19 +126,25 @@ export function CategoryDetailBody({
   // actions. The scheduled-cap chip above is informational and stays for all.
   const liveSuggestion = canEdit ? suggestionView ?? null : null;
 
-  // When a suggestion is live, draw its proposed cap as an emphasised reference
-  // line over the bars (the per-bar dashes remain the current cap) so the
-  // headroom the change buys reads at a glance (story 14). The caption below
-  // carries the same numbers as real text.
-  const referenceLines = liveSuggestion
-    ? [
-        {
-          value: liveSuggestion.suggestion.proposedTarget,
-          label: `→ ${fmt(liveSuggestion.suggestion.proposedTarget)}`,
-          emphasis: true,
-        },
-      ]
-    : undefined;
+  // Cap references drawn over the bars: the current cap as one continuous
+  // dashed line (so it reads across every month, including any that predate it,
+  // rather than vanishing) and — when a suggestion is live — the proposed cap
+  // as an emphasised line, so the headroom the change buys reads at a glance
+  // (story 14). The caption below carries the same numbers as real text.
+  const referenceLines = [
+    ...(perMonthTarget > 0
+      ? [{ value: perMonthTarget, label: fmt(perMonthTarget), dashed: true }]
+      : []),
+    ...(liveSuggestion
+      ? [
+          {
+            value: liveSuggestion.suggestion.proposedTarget,
+            label: `→ ${fmt(liveSuggestion.suggestion.proposedTarget)}`,
+            emphasis: true,
+          },
+        ]
+      : []),
+  ];
 
   const txns = useMemo(
     () =>
@@ -192,18 +198,19 @@ export function CategoryDetailBody({
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {label} · {fmt(perMonthTarget)}/mo
-                  {scheduled && (
-                    <>
-                      {" · "}
-                      <span aria-hidden>{scheduledDown ? "↓" : "↑"}</span>
-                      <span className="sr-only">
-                        {scheduledDown ? "changing down to " : "changing up to "}
-                      </span>
-                      <span className="tabular-nums">{fmt(scheduled.monthly)}</span>/mo
-                      from {monthLabel(scheduled.effectiveFrom)}
-                    </>
-                  )}
                 </p>
+                {scheduled && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    <span aria-hidden>{scheduledDown ? "↓ " : "↑ "}</span>
+                    <span className="sr-only">
+                      {scheduledDown ? "Decreasing to " : "Increasing to "}
+                    </span>
+                    <span className="tabular-nums text-foreground">
+                      {fmt(scheduled.monthly)}
+                    </span>
+                    /mo from {monthShortYear(scheduled.effectiveFrom)}
+                  </p>
+                )}
                 {category.activeUntil && (
                   <EndedBadge ym={category.activeUntil} className="mt-1" />
                 )}
@@ -234,7 +241,7 @@ export function CategoryDetailBody({
               data={trend}
               kind={category.kind}
               highlightYm={thisMonth}
-              referenceLines={referenceLines}
+              referenceLines={referenceLines.length > 0 ? referenceLines : undefined}
               width={300}
               height={96}
             />
