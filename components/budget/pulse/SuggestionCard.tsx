@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import {
   deleteCategoryTargetAction,
@@ -15,7 +15,6 @@ import { TARGET_SUGGESTION_ACTION_INITIAL } from "@/app/actions/target-suggestio
 import { CategoryEditSheet } from "@/components/budget/category/CategoryEditSheet";
 import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { Sparkline } from "@/components/budget/category/Sparkline";
-import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { useNotify } from "@/hooks/useNotify";
 import {
   currentMonthKey,
@@ -52,80 +51,84 @@ export function SuggestionCard({
   const { categoryId, direction, currentTarget, proposedTarget, median } =
     suggestion;
   const notify = useNotify();
-  const [, startTransition] = useTransition();
+  const [acceptPending, startAccept] = useTransition();
+  const [dismissPending, startDismiss] = useTransition();
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const effectiveFrom = nextMonth(currentMonthKey(now));
 
-  const [acceptState, acceptAction, acceptPending] = useActionState(
-    acceptTargetSuggestionAction,
-    TARGET_SUGGESTION_ACTION_INITIAL,
-  );
-  const [dismissState, dismissAction, dismissPending] = useActionState(
-    dismissTargetSuggestionAction,
-    TARGET_SUGGESTION_ACTION_INITIAL,
-  );
-
-  useActionSuccessToast(
-    dismissState,
-    () => `Snoozed ${category.name} · we'll recheck in 3 months`,
-  );
-
-  // Accept confirms via its own undo toast rather than a plain success — the
-  // write has already committed, so the "Undo" reverts it (restoring the prior
-  // next-month value, or deleting the row this accept inserted). Edge-detected
-  // like `useActionSuccessToast`, but with a bespoke toast the shared hook can't
-  // express.
-  const acceptSeen = useRef(acceptState.ok);
-  useEffect(() => {
-    if (acceptState.ok <= acceptSeen.current || acceptState.error) return;
-    acceptSeen.current = acceptState.ok;
-    const undo = acceptState.undo;
-    const verb = direction === "raise" ? "Raised" : "Lowered";
+  // Toasts are raised optimistically on click, NOT from a post-success effect.
+  // A successful accept/dismiss revalidates Pulse, which drops the now-resolved
+  // suggestion and unmounts THIS card in the same commit — a success effect here
+  // would never run, so the user would get no feedback and an accepted change
+  // (which takes effect next month) would look like a no-op. On failure the
+  // action doesn't revalidate, so the card stays mounted and we retract the
+  // optimistic toast, surfacing the error inline instead.
+  function handleAccept() {
+    setError(null);
+    // Undo reverts the committed write. Its only server-derived input is the
+    // value that sat at next month beforehand — but we already hold this
+    // category's target rows, so derive it here: null ⇒ the accept inserted a
+    // fresh row (undo deletes it); a number ⇒ restore it.
+    const priorRow = categoryTargets.find(
+      (t) => t.effectiveFrom === effectiveFrom,
+    );
+    const previousMonthly = priorRow ? priorRow.monthly : null;
+    const pastTense = direction === "raise" ? "Raised" : "Lowered";
     notify.undoAction({
-      id: `accept-${categoryId}-${acceptState.ok}`,
-      title: `${verb} ${category.name} to ${fmt(proposedTarget)}/mo · from ${monthLabel(effectiveFrom)}`,
+      id: `accept-${categoryId}`,
+      title: `${pastTense} ${category.name} to ${fmt(proposedTarget)}/mo · from ${monthLabel(effectiveFrom)}`,
       onUndo: async () => {
-        if (!undo) return;
-        const fd = new FormData();
-        fd.set("categoryId", undo.categoryId);
-        fd.set("effectiveFrom", undo.effectiveFrom);
-        // The accept already committed; undo is a reverting write — restore the
-        // value that sat at next month, or delete the row the accept inserted.
+        notify.dismiss(`accept-${categoryId}`);
+        const undoFd = new FormData();
+        undoFd.set("categoryId", categoryId);
+        undoFd.set("effectiveFrom", effectiveFrom);
         let res;
-        if (undo.previousMonthly === null) {
-          res = await deleteCategoryTargetAction(CATEGORY_ACTION_INITIAL, fd);
+        if (previousMonthly === null) {
+          res = await deleteCategoryTargetAction(CATEGORY_ACTION_INITIAL, undoFd);
         } else {
-          fd.set("monthly", String(undo.previousMonthly));
-          res = await upsertCategoryTargetAction(CATEGORY_ACTION_INITIAL, fd);
+          undoFd.set("monthly", String(previousMonthly));
+          res = await upsertCategoryTargetAction(CATEGORY_ACTION_INITIAL, undoFd);
         }
         if (res.error) notify.error("Couldn't undo that", res.error);
         else notify.success(`Reverted ${category.name}`);
       },
     });
-  }, [
-    acceptState,
-    notify,
-    direction,
-    categoryId,
-    category.name,
-    proposedTarget,
-    effectiveFrom,
-  ]);
-
-  function handleAccept() {
-    const fd = new FormData();
-    fd.set("categoryId", categoryId);
-    fd.set("proposedTarget", String(proposedTarget));
-    startTransition(() => acceptAction(fd));
+    startAccept(async () => {
+      const fd = new FormData();
+      fd.set("categoryId", categoryId);
+      fd.set("proposedTarget", String(proposedTarget));
+      const res = await acceptTargetSuggestionAction(
+        TARGET_SUGGESTION_ACTION_INITIAL,
+        fd,
+      );
+      if (res.error) {
+        notify.dismiss(`accept-${categoryId}`);
+        setError(res.error);
+      }
+    });
   }
 
   function handleDismiss() {
-    const fd = new FormData();
-    fd.set("categoryId", categoryId);
-    fd.set("dismissedMedian", String(median));
-    fd.set("dismissedAgainstTarget", String(currentTarget));
-    startTransition(() => dismissAction(fd));
+    setError(null);
+    const toastId = notify.success(
+      `Snoozed ${category.name} · we'll recheck in 3 months`,
+    );
+    startDismiss(async () => {
+      const fd = new FormData();
+      fd.set("categoryId", categoryId);
+      fd.set("dismissedMedian", String(median));
+      fd.set("dismissedAgainstTarget", String(currentTarget));
+      const res = await dismissTargetSuggestionAction(
+        TARGET_SUGGESTION_ACTION_INITIAL,
+        fd,
+      );
+      if (res.error) {
+        notify.dismiss(toastId);
+        setError(res.error);
+      }
+    });
   }
 
   const verb = direction === "raise" ? "Raise" : "Lower";
@@ -135,7 +138,6 @@ export function SuggestionCard({
   // carries the meaning; colour is reinforcement (accessibility baseline).
   const directionToneText = thresholdColor(category.kind, currentTarget, median).text;
   const pending = acceptPending || dismissPending;
-  const error = acceptState.error ?? dismissState.error;
 
   return (
     <li className="rounded-xl bg-card p-4 ring-1 ring-border">
