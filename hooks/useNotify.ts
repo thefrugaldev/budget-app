@@ -62,6 +62,20 @@ export function useNotify() {
           data: { vendorLabel: label, inFlight: false, onUndo: args.onUndo },
         });
       },
+      // Generic action-carrying toast (issue #186): a committed mutation that
+      // offers a grace-period revert. Unlike `undoDelete` (which defers the
+      // delete and cancels a timer), the action has already happened — `onUndo`
+      // performs a reverting write. Auto-dismisses after 8s; the title is the
+      // confirmation copy (e.g. "Raised Daycare to $450/mo").
+      undoAction: (args: { id: string; title: string; onUndo: () => void }) =>
+        manager.add({
+          id: args.id,
+          type: "undo-action" satisfies NotifyType,
+          priority: "low",
+          timeout: 8000,
+          title: args.title,
+          data: { inFlight: false, onUndo: args.onUndo },
+        }),
       update: manager.update,
       dismiss: manager.close,
     }),

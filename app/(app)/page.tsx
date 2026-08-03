@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { HeaderIncome } from "@/components/budget/income/HeaderIncome";
 import { GrowthColumns } from "@/components/budget/pulse/GrowthColumns";
 import { NeedsAttention } from "@/components/budget/pulse/NeedsAttention";
+import { WorthRevisiting } from "@/components/budget/pulse/WorthRevisiting";
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
 import {
   aggregateRange,
@@ -13,19 +14,23 @@ import {
   isCategoryActiveInRange,
   isRangePreset,
   monthProgress,
+  monthlyTotalsLastN,
   monthlyTrend,
   planTargetForMonth,
   rangeLabel,
   resolveRange,
   savingsRateToneClass,
   selectAttention,
+  selectTargetSuggestions,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { RangePreset } from "@/types/range";
+import type { TargetSuggestionView } from "@/types/target-suggestion";
 import { requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/category-targets";
+import { listTargetSuggestionDismissals } from "@/lib/repositories/target-suggestion-dismissals";
 import { listAllTransactions } from "@/lib/repositories/transactions";
 
 // Hardcoded full title (not just "Pulse"): Next's title.template in the root
@@ -40,12 +45,14 @@ export default async function Home({
   searchParams: Promise<{ range?: string | string[] }>;
 }) {
   await ensureSeeded(await requireHouseholdId());
-  const [{ range: rangeParam }, categories, targets, transactions] = await Promise.all([
-    searchParams,
-    listCategories(),
-    listCategoryTargets(),
-    listAllTransactions(),
-  ]);
+  const [{ range: rangeParam }, categories, targets, transactions, dismissals] =
+    await Promise.all([
+      searchParams,
+      listCategories(),
+      listCategoryTargets(),
+      listAllTransactions(),
+      listTargetSuggestionDismissals(),
+    ]);
 
   const raw = Array.isArray(rangeParam) ? rangeParam[0] : rangeParam;
   const preset: RangePreset = isRangePreset(raw) ? raw : "this-month";
@@ -115,6 +122,43 @@ export default async function Home({
     undefined,
     preset === "this-month" ? { pace: { monthProgress: monthProgress(now) } } : undefined,
   );
+
+  // "Worth revisiting" (#186): the detector judges on its own fixed trailing
+  // 6-complete-month window over the full category/transaction/target sets —
+  // independent of the page's selected range — so it's fed the unfiltered data,
+  // not the range-scoped `inRange`. Enrich the top three by dollar impact with
+  // what the client card needs (the category, its target rows for "Adjust…",
+  // its transaction count, and a 6-month sparkline series); the rest fold into a
+  // "+N more" pointer.
+  const suggestions = selectTargetSuggestions(
+    categories,
+    transactions,
+    targets,
+    dismissals,
+    now,
+  );
+  const suggestionViews: TargetSuggestionView[] = suggestions
+    .slice(0, 3)
+    .flatMap((suggestion) => {
+      const category = categories.find((c) => c.id === suggestion.categoryId);
+      if (!category) return [];
+      return [
+        {
+          suggestion,
+          category,
+          categoryTargets: targets.filter(
+            (t) => t.categoryId === suggestion.categoryId,
+          ),
+          txCount: transactions.filter(
+            (t) => t.categoryId === suggestion.categoryId,
+          ).length,
+          series: monthlyTotalsLastN(transactions, suggestion.categoryId, 6, now).map(
+            (d) => d.total,
+          ),
+        },
+      ];
+    });
+  const hiddenSuggestions = suggestions.length - suggestionViews.length;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28">
@@ -225,6 +269,12 @@ export default async function Home({
       </div>
 
       <NeedsAttention result={attention} />
+
+      <WorthRevisiting
+        views={suggestionViews}
+        hiddenCount={hiddenSuggestions}
+        now={now}
+      />
     </div>
   );
 }

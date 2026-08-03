@@ -1,4 +1,4 @@
-import type { CategoryKind } from "./budget";
+import type { Category, CategoryKind, CategoryTarget } from "./budget";
 
 /**
  * Which way a category's activity has diverged from its Target, and therefore
@@ -36,6 +36,25 @@ export type TargetSuggestion = {
    * largest-impact-first ranking.
    */
   impact: number;
+};
+
+/**
+ * A `TargetSuggestion` enriched server-side with everything a Pulse card needs
+ * to render and act on it without shipping the full transaction/target sets to
+ * the client: the resolved `category`, that category's target rows (so
+ * "Adjust…" can open the edit sheet), its transaction count (the sheet's
+ * kind-lock gate), and the six-month `series` for the sparkline. Built by the
+ * Pulse loader; consumed by the "Worth revisiting" module and its card.
+ */
+export type TargetSuggestionView = {
+  suggestion: TargetSuggestion;
+  category: Category;
+  /** The category's own target rows, for the "Adjust…" edit sheet. */
+  categoryTargets: CategoryTarget[];
+  /** Count of the category's transactions — the edit sheet's kind-change gate. */
+  txCount: number;
+  /** Six trailing monthly totals feeding the card's sparkline. */
+  series: number[];
 };
 
 /**
