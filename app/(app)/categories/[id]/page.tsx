@@ -6,15 +6,18 @@ import { CategorySwitcher } from "@/components/budget/category/CategorySwitcher"
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
 import { BackLink } from "@/components/shell/BackLink";
 import {
+  buildTargetSuggestionView,
   isRangePreset,
   rangeLabel,
   resolveRange,
+  selectTargetSuggestions,
 } from "@/lib/budget";
 import type { RangePreset } from "@/types/range";
 import { getSession, requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
 import { listCategories } from "@/lib/repositories/categories";
 import { listCategoryTargets } from "@/lib/repositories/category-targets";
+import { listTargetSuggestionDismissals } from "@/lib/repositories/target-suggestion-dismissals";
 import { listAllTransactions } from "@/lib/repositories/transactions";
 
 export async function generateMetadata({
@@ -45,10 +48,11 @@ export default async function CategoryDetail({
 }) {
   const [{ id }, { range: rangeParam }] = await Promise.all([params, searchParams]);
   await ensureSeeded(await requireHouseholdId());
-  const [categories, targets, transactions] = await Promise.all([
+  const [categories, targets, transactions, dismissals] = await Promise.all([
     listCategories(),
     listCategoryTargets(),
     listAllTransactions(),
+    listTargetSuggestionDismissals(),
   ]);
 
   const category = categories.find((c) => c.id === id);
@@ -59,6 +63,21 @@ export default async function CategoryDetail({
   const now = new Date();
   const range = resolveRange(preset, now);
   const rangeText = rangeLabel(preset);
+
+  // The chart is the suggestion's surface here (#186 chunk 6): run the same
+  // detector Pulse uses over the full data sets — it judges on its own fixed
+  // 6-month window, independent of the page range — and keep the one for this
+  // category (if any) to annotate the trend chart and render the caption row.
+  const suggestion = selectTargetSuggestions(
+    categories,
+    transactions,
+    targets,
+    dismissals,
+    now,
+  ).find((s) => s.categoryId === category.id);
+  const suggestionView = suggestion
+    ? buildTargetSuggestionView(suggestion, { categories, transactions, targets, now })
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 pb-20">
@@ -78,6 +97,7 @@ export default async function CategoryDetail({
         range={range}
         rangeText={rangeText}
         now={now}
+        suggestionView={suggestionView}
       />
     </div>
   );

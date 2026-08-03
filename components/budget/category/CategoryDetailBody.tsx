@@ -9,6 +9,8 @@ import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { MonthBarChart } from "@/components/budget/charts/MonthBarChart";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { ThresholdMeter } from "@/components/budget/charts/ThresholdMeter";
+import { SuggestionActions } from "@/components/budget/suggestion/SuggestionActions";
+import { SuggestionEvidence } from "@/components/budget/suggestion/SuggestionEvidence";
 import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
 import { TransactionList } from "@/components/budget/transaction/TransactionList";
 import { useCanEdit } from "@/hooks/useCanEdit";
@@ -16,7 +18,9 @@ import {
   aggregateRange,
   currentMonthKey,
   fmt,
+  monthLabel,
   monthlyTotalsLastN,
+  nextScheduledTarget,
   resolveTargetForMonth,
   targetLabel,
   thresholdColor,
@@ -29,6 +33,12 @@ import type {
   Transaction,
 } from "@/types/budget";
 import type { RangeSelection } from "@/types/range";
+import type { TargetSuggestionView } from "@/types/target-suggestion";
+
+/** Trailing months shown in the detail trend chart — a full year of context so a
+ * slow multi-year drift is visible (story 15), wider than the detector's own
+ * fixed 6-month judging window. */
+const TREND_MONTHS = 12;
 
 /**
  * Client wrapper around the category detail page's body (everything below
@@ -53,6 +63,7 @@ export function CategoryDetailBody({
   range,
   rangeText,
   now,
+  suggestionView,
 }: {
   category: Category;
   categories: Category[];
@@ -61,6 +72,8 @@ export function CategoryDetailBody({
   range: RangeSelection;
   rangeText: string;
   now: Date;
+  /** A live Target suggestion for this category (#186 chunk 6), or null. */
+  suggestionView?: TargetSuggestionView | null;
 }) {
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [editOpen, setEditOpen] = useState(false);
@@ -90,13 +103,42 @@ export function CategoryDetailBody({
 
   const trend: MonthBarDatum[] = useMemo(
     () =>
-      monthlyTotalsLastN(visibleTxns, category.id, 6, now).map((m) => ({
+      monthlyTotalsLastN(visibleTxns, category.id, TREND_MONTHS, now).map((m) => ({
         ym: m.ym,
         total: m.total,
         target: resolveTargetForMonth(category.id, m.ym, targets),
       })),
     [visibleTxns, category.id, targets, now],
   );
+
+  // A future-dated target row (an accepted suggestion or a manual "apply next
+  // month" edit) doesn't change the current view until the month arrives — so
+  // surface the nearest scheduled change inline by the current cap, direction
+  // carried as a word+arrow (never colour alone).
+  const thisMonth = currentMonthKey(now);
+  const scheduled = nextScheduledTarget(category.id, thisMonth, targets);
+  // Direction is read against the cap shown right beside it in the header, so
+  // the arrow and the two figures never disagree on screen.
+  const scheduledDown = scheduled ? scheduled.monthly < perMonthTarget : false;
+
+  // The suggestion (proposed-cap line + caption actions) is a pure edit
+  // affordance — absent for viewers (useCanEdit), server still gates the
+  // actions. The scheduled-cap chip above is informational and stays for all.
+  const liveSuggestion = canEdit ? suggestionView ?? null : null;
+
+  // When a suggestion is live, draw its proposed cap as an emphasised reference
+  // line over the bars (the per-bar dashes remain the current cap) so the
+  // headroom the change buys reads at a glance (story 14). The caption below
+  // carries the same numbers as real text.
+  const referenceLines = liveSuggestion
+    ? [
+        {
+          value: liveSuggestion.suggestion.proposedTarget,
+          label: `→ ${fmt(liveSuggestion.suggestion.proposedTarget)}`,
+          emphasis: true,
+        },
+      ]
+    : undefined;
 
   const txns = useMemo(
     () =>
@@ -150,6 +192,17 @@ export function CategoryDetailBody({
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {label} · {fmt(perMonthTarget)}/mo
+                  {scheduled && (
+                    <>
+                      {" · "}
+                      <span aria-hidden>{scheduledDown ? "↓" : "↑"}</span>
+                      <span className="sr-only">
+                        {scheduledDown ? "changing down to " : "changing up to "}
+                      </span>
+                      <span className="tabular-nums">{fmt(scheduled.monthly)}</span>/mo
+                      from {monthLabel(scheduled.effectiveFrom)}
+                    </>
+                  )}
                 </p>
                 {category.activeUntil && (
                   <EndedBadge ym={category.activeUntil} className="mt-1" />
@@ -180,11 +233,28 @@ export function CategoryDetailBody({
             <MonthBarChart
               data={trend}
               kind={category.kind}
-              highlightYm={currentMonthKey(now)}
+              highlightYm={thisMonth}
+              referenceLines={referenceLines}
               width={300}
-              height={76}
+              height={96}
             />
           </div>
+
+          {/* The chart is the suggestion's surface (#186 chunk 6): directly
+              beneath it, the caption carries the pitch (real text — the
+              load-bearing, accessible readout) and the Accept / Not now /
+              Adjust… actions. Editor-only, like the Pulse module. */}
+          {liveSuggestion && (
+            <div className="mt-3 border-t border-border pt-3">
+              <SuggestionEvidence
+                suggestion={liveSuggestion.suggestion}
+                category={category}
+              />
+              <div className="mt-3">
+                <SuggestionActions view={liveSuggestion} now={now} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Adding transactions is an editor action — the whole card is absent

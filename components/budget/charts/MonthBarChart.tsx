@@ -17,10 +17,22 @@ const TONE_FILL: Record<ThresholdTone, string> = {
   bad: "fill-signal-bad",
 };
 
+/**
+ * A labelled horizontal value line drawn across the whole plot — a reusable
+ * overlay primitive (any value, not cap-specific), so a future chart can mark a
+ * budget, an average, a goal, etc. Target-suggestions use it to draw the
+ * proposed cap alongside the per-bar current-cap dashes. The `label` is the
+ * load-bearing, text-carried readout (never colour alone); `emphasis` gives the
+ * line a solid, foreground stroke so it reads as the headline reference rather
+ * than background context.
+ */
+export type ReferenceLine = { value: number; label: string; emphasis?: boolean };
+
 export function MonthBarChart({
   data,
   kind,
   highlightYm,
+  referenceLines,
   width = 360,
   height = 130,
 }: {
@@ -28,6 +40,8 @@ export function MonthBarChart({
   kind: CategoryKind;
   /** Optional month key (YYYY-MM) to emphasize. */
   highlightYm?: string;
+  /** Labelled horizontal lines drawn over the bars (e.g. a proposed cap). */
+  referenceLines?: ReferenceLine[];
   width?: number;
   height?: number;
 }) {
@@ -35,7 +49,13 @@ export function MonthBarChart({
   const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
   const baseline = pad.t + innerH;
-  const domain = domainMax([...data.map((d) => d.target), ...data.map((d) => d.total)]);
+  // Reference-line values join the domain so a proposed cap above every bar and
+  // the current cap still fits inside the plot rather than clipping at the top.
+  const domain = domainMax([
+    ...data.map((d) => d.target),
+    ...data.map((d) => d.total),
+    ...(referenceLines?.map((r) => r.value) ?? []),
+  ]);
   const yScale = linearScale(domain, innerH);
   const xBand = bandScale(data.length, innerW, pad.l);
   const barW = Math.max(4, xBand.slot - 8);
@@ -123,6 +143,35 @@ export function MonthBarChart({
               >
                 <title>{label}</title>
               </rect>
+            </g>
+          );
+        })}
+
+        {/* Reference-line overlay: full-width labelled value lines over the
+            bars. Solid (vs the dashed per-bar current-cap segments) so the two
+            read apart, and the label spells out the value for anyone who can't
+            rely on the line's position alone. */}
+        {referenceLines?.map((r) => {
+          const y = baseline - yScale.length(r.value);
+          return (
+            <g key={r.label}>
+              <line
+                x1={pad.l}
+                x2={width - pad.r}
+                y1={y}
+                y2={y}
+                stroke="currentColor"
+                strokeOpacity={r.emphasis ? 0.9 : 0.4}
+                className={r.emphasis ? "text-foreground" : ""}
+              />
+              <text
+                x={width - pad.r}
+                y={y - 3}
+                textAnchor="end"
+                className={`fill-current text-[9px] ${r.emphasis ? "font-semibold text-foreground" : ""}`}
+              >
+                {r.label}
+              </text>
             </g>
           );
         })}

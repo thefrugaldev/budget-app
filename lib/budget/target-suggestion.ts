@@ -13,9 +13,14 @@ import type {
   TargetSuggestion,
   TargetSuggestionDirection,
   TargetSuggestionDismissal,
+  TargetSuggestionView,
 } from "@/types/target-suggestion";
 
-import { isCategoryActiveForMonth, resolveTargetForMonth } from "./aggregate";
+import {
+  isCategoryActiveForMonth,
+  monthlyTotalsLastN,
+  resolveTargetForMonth,
+} from "./aggregate";
 import { currentMonthKey, shiftMonth } from "./range";
 
 /** The evidence window: the last six **complete** months (the in-progress month excluded). */
@@ -255,4 +260,42 @@ export function selectTargetSuggestions(
     (a, b) => b.suggestion.impact - a.suggestion.impact || a.name.localeCompare(b.name),
   );
   return suggestions.map((s) => s.suggestion);
+}
+
+/**
+ * Enrich a bare {@link TargetSuggestion} with everything a client surface needs
+ * to render and act on it without shipping the full data sets down: the
+ * resolved category, that category's target rows (for the "Adjust…" edit
+ * sheet), its transaction count (the sheet's kind-lock gate), and a six-month
+ * sparkline `series`. Returns `null` if the category can't be resolved (a
+ * suggestion whose category vanished between detect and enrich). Shared by the
+ * Pulse loader and the category-detail loader so the two build the view identically.
+ */
+export function buildTargetSuggestionView(
+  suggestion: TargetSuggestion,
+  data: {
+    categories: Category[];
+    transactions: Transaction[];
+    targets: CategoryTarget[];
+    now: Date;
+  },
+): TargetSuggestionView | null {
+  const category = data.categories.find((c) => c.id === suggestion.categoryId);
+  if (!category) return null;
+  return {
+    suggestion,
+    category,
+    categoryTargets: data.targets.filter(
+      (t) => t.categoryId === suggestion.categoryId,
+    ),
+    txCount: data.transactions.filter(
+      (t) => t.categoryId === suggestion.categoryId,
+    ).length,
+    series: monthlyTotalsLastN(
+      data.transactions,
+      suggestion.categoryId,
+      6,
+      data.now,
+    ).map((d) => d.total),
+  };
 }

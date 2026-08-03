@@ -7,6 +7,7 @@ import { WorthRevisiting } from "@/components/budget/pulse/WorthRevisiting";
 import { RangeSelector } from "@/components/budget/shared/RangeSelector";
 import {
   aggregateRange,
+  buildTargetSuggestionView,
   computeIncomeForRange,
   computeSavingsRate,
   currentMonthKey,
@@ -14,7 +15,6 @@ import {
   isCategoryActiveInRange,
   isRangePreset,
   monthProgress,
-  monthlyTotalsLastN,
   monthlyTrend,
   planTargetForMonth,
   rangeLabel,
@@ -140,23 +140,13 @@ export default async function Home({
   const suggestionViews: TargetSuggestionView[] = suggestions
     .slice(0, 3)
     .flatMap((suggestion) => {
-      const category = categories.find((c) => c.id === suggestion.categoryId);
-      if (!category) return [];
-      return [
-        {
-          suggestion,
-          category,
-          categoryTargets: targets.filter(
-            (t) => t.categoryId === suggestion.categoryId,
-          ),
-          txCount: transactions.filter(
-            (t) => t.categoryId === suggestion.categoryId,
-          ).length,
-          series: monthlyTotalsLastN(transactions, suggestion.categoryId, 6, now).map(
-            (d) => d.total,
-          ),
-        },
-      ];
+      const view = buildTargetSuggestionView(suggestion, {
+        categories,
+        transactions,
+        targets,
+        now,
+      });
+      return view ? [view] : [];
     });
   const hiddenSuggestions = suggestions.length - suggestionViews.length;
 
