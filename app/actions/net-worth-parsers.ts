@@ -118,3 +118,17 @@ export function parseCheckInDate(raw: unknown): string | undefined {
   assertValidIsoDate(date);
   return date;
 }
+
+/**
+ * The institution holding an account (#195) — optional free text on any account.
+ * Absent / null / blank-after-trim means "no institution" → `undefined`, so a
+ * cleared field round-trips to an unset rather than an empty string; a present
+ * value is trimmed. No validation beyond non-emptiness: it is autocompleted over
+ * prior values, not drawn from a fixed registry.
+ */
+export function parseInstitution(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) {
+    return undefined;
+  }
+  return nonBlankString(raw, "Institution");
+}

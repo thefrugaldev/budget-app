@@ -115,6 +115,9 @@ export type AccountDocument = HouseholdOwned & Imported & {
   balance?: number;
   // Positions for an investment account.
   holdings?: Holding[];
+  // The institution holding the account (bank / brokerage / lender). Optional on
+  // both assets and liabilities; absent until the owner sets one. Free text.
+  institution?: string;
   // ISO date the account was closed; absent while open. A closed account leaves
   // the live headline / nest egg / check-in but keeps its snapshot history.
   closedAt?: string;
