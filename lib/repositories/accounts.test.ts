@@ -327,17 +327,18 @@ describe("deleteAccount", () => {
 });
 
 describe("listInstitutions (#195)", () => {
-  it("returns distinct, sorted institution values, dropping accounts with none", async () => {
+  it("returns distinct values sorted case-insensitively, dropping accounts with none", async () => {
     await createAccount({ name: "Roth", class: "asset", kind: "investment", institution: "Vanguard" });
     await createAccount({ name: "401k", class: "asset", kind: "investment", institution: "Fidelity" });
     // A second account at Vanguard — the value collapses to one suggestion.
     await createAccount({ name: "Brokerage", class: "asset", kind: "investment", institution: "Vanguard" });
-    // A liability carries an institution too (story 4) and is grouped in.
-    await createAccount({ name: "Mortgage", class: "liability", balance: 200_000, institution: "Ally" });
+    // A lowercase value: byte-order $sort would push "ally" *after* "Vanguard"
+    // (lowercase > uppercase in ASCII); localeCompare orders it first, naturally.
+    await createAccount({ name: "Mortgage", class: "liability", balance: 200_000, institution: "ally" });
     // No institution → contributes nothing (no empty/undefined suggestion).
     await createAccount({ name: "HYSA", class: "asset", kind: "cash", balance: 5 });
 
-    expect(await listInstitutions()).toEqual(["Ally", "Fidelity", "Vanguard"]);
+    expect(await listInstitutions()).toEqual(["ally", "Fidelity", "Vanguard"]);
   });
 
   it("is empty when no account has an institution", async () => {

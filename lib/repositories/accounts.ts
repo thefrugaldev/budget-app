@@ -33,11 +33,14 @@ export async function getAccountById(id: string): Promise<Account | undefined> {
 
 /**
  * The distinct, non-empty institution values across this household's accounts
- * (open and closed), sorted — the source for the add/edit form's institution
- * autocomplete (#195). Uses the scoped `aggregate` (which prepends a household
- * `$match`) because `ScopedCollection` deliberately doesn't wrap `.distinct()`.
- * Values are stored trimmed and non-empty (`parseInstitution`), so a `$group` on
- * `$institution` yields clean suggestions with no client-side dedup.
+ * (open and closed), sorted case-insensitively — the source for the add/edit
+ * form's institution autocomplete (#195). Uses the scoped `aggregate` (which
+ * prepends a household `$match`) because `ScopedCollection` deliberately doesn't
+ * wrap `.distinct()`. Values are stored trimmed and non-empty (`parseInstitution`),
+ * so a `$group` on `$institution` yields clean suggestions with no client-side
+ * dedup. Sorting happens in JS with `localeCompare` (the set is a handful of
+ * household values) so a lowercase entry orders naturally rather than after every
+ * capitalized one, as Mongo's default byte-order `$sort` would.
  */
 export async function listInstitutions(): Promise<string[]> {
   const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
@@ -45,10 +48,11 @@ export async function listInstitutions(): Promise<string[]> {
     .aggregate<{ _id: string }>([
       { $match: { institution: { $type: "string", $ne: "" } } },
       { $group: { _id: "$institution" } },
-      { $sort: { _id: 1 } },
     ])
     .toArray();
-  return rows.map((row) => row._id);
+  return rows
+    .map((row) => row._id)
+    .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
 }
 
 export async function createAccount(input: {
