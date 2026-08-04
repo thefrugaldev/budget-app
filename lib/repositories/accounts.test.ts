@@ -20,6 +20,7 @@ import {
   deleteAccount,
   getAccountById,
   listAccounts,
+  listInstitutions,
   removeHolding,
   updateAccount,
   updateHolding,
@@ -82,6 +83,26 @@ describe("accounts repository — create / read", () => {
       updateAccount(a.id, { holdings: [{ ticker: "VOO", quantity: 1, priceOverride: -1 }] }),
     ).rejects.toThrow(/price override/);
   });
+
+  it("persists institution only when provided (#195)", async () => {
+    const withInst = await createAccount({
+      name: "Brokerage",
+      class: "asset",
+      kind: "investment",
+      institution: "Vanguard",
+    });
+    expect(withInst.institution).toBe("Vanguard");
+    expect(await getAccountById(withInst.id)).toEqual(withInst);
+
+    // Omitted → the field is absent on both the domain object and the stored doc
+    // (not a stored `null`/`""`), so autocomplete never surfaces an empty value.
+    const without = await createAccount({ name: "HYSA", class: "asset", kind: "cash", balance: 1 });
+    expect(without.institution).toBeUndefined();
+    const raw = await mongo.db
+      .collection<{ _id: string } & Record<string, unknown>>("accounts")
+      .findOne({ _id: without.id });
+    expect(raw && "institution" in raw).toBe(false);
+  });
 });
 
 describe("updateAccount", () => {
@@ -122,6 +143,29 @@ describe("updateAccount", () => {
     const a = await createAccount({ name: "A", class: "asset", kind: "cash" });
     await expect(
       updateAccount(a.id, { kind: "investment", clearKind: true }),
+    ).rejects.toThrow(/cannot both set and clear/);
+  });
+
+  it("sets a new institution and clears it via clearInstitution ($unset) (#195)", async () => {
+    const a = await createAccount({ name: "Brokerage", class: "asset", kind: "investment" });
+
+    // Backfill an institution on an account that had none.
+    expect(await updateAccount(a.id, { institution: "Fidelity" })).toEqual({ ok: true });
+    expect((await getAccountById(a.id))?.institution).toBe("Fidelity");
+
+    // Clearing $unsets it — the field is gone from the stored doc, not blanked to "".
+    expect(await updateAccount(a.id, { clearInstitution: true })).toEqual({ ok: true });
+    expect((await getAccountById(a.id))?.institution).toBeUndefined();
+    const raw = await mongo.db
+      .collection<{ _id: string } & Record<string, unknown>>("accounts")
+      .findOne({ _id: a.id });
+    expect(raw && "institution" in raw).toBe(false);
+  });
+
+  it("throws when a patch both sets and clears institution", async () => {
+    const a = await createAccount({ name: "A", class: "asset", kind: "cash" });
+    await expect(
+      updateAccount(a.id, { institution: "Ally", clearInstitution: true }),
     ).rejects.toThrow(/cannot both set and clear/);
   });
 });
@@ -279,5 +323,44 @@ describe("deleteAccount", () => {
     await deleteAccount(a.id);
     // The sweep guards the count→delete race; on the happy path it's simply a no-op.
     expect(await listSnapshotsForAccount(a.id)).toEqual([]);
+  });
+});
+
+describe("listInstitutions (#195)", () => {
+  it("returns distinct, sorted institution values, dropping accounts with none", async () => {
+    await createAccount({ name: "Roth", class: "asset", kind: "investment", institution: "Vanguard" });
+    await createAccount({ name: "401k", class: "asset", kind: "investment", institution: "Fidelity" });
+    // A second account at Vanguard — the value collapses to one suggestion.
+    await createAccount({ name: "Brokerage", class: "asset", kind: "investment", institution: "Vanguard" });
+    // A liability carries an institution too (story 4) and is grouped in.
+    await createAccount({ name: "Mortgage", class: "liability", balance: 200_000, institution: "Ally" });
+    // No institution → contributes nothing (no empty/undefined suggestion).
+    await createAccount({ name: "HYSA", class: "asset", kind: "cash", balance: 5 });
+
+    expect(await listInstitutions()).toEqual(["Ally", "Fidelity", "Vanguard"]);
+  });
+
+  it("is empty when no account has an institution", async () => {
+    await createAccount({ name: "HYSA", class: "asset", kind: "cash", balance: 5 });
+    expect(await listInstitutions()).toEqual([]);
+  });
+
+  it("scopes to the household — another household's institutions are invisible", async () => {
+    await createAccount({ name: "Roth", class: "asset", kind: "investment", institution: "Vanguard" });
+    // Seed a foreign-household account directly, past the scoped seam.
+    await mongo.db
+      .collection<{ _id: string } & Record<string, unknown>>("accounts")
+      .insertOne({
+        _id: "other-acct",
+        householdId: "hh-other",
+        name: "Foreign Brokerage",
+        class: "asset",
+        kind: "investment",
+        institution: "Schwab",
+        createdAt: new Date(),
+      });
+
+    // Only this household's institution surfaces — never "Schwab".
+    expect(await listInstitutions()).toEqual(["Vanguard"]);
   });
 });

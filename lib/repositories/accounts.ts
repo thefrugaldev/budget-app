@@ -31,12 +31,33 @@ export async function getAccountById(id: string): Promise<Account | undefined> {
   return doc ? toAccount(doc) : undefined;
 }
 
+/**
+ * The distinct, non-empty institution values across this household's accounts
+ * (open and closed), sorted — the source for the add/edit form's institution
+ * autocomplete (#195). Uses the scoped `aggregate` (which prepends a household
+ * `$match`) because `ScopedCollection` deliberately doesn't wrap `.distinct()`.
+ * Values are stored trimmed and non-empty (`parseInstitution`), so a `$group` on
+ * `$institution` yields clean suggestions with no client-side dedup.
+ */
+export async function listInstitutions(): Promise<string[]> {
+  const accounts = await scopedCollection<AccountDocument>(COLLECTIONS.accounts);
+  const rows = await accounts
+    .aggregate<{ _id: string }>([
+      { $match: { institution: { $type: "string", $ne: "" } } },
+      { $group: { _id: "$institution" } },
+      { $sort: { _id: 1 } },
+    ])
+    .toArray();
+  return rows.map((row) => row._id);
+}
+
 export async function createAccount(input: {
   name: string;
   class: Account["class"];
   kind?: AssetKind;
   balance?: number;
   holdings?: Holding[];
+  institution?: string;
 }): Promise<Account> {
   assertNonEmptyName(input.name);
   assertValidAccountShape(input);
@@ -54,6 +75,7 @@ export async function createAccount(input: {
     ...(input.kind !== undefined ? { kind: input.kind } : {}),
     ...(input.balance !== undefined ? { balance: input.balance } : {}),
     ...(input.holdings !== undefined ? { holdings: input.holdings } : {}),
+    ...(input.institution !== undefined ? { institution: input.institution } : {}),
   };
   await accounts.insertOne(doc);
   return toAccount(doc);
@@ -65,10 +87,13 @@ export type AccountPatch = {
   kind?: AssetKind;
   balance?: number;
   holdings?: Holding[];
+  institution?: string;
   /** `true` clears the field via `$unset` (e.g. switching class asset↔liability). */
   clearKind?: boolean;
   clearBalance?: boolean;
   clearHoldings?: boolean;
+  /** `true` clears `institution` via `$unset` (the owner blanked the field). */
+  clearInstitution?: boolean;
 };
 
 /**
@@ -87,7 +112,8 @@ function assertNoConflictingClears(patch: AccountPatch): void {
   if (
     (patch.clearKind && patch.kind !== undefined) ||
     (patch.clearBalance && patch.balance !== undefined) ||
-    (patch.clearHoldings && patch.holdings !== undefined)
+    (patch.clearHoldings && patch.holdings !== undefined) ||
+    (patch.clearInstitution && patch.institution !== undefined)
   ) {
     throw new Error("An account patch cannot both set and clear the same field.");
   }
@@ -133,11 +159,13 @@ export async function updateAccount(
   if (patch.kind !== undefined) set.kind = patch.kind;
   if (patch.balance !== undefined) set.balance = patch.balance;
   if (patch.holdings !== undefined) set.holdings = patch.holdings;
+  if (patch.institution !== undefined) set.institution = patch.institution;
 
   const unset: Record<string, ""> = {};
   if (patch.clearKind) unset.kind = "";
   if (patch.clearBalance) unset.balance = "";
   if (patch.clearHoldings) unset.holdings = "";
+  if (patch.clearInstitution) unset.institution = "";
 
   if (Object.keys(set).length === 0 && Object.keys(unset).length === 0) {
     return { ok: false, reason: "no-change" };
