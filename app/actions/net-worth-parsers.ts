@@ -19,6 +19,15 @@ function nonBlankString(raw: unknown, label: string): string {
 }
 
 /**
+ * Whether a raw field carries no value — absent, null, or whitespace-only. The
+ * shared guard for every optional parser below, so "blank means unset" is
+ * defined in one place rather than re-spelled per field.
+ */
+function isBlank(raw: unknown): boolean {
+  return raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "");
+}
+
+/**
  * A finite, non-negative number from a currency-ish string ("$4,200.50") or a
  * bare number (typed payloads send numbers). Zero is allowed — a cash account
  * can legitimately hold $0, unlike a transaction amount. Balances and share
@@ -99,9 +108,7 @@ export function parseQuantity(raw: unknown): number {
  * non-negative number.
  */
 export function parsePriceOverride(raw: unknown): number | undefined {
-  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) {
-    return undefined;
-  }
+  if (isBlank(raw)) return undefined;
   return finiteNonNegative(raw, "Price override");
 }
 
@@ -111,9 +118,7 @@ export function parsePriceOverride(raw: unknown): number | undefined {
  * calendar date, reusing the same guard the snapshot write boundary enforces.
  */
 export function parseCheckInDate(raw: unknown): string | undefined {
-  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) {
-    return undefined;
-  }
+  if (isBlank(raw)) return undefined;
   const date = nonBlankString(raw, "Date");
   assertValidIsoDate(date);
   return date;
@@ -127,8 +132,6 @@ export function parseCheckInDate(raw: unknown): string | undefined {
  * prior values, not drawn from a fixed registry.
  */
 export function parseInstitution(raw: unknown): string | undefined {
-  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) {
-    return undefined;
-  }
+  if (isBlank(raw)) return undefined;
   return nonBlankString(raw, "Institution");
 }
