@@ -43,6 +43,13 @@ export type Account = {
   balance?: number;
   /** Positions for an investment account. */
   holdings?: Holding[];
+  /**
+   * The institution that holds the account (bank, brokerage, or lender), e.g.
+   * "Vanguard". Optional on every account — assets and liabilities alike — and
+   * absent until the owner sets one; used to group accounts on the Net Worth
+   * page. Free text (autocompleted over prior values); no structured registry.
+   */
+  institution?: string;
   /** ISO date the account was closed, if it has been; undefined while open. */
   closedAt?: string;
 };

@@ -7,6 +7,7 @@ import {
   parseAssetKind,
   parseBalanceAmount,
   parseCheckInDate,
+  parseInstitution,
   parsePriceOverride,
   parseQuantity,
   parseTicker,
@@ -149,5 +150,18 @@ describe("parseCheckInDate", () => {
   it("rejects a malformed or impossible date", () => {
     expect(() => parseCheckInDate("07/10/2026")).toThrow(/ISO calendar date/i);
     expect(() => parseCheckInDate("2026-02-30")).toThrow(/real calendar date/i);
+  });
+});
+
+describe("parseInstitution", () => {
+  it("returns undefined for an absent / blank value (no institution → $unset)", () => {
+    expect(parseInstitution(undefined)).toBeUndefined();
+    expect(parseInstitution(null)).toBeUndefined();
+    expect(parseInstitution("")).toBeUndefined();
+    expect(parseInstitution("   ")).toBeUndefined();
+  });
+
+  it("trims a provided institution", () => {
+    expect(parseInstitution("  Vanguard  ")).toBe("Vanguard");
   });
 });
