@@ -97,6 +97,7 @@ export function toAccount(doc: AccountDocument): Account {
     kind: doc.kind ?? undefined,
     balance: doc.balance ?? undefined,
     holdings: doc.holdings ?? undefined,
+    institution: doc.institution ?? undefined,
     closedAt: doc.closedAt ?? undefined,
   };
 }
