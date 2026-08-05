@@ -6,7 +6,7 @@ import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { CompactField } from "@/components/budget/transaction/CompactField";
 import { FieldRow } from "@/components/budget/transaction/FieldRow";
 import { SignControl } from "@/components/budget/transaction/SignControl";
-import { VendorInput } from "@/components/budget/transaction/VendorInput";
+import { SuggestInput } from "@/components/ui/SuggestInput";
 import { DatePickerField } from "@/components/ui/DatePickerField";
 import { signLabelsFor } from "@/lib/budget";
 import type { CategoryKind, Transaction } from "@/types/budget";
@@ -95,12 +95,14 @@ export function TransactionFields({
           </CompactField>
 
           <CompactField label="Vendor" className="md:min-w-40 md:flex-1">
-            <VendorInput
+            <SuggestInput
+              name="vendor"
               value={vendor}
               onChange={setVendor}
               options={vendorOptions}
               placeholder={vendorPlaceholder}
               required={requireVendor}
+              emptyMessage="No matches — type a new vendor."
             />
           </CompactField>
 
@@ -169,12 +171,14 @@ export function TransactionFields({
       </FieldRow>
 
       <FieldRow label="Vendor">
-        <VendorInput
+        <SuggestInput
+          name="vendor"
           value={vendor}
           onChange={setVendor}
           options={vendorOptions}
           placeholder={vendorPlaceholder}
           required={requireVendor}
+          emptyMessage="No matches — type a new vendor."
         />
       </FieldRow>
 

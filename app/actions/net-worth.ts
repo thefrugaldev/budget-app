@@ -31,6 +31,7 @@ import {
   parseAssetKind,
   parseBalanceAmount,
   parseCheckInDate,
+  parseInstitution,
   parsePriceOverride,
   parseQuantity,
   parseTicker,
@@ -107,21 +108,25 @@ export async function createAccountAction(
     await requireRole("editor");
     const name = parseAccountName(formData.get("name"));
     const accountClass = parseAccountClass(formData.get("class"));
+    // Optional on every account; `createAccount` writes it only when defined, so
+    // a blank field (→ undefined) simply creates the account without one (#195).
+    const institution = parseInstitution(formData.get("institution"));
 
     let account: Account;
     if (accountClass === "liability") {
       const balance = parseBalanceAmount(formData.get("balance"));
-      account = await createAccount({ name, class: "liability", balance });
+      account = await createAccount({ name, class: "liability", balance, institution });
     } else {
       const kind = parseAssetKind(formData.get("kind"));
       account =
         kind === "investment"
-          ? await createAccount({ name, class: "asset", kind })
+          ? await createAccount({ name, class: "asset", kind, institution })
           : await createAccount({
               name,
               class: "asset",
               kind,
               balance: parseBalanceAmount(formData.get("balance")),
+              institution,
             });
     }
 
@@ -150,6 +155,14 @@ export async function updateAccountAction(
     const accountClass = parseAccountClass(formData.get("class"));
 
     const patch: AccountPatch = { name, class: accountClass };
+    // Institution is orthogonal to class (both asset and liability carry it). A
+    // blanked field parses to `undefined` → clear it via `$unset` rather than
+    // writing an empty string, so a cleared value round-trips to "no institution"
+    // instead of silently leaving the old one (#195).
+    const institution = parseInstitution(formData.get("institution"));
+    if (institution === undefined) patch.clearInstitution = true;
+    else patch.institution = institution;
+
     if (accountClass === "liability") {
       // Liabilities are manual-balance with no kind or holdings.
       patch.clearKind = true;

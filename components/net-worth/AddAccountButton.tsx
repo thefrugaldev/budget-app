@@ -14,7 +14,14 @@ import { cn } from "@/lib/utils";
  * the real gate). Two looks: `header` (compact, beside the hero) and `cta`
  * (prominent, in the empty state).
  */
-export function AddAccountButton({ variant = "header" }: { variant?: "header" | "cta" }) {
+export function AddAccountButton({
+  institutions,
+  variant = "header",
+}: {
+  /** The household's prior institution values, threaded to the add-account form. */
+  institutions: string[];
+  variant?: "header" | "cta";
+}) {
   const canEdit = useCanEdit();
   const [open, setOpen] = useState(false);
   if (!canEdit) return null;
@@ -34,7 +41,7 @@ export function AddAccountButton({ variant = "header" }: { variant?: "header" | 
         <Plus className="size-4" aria-hidden />
         Add account
       </button>
-      <AddAccountDialog open={open} onOpenChange={setOpen} />
+      <AddAccountDialog institutions={institutions} open={open} onOpenChange={setOpen} />
     </>
   );
 }
