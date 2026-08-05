@@ -124,7 +124,10 @@ export default async function NetWorthPage() {
       <div className="space-y-8">
         {sections.map((section) => (
           <section key={section.key}>
-            <SectionHeading amount={fmt(section.isLiability ? -section.total : section.total)}>
+            <SectionHeading
+              variant="divider"
+              amount={fmt(section.isLiability ? -section.total : section.total)}
+            >
               {section.label}
             </SectionHeading>
             <div className="space-y-5">
@@ -134,8 +137,13 @@ export default async function NetWorthPage() {
                 const label = group.institution === null ? "No institution" : group.institution;
                 return (
                   <div key={group.institution ?? "__none__"}>
+                    {/* Quiet, muted sub-label beneath the dominant section
+                        divider — the section (h2) outranks its institution
+                        groups (h3) rather than competing with them. */}
                     <div className="mb-2 flex items-baseline justify-between gap-3">
-                      <h3 className="truncate text-sm font-medium text-foreground">{label}</h3>
+                      <h3 className="min-w-0 truncate text-xs font-medium text-muted-foreground">
+                        {label}
+                      </h3>
                       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                         {fmt(section.isLiability ? -group.subtotal : group.subtotal)}
                       </span>
