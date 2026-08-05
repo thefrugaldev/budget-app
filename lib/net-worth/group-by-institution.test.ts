@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Account, PriceLookup } from "@/types/net-worth";
 
 import { groupAccountsByInstitution } from "./group-by-institution";
+import { netWorthHeadline } from "./valuation";
 
 const prices: Record<string, number> = { VOO: 500, AAPL: 200 };
 const priceFor: PriceLookup = (ticker) => prices[ticker];
@@ -115,5 +116,33 @@ describe("groupAccountsByInstitution", () => {
     expect(chase.accounts.map((a) => a.id)).toEqual(["chk", "mtg"]);
     // Subtotal is a plain magnitude sum — the caller applies signing per section.
     expect(chase.subtotal).toBe(254_000);
+  });
+});
+
+// The Net Worth page's caller contract (chunk 5): it groups the *open, single-
+// class* accounts per section, so the institution subtotals must reconcile with
+// the headline totals the same accounts produce. This locks that — the helper
+// doesn't drop closed accounts, so the page filters them before grouping.
+describe("section-total invariant (Net Worth page caller contract)", () => {
+  const accounts = [
+    account({ id: "brok", class: "asset", kind: "investment", institution: "Vanguard", holdings: [{ ticker: "VOO", quantity: 10 }] }), // 5_000
+    account({ id: "hysa", class: "asset", kind: "cash", balance: 20_000, institution: "Ally" }),
+    account({ id: "529", class: "asset", kind: "cash", balance: 3_000 }), // no institution
+    account({ id: "mtg", class: "liability", balance: 180_000, institution: "Chase" }),
+    account({ id: "card", class: "liability", balance: 1_200 }), // no institution
+    // A closed account the page filters out before grouping (headline drops it too).
+    account({ id: "old", class: "asset", kind: "cash", balance: 999_999, institution: "Ghost", closedAt: "2024-01-01" }),
+  ];
+  const open = accounts.filter((a) => !a.closedAt);
+  const headline = netWorthHeadline(accounts, priceFor);
+
+  it("asset institution subtotals sum to the headline asset total", () => {
+    const groups = groupAccountsByInstitution(open.filter((a) => a.class === "asset"), priceFor);
+    expect(groups.reduce((sum, g) => sum + g.subtotal, 0)).toBe(headline.assets);
+  });
+
+  it("liability institution subtotals sum to the headline liability total", () => {
+    const groups = groupAccountsByInstitution(open.filter((a) => a.class === "liability"), priceFor);
+    expect(groups.reduce((sum, g) => sum + g.subtotal, 0)).toBe(headline.liabilities);
   });
 });

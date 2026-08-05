@@ -8,7 +8,11 @@ export function fmt(amount: number): string {
   return amount.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: amount >= 100 ? 0 : 2,
+    // Whole dollars once the *magnitude* clears $100, cents below it — keyed on
+    // the absolute value so a negative (a liability, a refund) rounds the same as
+    // its positive twin. Without the `abs`, every negative fell under the `< 100`
+    // branch and rendered cents ("-$300,000.00" beside a clean "$549,341").
+    maximumFractionDigits: Math.abs(amount) >= 100 ? 0 : 2,
   });
 }
 

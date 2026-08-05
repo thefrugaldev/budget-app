@@ -14,28 +14,15 @@ import { tickersNeedingQuotes } from "@/lib/net-worth/check-in";
 import { DEFAULT_QUOTE_TTL_MS, getQuotesWithAsOf } from "@/lib/net-worth/price/get-quotes";
 import { pricingStatus } from "@/lib/net-worth/pricing-status";
 import { latestSnapshotDates, monthlyNetWorthSeries } from "@/lib/net-worth/series";
+import { groupAccountsByInstitution } from "@/lib/net-worth/group-by-institution";
 import { accountValue, netWorthHeadline, unpricedHoldingCount } from "@/lib/net-worth/valuation";
 import { listAccounts, listInstitutions } from "@/lib/repositories/accounts";
 import { listSnapshots } from "@/lib/repositories/snapshots";
-import type { Account, PriceLookup } from "@/types/net-worth";
+import type { PriceLookup } from "@/types/net-worth";
 
 export const metadata: Metadata = {
   title: "Net worth",
 };
-
-// Asset kinds first (in a stable, cash→property order), liabilities last — the
-// order the page groups account cards under (story 3/6/14). Investments sit
-// between cash and property because they're the market-priced middle.
-const GROUPS: { key: string; label: string; match: (a: Account) => boolean }[] = [
-  { key: "cash", label: "Cash", match: (a) => a.class === "asset" && a.kind === "cash" },
-  {
-    key: "investment",
-    label: "Investments",
-    match: (a) => a.class === "asset" && a.kind === "investment",
-  },
-  { key: "property", label: "Property", match: (a) => a.class === "asset" && a.kind === "property" },
-  { key: "liability", label: "Liabilities", match: (a) => a.class === "liability" },
-];
 
 export default async function NetWorthPage() {
   const [accounts, snapshots, institutions] = await Promise.all([
@@ -84,26 +71,34 @@ export default async function NetWorthPage() {
   // and its class is locked. Drives the edit sheet's affordances.
   const accountsWithHistory = new Set(snapshots.map((s) => s.accountId));
 
-  const toGroup = (key: string, label: string, accts: Account[]) => {
-    const items = accts.map((account) => ({
-      account,
-      value: accountValue(account, priceFor),
-      unpricedCount: unpricedHoldingCount(account, priceFor),
-    }));
-    return { key, label, items, subtotal: items.reduce((sum, it) => sum + it.value, 0) };
-  };
-
-  const groups = GROUPS.map((group) =>
-    toGroup(group.key, group.label, openAccounts.filter(group.match)),
-  ).filter((group) => group.items.length > 0);
-
-  // Safety net: an open account matching no group (e.g. a legacy or mis-shaped
-  // asset with no kind) still counts in `netWorthHeadline`, so surface it as an
-  // "Other" card rather than letting it vanish — otherwise the visible subtotals
-  // wouldn't reconcile with the net figure. Can't happen for data that passed
-  // `assertValidAccountShape`, but this keeps a bad record honest instead of hidden.
-  const unclassified = openAccounts.filter((account) => !GROUPS.some((group) => group.match(account)));
-  if (unclassified.length > 0) groups.push(toGroup("other", "Other", unclassified));
+  // Group each class's open accounts by institution (#195). The helper is
+  // section-agnostic and doesn't drop closed accounts, so we hand it the same
+  // open-only, single-class lists the headline sums — keeping each section's
+  // institution subtotals reconciled with the headline figure. Assets and
+  // liabilities stay separate sections (grouping is presentational; the math is
+  // unchanged); the "No institution" group sorts last within each.
+  const sections = [
+    {
+      key: "asset",
+      label: "Assets",
+      isLiability: false,
+      total: headline.assets,
+      groups: groupAccountsByInstitution(
+        openAccounts.filter((account) => account.class === "asset"),
+        priceFor,
+      ),
+    },
+    {
+      key: "liability",
+      label: "Liabilities",
+      isLiability: true,
+      total: headline.liabilities,
+      groups: groupAccountsByInstitution(
+        openAccounts.filter((account) => account.class === "liability"),
+        priceFor,
+      ),
+    },
+  ].filter((section) => section.groups.length > 0);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
@@ -127,35 +122,57 @@ export default async function NetWorthPage() {
       )}
 
       <div className="space-y-8">
-        {groups.map((group) => {
-          const isLiability = group.key === "liability";
-          return (
-            <section key={group.key}>
-              <SectionHeading amount={fmt(isLiability ? -group.subtotal : group.subtotal)}>
-                {group.label}
-              </SectionHeading>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {group.items.map(({ account, value, unpricedCount }) => (
-                  <AccountCard
-                    key={account.id}
-                    account={account}
-                    value={value}
-                    lastUpdated={lastUpdated.get(account.id)}
-                    unpricedCount={unpricedCount}
-                    action={
-                      <AccountCardActions
-                        account={account}
-                        hasHistory={accountsWithHistory.has(account.id)}
-                        institutions={institutions}
-                        prices={priceByTicker}
-                      />
-                    }
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
+        {sections.map((section) => (
+          <section key={section.key}>
+            <SectionHeading
+              variant="divider"
+              amount={fmt(section.isLiability ? -section.total : section.total)}
+            >
+              {section.label}
+            </SectionHeading>
+            <div className="space-y-5">
+              {section.groups.map((group) => {
+                // Strict `=== null` for the bucket, so a real institution that
+                // happens to net $0 is never mislabeled "No institution".
+                const label = group.institution === null ? "No institution" : group.institution;
+                return (
+                  <div key={group.institution ?? "__none__"}>
+                    {/* Quiet, muted sub-label beneath the dominant section
+                        divider — the section (h2) outranks its institution
+                        groups (h3) rather than competing with them. */}
+                    <div className="mb-2 flex items-baseline justify-between gap-3">
+                      <h3 className="min-w-0 truncate text-xs font-medium text-muted-foreground">
+                        {label}
+                      </h3>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {fmt(section.isLiability ? -group.subtotal : group.subtotal)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {group.accounts.map((account) => (
+                        <AccountCard
+                          key={account.id}
+                          account={account}
+                          value={accountValue(account, priceFor)}
+                          lastUpdated={lastUpdated.get(account.id)}
+                          unpricedCount={unpricedHoldingCount(account, priceFor)}
+                          action={
+                            <AccountCardActions
+                              account={account}
+                              hasHistory={accountsWithHistory.has(account.id)}
+                              institutions={institutions}
+                              prices={priceByTicker}
+                            />
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );
