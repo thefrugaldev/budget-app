@@ -16,10 +16,13 @@ import type { Account } from "@/types/net-worth";
 export function AccountCardActions({
   account,
   hasHistory,
+  institutions,
   prices,
 }: {
   account: Account;
   hasHistory: boolean;
+  /** The household's prior institution values, for the edit sheet's autocomplete. */
+  institutions: string[];
   /** Resolved live prices (ticker → price), for the edit sheet's holdings values. */
   prices: Record<string, number>;
 }) {
@@ -40,6 +43,7 @@ export function AccountCardActions({
       <AccountEditSheet
         account={account}
         hasHistory={hasHistory}
+        institutions={institutions}
         prices={prices}
         open={open}
         onOpenChange={setOpen}

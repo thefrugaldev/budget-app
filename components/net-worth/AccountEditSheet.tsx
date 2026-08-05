@@ -30,18 +30,22 @@ import type { Account, AccountClass, AssetKind } from "@/types/net-worth";
 export function AccountEditSheet({
   account,
   hasHistory,
+  institutions,
   prices,
   open,
   onOpenChange,
 }: {
   account: Account;
   hasHistory: boolean;
+  /** The household's prior institution values, for the field's autocomplete. */
+  institutions: string[];
   /** Resolved live prices (ticker → price) for the holdings editor's values. */
   prices: Record<string, number>;
   open: boolean;
   onOpenChange: (next: boolean) => void;
 }) {
   const [name, setName] = useState(account.name);
+  const [institution, setInstitution] = useState(account.institution ?? "");
   const [accountClass, setAccountClass] = useState<AccountClass>(account.class);
   const [kind, setKind] = useState<AssetKind>(account.kind ?? "cash");
   const [balance, setBalance] = useState(account.balance != null ? String(account.balance) : "");
@@ -51,9 +55,10 @@ export function AccountEditSheet({
   // while an in-flight edit survives an unrelated revalidation (e.g. adding a
   // holding, which doesn't touch these fields).
   useResyncOnChange(
-    `${account.name}|${account.class}|${account.kind ?? ""}|${account.balance ?? ""}|${open}`,
+    `${account.name}|${account.institution ?? ""}|${account.class}|${account.kind ?? ""}|${account.balance ?? ""}|${open}`,
     () => {
       setName(account.name);
+      setInstitution(account.institution ?? "");
       setAccountClass(account.class);
       setKind(account.kind ?? "cash");
       setBalance(account.balance != null ? String(account.balance) : "");
@@ -102,6 +107,9 @@ export function AccountEditSheet({
                 <AccountFields
                   name={name}
                   onName={setName}
+                  institution={institution}
+                  onInstitution={setInstitution}
+                  institutions={institutions}
                   accountClass={accountClass}
                   onClass={setAccountClass}
                   kind={kind}

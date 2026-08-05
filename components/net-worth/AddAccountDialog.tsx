@@ -10,9 +10,12 @@ import { MODAL_BACKDROP, MODAL_POPUP } from "@/components/ui/dialogClasses";
  * closes on success. Mirrors `AddCategoryDialog`.
  */
 export function AddAccountDialog({
+  institutions,
   open,
   onOpenChange,
 }: {
+  /** The household's prior institution values, for the form's autocomplete. */
+  institutions: string[];
   open: boolean;
   onOpenChange: (next: boolean) => void;
 }) {
@@ -26,7 +29,7 @@ export function AddAccountDialog({
             Something you own (cash, investments, property) or owe (a mortgage, a loan).
           </Dialog.Description>
           <div className="mt-4">
-            <AccountForm onSuccess={() => onOpenChange(false)} />
+            <AccountForm institutions={institutions} onSuccess={() => onOpenChange(false)} />
           </div>
           <div className="mt-4 flex justify-end">
             <Dialog.Close className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">

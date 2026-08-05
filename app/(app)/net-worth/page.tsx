@@ -15,7 +15,7 @@ import { DEFAULT_QUOTE_TTL_MS, getQuotesWithAsOf } from "@/lib/net-worth/price/g
 import { pricingStatus } from "@/lib/net-worth/pricing-status";
 import { latestSnapshotDates, monthlyNetWorthSeries } from "@/lib/net-worth/series";
 import { accountValue, netWorthHeadline, unpricedHoldingCount } from "@/lib/net-worth/valuation";
-import { listAccounts } from "@/lib/repositories/accounts";
+import { listAccounts, listInstitutions } from "@/lib/repositories/accounts";
 import { listSnapshots } from "@/lib/repositories/snapshots";
 import type { Account, PriceLookup } from "@/types/net-worth";
 
@@ -38,14 +38,18 @@ const GROUPS: { key: string; label: string; match: (a: Account) => boolean }[] =
 ];
 
 export default async function NetWorthPage() {
-  const [accounts, snapshots] = await Promise.all([listAccounts(), listSnapshots()]);
+  const [accounts, snapshots, institutions] = await Promise.all([
+    listAccounts(),
+    listSnapshots(),
+    listInstitutions(),
+  ]);
 
   // Nothing set up yet — walk the user into their first account (story 17). The
   // Add button is role-gated (absent for viewers, who just read the copy).
   if (accounts.length === 0) {
     return (
       <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
-        <NetWorthEmptyState action={<AddAccountButton variant="cta" />} />
+        <NetWorthEmptyState action={<AddAccountButton institutions={institutions} variant="cta" />} />
       </div>
     );
   }
@@ -109,7 +113,7 @@ export default async function NetWorthPage() {
           {openAccounts.length > 0 && (
             <CheckInButton accounts={openAccounts} prices={priceByTicker} />
           )}
-          <AddAccountButton />
+          <AddAccountButton institutions={institutions} />
         </div>
       </div>
       <PriceStalenessNotice status={status} />
@@ -142,6 +146,7 @@ export default async function NetWorthPage() {
                       <AccountCardActions
                         account={account}
                         hasHistory={accountsWithHistory.has(account.id)}
+                        institutions={institutions}
                         prices={priceByTicker}
                       />
                     }

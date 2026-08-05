@@ -17,7 +17,14 @@ import type { AccountClass, AssetKind } from "@/types/net-worth";
  * editor (story 4) — chunk 5's `createAccountAction` takes no holdings, so the
  * flow is create → edit → add positions. Mirrors `CategoryForm`.
  */
-export function AccountForm({ onSuccess }: { onSuccess?: (id: string) => void }) {
+export function AccountForm({
+  institutions,
+  onSuccess,
+}: {
+  /** The household's prior institution values, for the field's autocomplete. */
+  institutions: string[];
+  onSuccess?: (id: string) => void;
+}) {
   const [state, formAction] = useActionState(createAccountAction, NET_WORTH_ACTION_INITIAL);
   // Shared success idiom; the generic hook hands back the action state so we can
   // forward the new account's id (createAccountAction always returns it on success).
@@ -26,6 +33,7 @@ export function AccountForm({ onSuccess }: { onSuccess?: (id: string) => void })
   });
 
   const [name, setName] = useState("");
+  const [institution, setInstitution] = useState("");
   const [accountClass, setAccountClass] = useState<AccountClass>("asset");
   const [kind, setKind] = useState<AssetKind>("cash");
   const [balance, setBalance] = useState("");
@@ -35,6 +43,9 @@ export function AccountForm({ onSuccess }: { onSuccess?: (id: string) => void })
       <AccountFields
         name={name}
         onName={setName}
+        institution={institution}
+        onInstitution={setInstitution}
+        institutions={institutions}
         accountClass={accountClass}
         onClass={setAccountClass}
         kind={kind}

@@ -76,7 +76,7 @@ export function TransactionForm({
   // chosen (the FAB Add flow opens without a category) we pass "" — no real
   // category id ever equals "", so it yields the global vendor list ranked by
   // frequency, and re-ranks category-first once a category is picked. The
-  // popup itself is capped via `limit` in VendorInput, so a large list here is
+  // popup itself is capped via `limit` in SuggestInput, so a large list here is
   // fine.
   const vendorOptions = useMemo(
     () => vendorSuggestionsForCategory(transactions, categoryId ?? ""),

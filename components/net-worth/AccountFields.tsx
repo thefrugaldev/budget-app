@@ -1,6 +1,7 @@
 "use client";
 
 import { AmountInput } from "@/components/budget/amount/AmountInput";
+import { SuggestInput } from "@/components/ui/SuggestInput";
 import { cn } from "@/lib/utils";
 import type { AccountClass, AssetKind } from "@/types/net-worth";
 
@@ -16,22 +17,28 @@ const KIND_OPTIONS: { value: AssetKind; label: string }[] = [
 ];
 
 /**
- * The controlled name / class / kind / balance fields shared by the create form
- * ({@link AccountForm}) and the edit sheet ({@link AccountEditSheet}), so the two
- * don't clone the class/kind pickers. Renders the hidden `class`/`kind` inputs
+ * The controlled name / institution / class / kind / balance fields shared by the
+ * create form ({@link AccountForm}) and the edit sheet ({@link AccountEditSheet}),
+ * so the two don't clone the pickers. Renders the hidden `class`/`kind` inputs
  * and the `balance` field (via the shared `AmountInput`, story 23) with the
- * right names, so a host `<form action={…}>` submits exactly what chunk 5's
+ * right names, so a host `<form action={…}>` submits exactly what the net-worth
  * actions parse. The parent owns the state (it drives which fields show).
  *
- * `balance` is shown for a liability or a non-investment asset; an investment
- * account is valued from its holdings, so it has no balance field (holdings are
- * edited separately). `classLocked` renders the class read-only — the server
- * refuses a class change once an account has recorded history, so the UI reflects
- * that rather than offering a control that would 409.
+ * `institution` (#195) is an optional free-text field on **every** account —
+ * assets and liabilities alike, unlike the class-conditional kind/balance — with
+ * autocomplete over `institutions` (the household's prior values). `balance` is
+ * shown for a liability or a non-investment asset; an investment account is
+ * valued from its holdings, so it has no balance field (holdings are edited
+ * separately). `classLocked` renders the class read-only — the server refuses a
+ * class change once an account has recorded history, so the UI reflects that
+ * rather than offering a control that would 409.
  */
 export function AccountFields({
   name,
   onName,
+  institution,
+  onInstitution,
+  institutions,
   accountClass,
   onClass,
   kind,
@@ -42,6 +49,10 @@ export function AccountFields({
 }: {
   name: string;
   onName: (value: string) => void;
+  institution: string;
+  onInstitution: (value: string) => void;
+  /** The household's prior institution values, for autocomplete (may be empty). */
+  institutions: string[];
   accountClass: AccountClass;
   onClass: (value: AccountClass) => void;
   kind: AssetKind;
@@ -69,6 +80,22 @@ export function AccountFields({
           required
           aria-label="Account name"
           className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
+        />
+      </label>
+
+      {/* Optional on every account (assets and liabilities), so it's always
+          shown — never gated on class like kind/balance. Empty is fine; a blank
+          value round-trips to "no institution" (the action maps it to a clear).*/}
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">Institution</span>
+        <SuggestInput
+          name="institution"
+          value={institution}
+          onChange={onInstitution}
+          options={institutions}
+          placeholder="e.g. Vanguard"
+          ariaLabel="Institution"
+          emptyMessage="No matches — type a new institution."
         />
       </label>
 
