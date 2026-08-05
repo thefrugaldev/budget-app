@@ -115,6 +115,20 @@ export type PricingStatus = {
   unpriced: string[];
 };
 
+/**
+ * A set of accounts held at one institution, for the grouped Net Worth view
+ * (#195). `institution` is `null` for the canonical "No institution" bucket
+ * (accounts with the field unset); the UI supplies that bucket's visible label.
+ * `subtotal` is the Σ of member magnitudes (`accountValue`), so when the helper
+ * is applied to a single section's accounts the subtotals sum to that section's
+ * total — grouping is presentational, the net-worth math unchanged.
+ */
+export type InstitutionGroup = {
+  institution: string | null;
+  accounts: Account[];
+  subtotal: number;
+};
+
 /** The live net-worth headline: both subtotals plus the signed net figure. */
 export type NetWorthHeadline = {
   /** Sum of open asset-account values. */
