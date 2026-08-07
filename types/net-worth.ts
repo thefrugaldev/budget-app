@@ -129,6 +129,35 @@ export type InstitutionGroup = {
   subtotal: number;
 };
 
+/**
+ * The derived, presentational shape one account renders from, shared by the
+ * card (`AccountCard`) and the dense list row (`AccountRow`) so both draw from
+ * the same upstream figures — one data path, no parallel derivation (#203).
+ * `value` is a non-negative magnitude; the class supplies the sign.
+ */
+export type AccountItemView = {
+  account: Account;
+  /** Current value as a non-negative magnitude (class supplies the sign). */
+  value: number;
+  /** ISO date of the most recent snapshot; absent if never recorded. */
+  lastUpdated?: string;
+  /** Holdings with no usable price — surfaced as an incomplete-value hint. */
+  unpricedCount?: number;
+};
+
+/**
+ * One Net Worth section (Assets / Liabilities) with its institution groups —
+ * the serializable shape the server page builds and hands to the client view so
+ * it can switch card/list layout without a second data path (#203).
+ */
+export type NetWorthSection = {
+  key: string;
+  label: string;
+  isLiability: boolean;
+  total: number;
+  groups: InstitutionGroup[];
+};
+
 /** The live net-worth headline: both subtotals plus the signed net figure. */
 export type NetWorthHeadline = {
   /** Sum of open asset-account values. */
