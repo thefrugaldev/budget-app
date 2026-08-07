@@ -127,6 +127,89 @@ export function presetForDateBounds(
 }
 
 /**
+ * Inclusive ISO day bounds for a whole calendar year (Jan 1 – Dec 31). A year
+ * is just a `from`/`to` window in the same URL contract the presets and custom
+ * range use — the year selector sets one of these (#160 story 1). Shared so
+ * Income (#162) and Net worth inherit the same year math.
+ */
+export function calendarYearBounds(year: number): { from: string; to: string } {
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
+}
+
+/**
+ * Complete past calendar years that have data, newest first — the options the
+ * year selector offers (#160 story 1). Spans the year of the earliest record up
+ * to last year; the current year is omitted (view it to-date with YTD, or as a
+ * full year once it completes). Empty when there's no earlier year or no data,
+ * which hides the selector.
+ */
+export function availableYears(
+  earliestDate: string | undefined,
+  today = new Date(),
+): number[] {
+  if (!earliestDate) return [];
+  const firstYear = Number(earliestDate.slice(0, 4));
+  const lastComplete = today.getUTCFullYear() - 1;
+  if (!Number.isFinite(firstYear) || firstYear > lastComplete) return [];
+  const years: number[] = [];
+  for (let y = lastComplete; y >= firstYear; y--) years.push(y);
+  return years;
+}
+
+/**
+ * The calendar year a `[from, to]` window covers exactly (Jan 1 – Dec 31), or
+ * `null` if it isn't a whole calendar year. Drives which year the selector
+ * shows as active. A past-year window never coincides with a now-anchored
+ * preset, so classification stays unambiguous.
+ */
+export function activeCalendarYear(from: string, to: string): number | null {
+  const year = Number(from.slice(0, 4));
+  if (!Number.isFinite(year)) return null;
+  const bounds = calendarYearBounds(year);
+  return from === bounds.from && to === bounds.to ? year : null;
+}
+
+export type DateScopeDescription = {
+  /** Title-case caption for the page eyebrow ("This month", "2021", "All time"). */
+  eyebrow: string;
+  /** Lowercase phrase for inline copy — "You kept $X {phrase}." */
+  phrase: string;
+};
+
+/**
+ * Human labels for a resolved `[from, to]` window, so a page can caption and
+ * narrate any scope the unified control produces (#160). Classifies the window
+ * as a relative preset, a whole calendar year, the all-time span, or an
+ * arbitrary custom range, in that order. `earliestDate` (when supplied)
+ * identifies the all-time window; `today` must anchor the same bounds the
+ * presets resolved against.
+ */
+export function describeDateScope(
+  from: string,
+  to: string,
+  today = new Date(),
+  earliestDate?: string,
+): DateScopeDescription {
+  const preset = presetForDateBounds(from, to, today);
+  if (preset) {
+    const label = rangeLabel(preset);
+    return { eyebrow: label, phrase: label.toLowerCase() };
+  }
+  if (
+    earliestDate &&
+    from === earliestDate &&
+    to === presetDateBounds("this-month", today).to
+  ) {
+    return { eyebrow: "All time", phrase: "all-time" };
+  }
+  const year = activeCalendarYear(from, to);
+  if (year !== null) {
+    return { eyebrow: String(year), phrase: `in ${year}` };
+  }
+  return { eyebrow: "Custom range", phrase: "in this range" };
+}
+
+/**
  * Yields every "YYYY-MM" key from `start` through `end`, inclusive. The two
  * strings are lexically comparable, which makes range checks elsewhere a
  * straight string comparison.
