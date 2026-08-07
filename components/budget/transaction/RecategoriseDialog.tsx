@@ -1,6 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 
 import { CategoryPicker } from "@/components/budget/category/CategoryPicker";
+import { DialogFooter, DialogFooterCancel } from "@/components/ui/DialogFooter";
 import { MODAL_BACKDROP, MODAL_POPUP } from "@/components/ui/dialogClasses";
 import type { Category } from "@/types/budget";
 
@@ -44,6 +45,9 @@ export function RecategoriseDialog({
               label="Move to"
             />
           </div>
+          <DialogFooter className="mt-4">
+            <DialogFooterCancel />
+          </DialogFooter>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { RoleProvider } from "@/components/auth/RoleProvider";
 import { DaySection } from "@/components/budget/transaction/DaySection";
+import { DialogFooter, DialogFooterCancel } from "@/components/ui/DialogFooter";
 import { MODAL_BACKDROP } from "@/components/ui/dialogClasses";
 import { useTransactionSelection } from "@/hooks/useTransactionSelection";
 import { groupTransactionsByDay } from "@/lib/transaction";
@@ -116,6 +117,9 @@ export function CategoryPeekDialog({
               )}
             </RoleProvider>
           </div>
+          <DialogFooter className="border-t border-border px-5 py-3">
+            <DialogFooterCancel label="Done" />
+          </DialogFooter>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

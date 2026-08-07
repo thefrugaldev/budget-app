@@ -10,6 +10,7 @@ import { TX_ACTION_INITIAL } from "@/app/actions/transactions-state";
 import { CategoryPicker } from "@/components/budget/category/CategoryPicker";
 import { TransactionFields } from "@/components/budget/transaction/TransactionFields";
 import { TransactionSubmitButton } from "@/components/budget/transaction/TransactionSubmitButton";
+import { DialogFooter } from "@/components/ui/DialogFooter";
 import { useNotify } from "@/hooks/useNotify";
 import { vendorSuggestionsForCategory } from "@/lib/budget";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,13 @@ export type TransactionFormProps = {
    * expander. Mobile stays vertical but tightened.
    */
   compact?: boolean;
+  /**
+   * Dismiss control rendered to the left of the submit in the shared footer
+   * row (a `DialogFooterCancel` when hosted in a dialog). Only the full-size
+   * footer shows it; a slot rather than a hardcoded `Dialog.Close` so the form
+   * stays dialog-agnostic for its inline (compact) call site, which omits it.
+   */
+  cancelSlot?: React.ReactNode;
 };
 
 export function TransactionForm({
@@ -50,6 +58,7 @@ export function TransactionForm({
   submitLabel,
   className,
   compact = false,
+  cancelSlot,
 }: TransactionFormProps) {
   const isEdit = editing !== undefined;
   const categoryMap = useMemo(
@@ -158,7 +167,10 @@ export function TransactionForm({
       )}
 
       {!compact && (
-        <div className="flex justify-end pt-1">{submitButton}</div>
+        <DialogFooter className="pt-1">
+          {cancelSlot}
+          {submitButton}
+        </DialogFooter>
       )}
     </form>
   );
