@@ -7,6 +7,7 @@ import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
 import { AmountInput } from "@/components/budget/amount/AmountInput";
 import { CategoryIconPicker } from "@/components/budget/category/CategoryIconPicker";
 import { useNotify } from "@/hooks/useNotify";
+import { DialogFooter } from "@/components/ui/DialogFooter";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { currentMonthKey } from "@/lib/budget";
@@ -41,6 +42,13 @@ export type CategoryFormProps = {
   allowedKinds?: readonly CategoryKind[];
   onSuccess?: (id: string) => void;
   className?: string;
+  /**
+   * Dismiss control rendered to the left of the submit in the shared footer
+   * row (a `DialogFooterCancel` when hosted in a dialog). A slot rather than a
+   * hardcoded `Dialog.Close` so the form stays dialog-agnostic for its inline
+   * `+ Add category` call sites, which omit it — the submit then sits alone.
+   */
+  cancelSlot?: React.ReactNode;
 };
 
 /**
@@ -62,6 +70,7 @@ export function CategoryForm({
   allowedKinds,
   onSuccess,
   className,
+  cancelSlot,
 }: CategoryFormProps) {
   const [state, formAction] = useActionState(
     createCategoryAction,
@@ -184,9 +193,10 @@ export function CategoryForm({
         </p>
       )}
 
-      <div className="flex justify-end pt-1">
+      <DialogFooter className="pt-1">
+        {cancelSlot}
         <FormSubmitButton label="Add category" pendingLabel="Adding…" />
-      </div>
+      </DialogFooter>
     </form>
   );
 }

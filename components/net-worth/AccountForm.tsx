@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { createAccountAction } from "@/app/actions/net-worth";
 import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AccountFields } from "@/components/net-worth/AccountFields";
+import { DialogFooter } from "@/components/ui/DialogFooter";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import type { AccountClass, AssetKind } from "@/types/net-worth";
@@ -20,10 +21,18 @@ import type { AccountClass, AssetKind } from "@/types/net-worth";
 export function AccountForm({
   institutions,
   onSuccess,
+  cancelSlot,
 }: {
   /** The household's prior institution values, for the field's autocomplete. */
   institutions: string[];
   onSuccess?: (id: string) => void;
+  /**
+   * Dismiss control rendered to the left of the submit in the shared footer
+   * row (a `DialogFooterCancel` when hosted in a dialog). Kept a slot rather
+   * than hardcoded so the form stays dialog-agnostic for inline call sites,
+   * which simply omit it — the submit then sits alone, right-aligned.
+   */
+  cancelSlot?: React.ReactNode;
 }) {
   const [state, formAction] = useActionState(createAccountAction, NET_WORTH_ACTION_INITIAL);
   // Shared success idiom; the generic hook hands back the action state so we can
@@ -60,9 +69,10 @@ export function AccountForm({
         </p>
       )}
 
-      <div className="flex justify-end pt-1">
+      <DialogFooter className="pt-1">
+        {cancelSlot}
         <FormSubmitButton label="Add account" pendingLabel="Adding…" />
-      </div>
+      </DialogFooter>
     </form>
   );
 }
