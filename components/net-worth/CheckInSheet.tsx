@@ -6,6 +6,11 @@ import { useState, useTransition } from "react";
 
 import { submitCheckInAction } from "@/app/actions/net-worth";
 import { AccountIcon } from "@/components/net-worth/AccountIcon";
+import {
+  DialogFooter,
+  DialogFooterButton,
+  DialogFooterCancel,
+} from "@/components/ui/DialogFooter";
 import { useLocalTodayIso } from "@/hooks/useLocalTodayIso";
 import { useNotify } from "@/hooks/useNotify";
 import { fmt, longDateLabel, monthLabel } from "@/lib/budget";
@@ -148,21 +153,17 @@ export function CheckInSheet({
             </p>
           )}
 
-          <footer className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-            <Dialog.Close className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              Cancel
-            </Dialog.Close>
-            <button
-              type="button"
+          <DialogFooter variant="sheet">
+            <DialogFooterCancel />
+            <DialogFooterButton
               onClick={handleRecord}
               // `!today` disables until hydrated, so a record never falls back to
               // the server's UTC day (the whole reason the local date is threaded).
               disabled={pending || !today}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {pending ? "Recording…" : "Record"}
-            </button>
-          </footer>
+            </DialogFooterButton>
+          </DialogFooter>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

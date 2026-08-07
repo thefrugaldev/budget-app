@@ -117,7 +117,7 @@ export function CategoryPeekDialog({
               )}
             </RoleProvider>
           </div>
-          <DialogFooter className="border-t border-border px-5 py-3">
+          <DialogFooter variant="sheet">
             <DialogFooterCancel label="Done" />
           </DialogFooter>
         </Dialog.Popup>
