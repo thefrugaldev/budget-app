@@ -4,6 +4,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useActionState } from "react";
 
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { DialogFooter, DialogFooterCancel } from "@/components/ui/DialogFooter";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import {
   type ActionState,
@@ -81,16 +82,16 @@ export function DeleteCategoryDialog({
             Delete {category.name} permanently? This {Noun} has no
             transactions so it can be fully removed.
           </Dialog.Description>
-          <form action={formAction} className="mt-5 flex justify-end gap-2">
+          <form action={formAction}>
             <input type="hidden" name="id" value={category.id} />
-            <Dialog.Close className="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              Cancel
-            </Dialog.Close>
-            <FormSubmitButton
-              label="Delete"
-              pendingLabel="Deleting…"
-              variant="destructive"
-            />
+            <DialogFooter className="mt-5">
+              <DialogFooterCancel />
+              <FormSubmitButton
+                label="Delete"
+                pendingLabel="Deleting…"
+                variant="destructive"
+              />
+            </DialogFooter>
           </form>
           {state.error && (
             <p role="alert" className="mt-3 text-xs text-destructive">

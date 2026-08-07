@@ -30,7 +30,7 @@ const VARIANT_CLASSES = {
   ghost:
     "rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
   destructive:
-    "rounded-md bg-destructive/10 px-3 py-1.5 text-sm font-medium text-destructive ring-1 ring-destructive/20 hover:bg-destructive/20",
+    "rounded-md bg-destructive px-3 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   "ghost-destructive":
     "rounded-md px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10",
 } as const satisfies Record<SubmitVariant, string>;

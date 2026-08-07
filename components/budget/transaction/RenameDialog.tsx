@@ -4,6 +4,11 @@ import { Dialog } from "@base-ui/react/dialog";
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 
+import {
+  DialogFooter,
+  DialogFooterButton,
+  DialogFooterCancel,
+} from "@/components/ui/DialogFooter";
 import { MODAL_BACKDROP, MODAL_POPUP } from "@/components/ui/dialogClasses";
 
 /**
@@ -89,18 +94,12 @@ export function RenameDialog({
                 className="w-full rounded-md bg-background px-2 py-1.5 text-sm ring-1 ring-border outline-none focus:ring-ring"
               />
             </label>
-            <div className="flex justify-end gap-2">
-              <Dialog.Close className="rounded-md px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                Cancel
-              </Dialog.Close>
-              <button
-                type="submit"
-                disabled={value.trim() === ""}
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              >
+            <DialogFooter>
+              <DialogFooterCancel />
+              <DialogFooterButton type="submit" disabled={value.trim() === ""}>
                 Rename
-              </button>
-            </div>
+              </DialogFooterButton>
+            </DialogFooter>
           </form>
         </Dialog.Popup>
       </Dialog.Portal>

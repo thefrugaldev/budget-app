@@ -4,6 +4,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useActionState } from "react";
 
 import { NET_WORTH_ACTION_INITIAL, type NetWorthActionState } from "@/app/actions/net-worth-state";
+import { DialogFooter, DialogFooterCancel } from "@/components/ui/DialogFooter";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { MODAL_BACKDROP, MODAL_POPUP } from "@/components/ui/dialogClasses";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
@@ -66,13 +67,13 @@ export function AccountActionDialog({
           <Dialog.Description className="mt-2 text-sm text-muted-foreground">
             {description}
           </Dialog.Description>
-          <form action={formAction} className="mt-5 flex justify-end gap-2">
+          <form action={formAction}>
             <input type="hidden" name="id" value={accountId} />
             {dateValue && <input type="hidden" name="date" value={dateValue} />}
-            <Dialog.Close className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              Cancel
-            </Dialog.Close>
-            <FormSubmitButton label={confirmLabel} pendingLabel={pendingLabel} variant="destructive" />
+            <DialogFooter className="mt-5">
+              <DialogFooterCancel />
+              <FormSubmitButton label={confirmLabel} pendingLabel={pendingLabel} variant="destructive" />
+            </DialogFooter>
           </form>
           {state.error && (
             <p role="alert" className="mt-3 text-xs text-destructive">
