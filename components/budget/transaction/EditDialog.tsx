@@ -1,6 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 
 import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
+import { DialogFooterCancel } from "@/components/ui/DialogFooter";
 import type { Category, Transaction } from "@/types/budget";
 
 /**
@@ -37,6 +38,7 @@ export function EditDialog({
                 transactions={allTransactions}
                 editing={editing}
                 onSuccess={onClose}
+                cancelSlot={<DialogFooterCancel />}
               />
             </div>
           )}

@@ -3,6 +3,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 
 import { TransactionForm } from "@/components/budget/transaction/TransactionForm";
+import { DialogFooterCancel } from "@/components/ui/DialogFooter";
 import type { Category, Transaction } from "@/types/budget";
 
 export function AddTransactionDialog({
@@ -33,6 +34,7 @@ export function AddTransactionDialog({
               categories={categories}
               transactions={transactions}
               onSuccess={() => onOpenChange(false)}
+              cancelSlot={<DialogFooterCancel />}
             />
           </div>
         </Dialog.Popup>
