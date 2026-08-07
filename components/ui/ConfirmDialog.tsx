@@ -3,8 +3,12 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { useId, useState } from "react";
 
+import {
+  DialogFooter,
+  DialogFooterButton,
+  DialogFooterCancel,
+} from "@/components/ui/DialogFooter";
 import { MODAL_BACKDROP, MODAL_POPUP } from "@/components/ui/dialogClasses";
-import { cn } from "@/lib/utils";
 
 /**
  * Reusable confirm modal (Base UI `AlertDialog`): a title + description over a
@@ -85,24 +89,16 @@ export function ConfirmDialog({
               />
             </div>
           ) : null}
-          <div className="mt-5 flex justify-end gap-2">
-            <AlertDialog.Close className="rounded-md px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Cancel
-            </AlertDialog.Close>
-            <button
-              type="button"
+          <DialogFooter className="mt-5">
+            <DialogFooterCancel />
+            <DialogFooterButton
               onClick={handleConfirm}
               disabled={confirmDisabled}
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-                tone === "destructive"
-                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  : "bg-primary text-primary-foreground hover:bg-primary/80",
-              )}
+              tone={tone}
             >
               {confirmLabel}
-            </button>
-          </div>
+            </DialogFooterButton>
+          </DialogFooter>
         </AlertDialog.Popup>
       </AlertDialog.Portal>
     </AlertDialog.Root>
