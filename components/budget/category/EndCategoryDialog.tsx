@@ -5,6 +5,7 @@ import { useActionState, useEffect, useRef } from "react";
 
 import { endCategoryAction } from "@/app/actions/categories";
 import { CATEGORY_ACTION_INITIAL } from "@/app/actions/category-state";
+import { DialogFooter, DialogFooterCancel } from "@/components/ui/DialogFooter";
 import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useNotify } from "@/hooks/useNotify";
 import { currentMonthKey, monthLabel } from "@/lib/budget";
@@ -65,16 +66,16 @@ export function EndCategoryDialog({
             of the current-month overview but its transactions and history
             remain. You can reopen later.
           </Dialog.Description>
-          <form action={formAction} className="mt-5 flex justify-end gap-2">
+          <form action={formAction}>
             <input type="hidden" name="id" value={category.id} />
-            <Dialog.Close className="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              Cancel
-            </Dialog.Close>
-            <FormSubmitButton
-              label={`End ${Noun}`}
-              pendingLabel="Ending…"
-              variant="destructive"
-            />
+            <DialogFooter className="mt-5">
+              <DialogFooterCancel />
+              <FormSubmitButton
+                label={`End ${Noun}`}
+                pendingLabel="Ending…"
+                variant="destructive"
+              />
+            </DialogFooter>
           </form>
           {state.error && (
             <p role="alert" className="mt-3 text-xs text-destructive">
