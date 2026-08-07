@@ -14,6 +14,11 @@ import { CategoryLifecycleActions } from "@/components/budget/category/CategoryL
 import { CategoryTargetHistory } from "@/components/budget/category/CategoryTargetHistory";
 import { SectionHeader } from "@/components/budget/category/SectionHeader";
 import { CategoryIconPicker } from "@/components/budget/category/CategoryIconPicker";
+import {
+  DialogFooter,
+  DialogFooterButton,
+  DialogFooterCancel,
+} from "@/components/ui/DialogFooter";
 import { MonthPickerField } from "@/components/ui/MonthPickerField";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import {
@@ -396,19 +401,15 @@ export function CategoryEditSheet({
             </p>
           )}
 
-          <footer className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-            <Dialog.Close className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              Close
-            </Dialog.Close>
-            <button
-              type="button"
+          <DialogFooter variant="sheet">
+            <DialogFooterCancel />
+            <DialogFooterButton
               onClick={handleSave}
               disabled={!dirty || pending}
-              className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background disabled:opacity-50"
             >
               {pending ? "Saving…" : "Save changes"}
-            </button>
-          </footer>
+            </DialogFooterButton>
+          </DialogFooter>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

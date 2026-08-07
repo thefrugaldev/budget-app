@@ -9,6 +9,11 @@ import { NET_WORTH_ACTION_INITIAL } from "@/app/actions/net-worth-state";
 import { AccountFields } from "@/components/net-worth/AccountFields";
 import { AccountLifecycleActions } from "@/components/net-worth/AccountLifecycleActions";
 import { HoldingsEditor } from "@/components/net-worth/HoldingsEditor";
+import {
+  DialogFooter,
+  DialogFooterButton,
+  DialogFooterCancel,
+} from "@/components/ui/DialogFooter";
 import { useActionSuccessToast } from "@/hooks/useActionSuccessToast";
 import { useResyncOnChange } from "@/hooks/useResyncOnChange";
 import { cn } from "@/lib/utils";
@@ -153,19 +158,16 @@ export function AccountEditSheet({
             </div>
           </div>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-            <Dialog.Close className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              Close
-            </Dialog.Close>
-            <button
+          <DialogFooter variant="sheet">
+            <DialogFooterCancel />
+            <DialogFooterButton
               type="submit"
               form="account-details-form"
               disabled={isPending}
-              className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background disabled:opacity-50"
             >
               {isPending ? "Saving…" : "Save changes"}
-            </button>
-          </footer>
+            </DialogFooterButton>
+          </DialogFooter>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
