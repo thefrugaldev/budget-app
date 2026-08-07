@@ -87,3 +87,20 @@ export function monthShortYear(ym: string): string {
     timeZone: "UTC",
   });
 }
+
+/**
+ * Compact label for an inclusive `[startYm, endYm]` month span — the caption the
+ * Growth Columns wear so the chart always states the window it plots (#160).
+ * A single month reads as `"Aug 2026"`; a same-year span drops the repeated year
+ * (`"Jan–Dec 2023"`); a cross-year span carries the year on both ends
+ * (`"Mar 2025 – Aug 2026"`). Assumes `startYm <= endYm` (lexical, as the month
+ * keys are). UTC-pinned via the month helpers it composes.
+ */
+export function formatMonthSpan(startYm: string, endYm: string): string {
+  if (startYm === endYm) return monthShortYear(startYm);
+  const sameYear = startYm.slice(0, 4) === endYm.slice(0, 4);
+  if (sameYear) {
+    return `${monthLabelShort(startYm)}–${monthLabelShort(endYm)} ${endYm.slice(0, 4)}`;
+  }
+  return `${monthShortYear(startYm)} – ${monthShortYear(endYm)}`;
+}

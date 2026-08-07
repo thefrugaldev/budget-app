@@ -17,15 +17,22 @@ import type {
   TransactionDocument,
 } from "./documents";
 import { AUTO_SEED_DISABLED_ID, autoSeedDisabledId } from "./seed-marker";
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, seedDocId } from "./seed-data";
-import type { SeedCategory, SeedTransaction } from "./seed-data";
+import {
+  buildCategoryDoc,
+  buildTargetDoc,
+  buildTransactionDoc,
+  SEED_CATEGORIES,
+  SEED_TRANSACTIONS,
+  seedDocId,
+} from "./seed-data";
 
-// The marker-id helpers moved to `./seed-marker`, and the seed dataset + id
-// scheme to `./seed-data` — both pure, no `next/server` — so non-Next callers
-// (the archive `apply` CLI, #118) can import them without the request runtime.
-// Re-exported here for existing callers (`reset.ts`, tests).
+// The marker-id helpers moved to `./seed-marker`, and the seed dataset, id
+// scheme, and pure doc-builders to `./seed-data` — all pure, no `next/server` —
+// so non-Next callers (the archive `apply` CLI #118, the demo reseed script)
+// can import them without the request runtime. Re-exported here for existing
+// callers (`reset.ts`, tests) that still import them from `./seed`.
 export { AUTO_SEED_DISABLED_ID, autoSeedDisabledId };
-export { seedDocId };
+export { seedDocId, buildCategoryDoc, buildTargetDoc, buildTransactionDoc };
 
 /**
  * Pure decision for {@link doSeed}: seed a fresh DB, backfill a populated one
@@ -116,50 +123,6 @@ async function doSeed(householdId: string): Promise<void> {
   }
 }
 
-// Omit optional fields when absent so Mongo doesn't persist `null` (mirrors
-// createCategory's null-avoidance, which the readers in mappers.ts rely on).
-// Every doc is stamped with the seeding household so chunk 4's household-scoped
-// reads surface the demo data (a fresh install looks unchanged for the owner).
-export function buildCategoryDoc(
-  c: SeedCategory,
-  householdId: string,
-  now: Date,
-): CategoryDocument {
-  return {
-    _id: seedDocId(householdId, c._id),
-    householdId,
-    source: "seed",
-    name: c.name,
-    emoji: c.emoji,
-    kind: c.kind,
-    activeFrom: c.activeFrom,
-    createdAt: now,
-    ...(c.activeUntil !== undefined ? { activeUntil: c.activeUntil } : {}),
-    ...(c.incomeFrequency !== undefined
-      ? { incomeFrequency: c.incomeFrequency }
-      : {}),
-    ...(c.payCadence !== undefined ? { payCadence: c.payCadence } : {}),
-  };
-}
-
-// One-time income sources have no baseline, so they get no target row.
-export function buildTargetDoc(
-  c: SeedCategory,
-  householdId: string,
-  now: Date,
-): CategoryTargetDocument | undefined {
-  if (c.initialMonthly === undefined) return undefined;
-  return {
-    _id: seedDocId(householdId, `${c._id}:${c.activeFrom}`),
-    householdId,
-    source: "seed",
-    categoryId: seedDocId(householdId, c._id),
-    monthly: c.initialMonthly,
-    effectiveFrom: c.activeFrom,
-    createdAt: now,
-  };
-}
-
 async function backfillMissingCategories(
   db: Db,
   householdId: string,
@@ -233,23 +196,6 @@ async function seedTargets(
   await db
     .collection<CategoryTargetDocument>(COLLECTIONS.categoryTargets)
     .insertMany(docs);
-}
-
-export function buildTransactionDoc(
-  t: SeedTransaction,
-  householdId: string,
-  now: Date,
-): TransactionDocument {
-  return {
-    ...t,
-    _id: seedDocId(householdId, t._id),
-    // Reference the namespaced category id so the seed transaction resolves to
-    // its (also namespaced) category within this household.
-    categoryId: seedDocId(householdId, t.categoryId),
-    householdId,
-    source: "seed",
-    createdAt: now,
-  };
 }
 
 async function seedTransactions(

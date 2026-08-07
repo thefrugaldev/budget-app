@@ -66,18 +66,21 @@ export function monthlyTotalsLastN(
 }
 
 /**
- * Trailing spend/save trend for the Pulse "Growth Columns" signature: the last
- * `monthsBack` months (oldest first, current month last), each carrying the
- * signed sum of expense-category amounts (`spent`) and savings-category amounts
- * (`saved`) that month. Income is excluded — the columns express outflow and
- * contributions against the plan, not earnings. Kept independent of the page's
- * range selector so the signature always shows the same "over time" lens.
+ * Spend/save trend for the Pulse "Growth Columns" signature over the inclusive
+ * month window `[startYm, endYm]` (oldest first), each month carrying the signed
+ * sum of expense-category amounts (`spent`) and savings-category amounts
+ * (`saved`). Income is excluded — the columns express outflow and contributions
+ * against the plan, not earnings. The window is the page's selected date scope
+ * (#160), so the signature redraws to whatever range the user picks — a calendar
+ * year renders that year's twelve columns, a custom span its months. Every month
+ * in the span gets a point (a zero-activity month is a genuine gap, not omitted),
+ * so the axis stays continuous. Returns `[]` when `startYm > endYm`.
  */
-export function monthlyTrend(
+export function rangeTrend(
   transactions: Transaction[],
   categories: Category[],
-  monthsBack: number,
-  today = new Date(),
+  startYm: string,
+  endYm: string,
 ): MonthlyTrendPoint[] {
   const expenseIds = new Set(
     categories.filter((c) => c.kind === "expense").map((c) => c.id),
@@ -87,9 +90,7 @@ export function monthlyTrend(
   );
 
   const out: MonthlyTrendPoint[] = [];
-  for (let i = monthsBack - 1; i >= 0; i--) {
-    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1));
-    const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  for (const ym of monthsInRange(startYm, endYm)) {
     let spent = 0;
     let saved = 0;
     for (const t of transactions) {

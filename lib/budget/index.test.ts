@@ -10,6 +10,7 @@ import {
   computeSavingsRate,
   currentMonthlyBaseline,
   describeDateScope,
+  formatMonthSpan,
   isCategoryActiveForMonth,
   isCategoryActiveInRange,
   isCategoryEnded,
@@ -21,7 +22,6 @@ import {
   monthStartDate,
   monthTotalsByCategory,
   monthlyTotalsLastN,
-  monthlyTrend,
   monthsInRange,
   mostRecentTransactionInCategory,
   nextMonth,
@@ -29,6 +29,7 @@ import {
   presetDateBounds,
   presetForDateBounds,
   rangeLabel,
+  rangeTrend,
   resolveRange,
   savedTrendDirection,
   savingsRateToneClass,
@@ -553,18 +554,26 @@ describe("currentMonthlyBaseline", () => {
   });
 });
 
-describe("monthlyTrend", () => {
+describe("rangeTrend", () => {
   const groceries = expenseCat({ id: "groc", kind: "expense" });
   const rent = expenseCat({ id: "rent", kind: "expense" });
   const hysa = savingsCat({ id: "hysa", kind: "savings" });
   const salary = incomeCat({ id: "salary", kind: "income" });
   const cats = [groceries, rent, hysa, salary];
-  // Anchor "today" to June so the 3-month window is Apr, May, Jun.
-  const now = new Date(Date.UTC(2026, 5, 15));
 
-  it("returns oldest-first with the current month last", () => {
-    const trend = monthlyTrend([], cats, 3, now);
+  it("returns oldest-first across the inclusive window", () => {
+    const trend = rangeTrend([], cats, "2026-04", "2026-06");
     expect(trend.map((p) => p.ym)).toEqual(["2026-04", "2026-05", "2026-06"]);
+  });
+
+  it("spans across a year boundary", () => {
+    const trend = rangeTrend([], cats, "2025-11", "2026-02");
+    expect(trend.map((p) => p.ym)).toEqual([
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+    ]);
   });
 
   it("sums expense amounts into spent and savings into saved, per month", () => {
@@ -574,7 +583,7 @@ describe("monthlyTrend", () => {
       tx({ id: "c", categoryId: "hysa", amount: 400, date: "2026-06-05" }),
       tx({ id: "d", categoryId: "groc", amount: 80, date: "2026-05-20" }),
     ];
-    const trend = monthlyTrend(txns, cats, 3, now);
+    const trend = rangeTrend(txns, cats, "2026-04", "2026-06");
     const june = trend[2];
     const may = trend[1];
     expect(june).toEqual({ ym: "2026-06", spent: 1600, saved: 400 });
@@ -585,7 +594,7 @@ describe("monthlyTrend", () => {
     const txns: Transaction[] = [
       tx({ id: "pay", categoryId: "salary", amount: 5000, date: "2026-06-01" }),
     ];
-    const trend = monthlyTrend(txns, cats, 3, now);
+    const trend = rangeTrend(txns, cats, "2026-04", "2026-06");
     expect(trend[2]).toEqual({ ym: "2026-06", spent: 0, saved: 0 });
   });
 
@@ -594,19 +603,38 @@ describe("monthlyTrend", () => {
       tx({ id: "refund", categoryId: "groc", amount: -50, date: "2026-06-10" }),
       tx({ id: "wd", categoryId: "hysa", amount: -200, date: "2026-06-11" }),
     ];
-    const trend = monthlyTrend(txns, cats, 1, now);
-    expect(trend[0]).toEqual({ ym: "2026-06", spent: -50, saved: -200 });
+    const trend = rangeTrend(txns, cats, "2026-06", "2026-06");
+    expect(trend).toEqual([{ ym: "2026-06", spent: -50, saved: -200 }]);
   });
 
   it("reports a month with no transactions as a zero point", () => {
-    // Activity only in June; May must still appear, at spent/saved 0 — the
-    // signature draws an empty column rather than dropping the month.
+    // Activity only in June; Apr and May must still appear, at spent/saved 0 —
+    // the signature draws an empty column rather than dropping the month.
     const txns: Transaction[] = [
       tx({ id: "a", categoryId: "groc", amount: 100, date: "2026-06-02" }),
     ];
-    const trend = monthlyTrend(txns, cats, 3, now);
+    const trend = rangeTrend(txns, cats, "2026-04", "2026-06");
     expect(trend[0]).toEqual({ ym: "2026-04", spent: 0, saved: 0 });
     expect(trend[1]).toEqual({ ym: "2026-05", spent: 0, saved: 0 });
+  });
+
+  it("returns an empty series when start is after end", () => {
+    expect(rangeTrend([], cats, "2026-06", "2026-04")).toEqual([]);
+  });
+});
+
+describe("formatMonthSpan", () => {
+  it("renders a single month as month + year", () => {
+    expect(formatMonthSpan("2026-08", "2026-08")).toBe("Aug 2026");
+  });
+
+  it("drops the repeated year for a same-year span", () => {
+    expect(formatMonthSpan("2023-01", "2023-12")).toBe("Jan–Dec 2023");
+    expect(formatMonthSpan("2026-03", "2026-08")).toBe("Mar–Aug 2026");
+  });
+
+  it("carries the year on both ends for a cross-year span", () => {
+    expect(formatMonthSpan("2025-03", "2026-08")).toBe("Mar 2025 – Aug 2026");
   });
 });
 

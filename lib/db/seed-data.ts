@@ -6,7 +6,11 @@
 
 import { createHash } from "node:crypto";
 
-import type { CategoryDocument, TransactionDocument } from "./documents";
+import type {
+  CategoryDocument,
+  CategoryTargetDocument,
+  TransactionDocument,
+} from "./documents";
 
 /**
  * Deterministic, colon-free `_id` for a seed doc, namespaced by household.
@@ -37,7 +41,11 @@ export function seedDocId(householdId: string, id: string): string {
     .slice(0, 32);
 }
 
-export const SEED_ACTIVE_FROM = "2026-01";
+// The seed categories go active two full years before the hand-authored recent
+// months so the year selector (#160) has complete past years to offer and the
+// scope-driven Growth Columns have real history to plot. Kept as a "YYYY-MM" so
+// the target `effectiveFrom` and category `activeFrom` share one anchor.
+export const SEED_ACTIVE_FROM = "2024-01";
 
 export type SeedCategory = Omit<CategoryDocument, "createdAt"> & {
   // Omitted for one-time income sources, which have no baseline target — their
@@ -65,7 +73,41 @@ export const SEED_CATEGORIES: SeedCategory[] = [
 
 export type SeedTransaction = Omit<TransactionDocument, "createdAt">;
 
-export const SEED_TRANSACTIONS: SeedTransaction[] = [
+// Two full prior years (2024–2025) of history so past-year scopes aren't empty:
+// the recurring bills + transfers every month, a couple of RSU vests and a
+// vacation contribution a year. Generated deterministically — a small wobble
+// keyed off the month, no RNG — so re-seeding is stable and the id scheme
+// (`h-YYYY-MM-<slug>`) never collides with the hand-authored `t*` recent months.
+function historicalTransactions(): SeedTransaction[] {
+  const out: SeedTransaction[] = [];
+  for (const year of [2024, 2025]) {
+    for (let m = 1; m <= 12; m++) {
+      const ym = `${year}-${String(m).padStart(2, "0")}`;
+      const wobble = ((m * 7 + year) % 5) - 2; // deterministic -2..2
+      const id = (slug: string) => `h-${ym}-${slug}`;
+      out.push(
+        { _id: id("rent"), categoryId: "rent", amount: 2200, date: `${ym}-01`, vendor: "Greystar" },
+        { _id: id("utilities"), categoryId: "utilities", amount: 200 + wobble * 8, date: `${ym}-01`, vendor: "PG&E" },
+        { _id: id("groceries"), categoryId: "groceries", amount: 620 + wobble * 15, date: `${ym}-08`, vendor: "Various" },
+        { _id: id("dining"), categoryId: "dining", amount: 240 + wobble * 12, date: `${ym}-14`, vendor: "Various" },
+        { _id: id("gas"), categoryId: "gas", amount: 160 + wobble * 6, date: `${ym}-20`, vendor: "Various" },
+        { _id: id("hysa"), categoryId: "hysa", amount: 800, date: `${ym}-15`, vendor: "Ally Bank" },
+        { _id: id("brokerage"), categoryId: "brokerage", amount: 600, date: `${ym}-02`, vendor: "Vanguard" },
+      );
+    }
+    // Chunkier, lower-frequency contributions so the savings canopy has shape.
+    out.push(
+      { _id: `h-${year}-03-rsu`, categoryId: "rsu", amount: 12000, date: `${year}-03-15`, vendor: "Morgan Stanley", note: "Q1 vest" },
+      { _id: `h-${year}-09-rsu`, categoryId: "rsu", amount: 12000, date: `${year}-09-15`, vendor: "Morgan Stanley", note: "Q3 vest" },
+      { _id: `h-${year}-07-vacation`, categoryId: "vacation", amount: 200, date: `${year}-07-10`, vendor: "Marcus", note: "Summer fund" },
+    );
+  }
+  return out;
+}
+
+// Hand-authored recent months (2026) — the detailed, varied slice a fresh
+// install lands on. Composed after the generated history below.
+const RECENT_TRANSACTIONS: SeedTransaction[] = [
   { _id: "t1", categoryId: "groceries", amount: 87.42, date: "2026-06-04", vendor: "Whole Foods", note: "produce, salmon, olive oil" },
   { _id: "t2", categoryId: "dining", amount: 24.5, date: "2026-06-04", vendor: "Tacos El Gordo" },
   { _id: "t3", categoryId: "gas", amount: 52.18, date: "2026-06-03", vendor: "Shell" },
@@ -122,3 +164,76 @@ export const SEED_TRANSACTIONS: SeedTransaction[] = [
   { _id: "t54", categoryId: "rsu", amount: 12500, date: "2026-03-15", vendor: "Morgan Stanley", note: "Q1 vest" },
   { _id: "t55", categoryId: "rsu", amount: 12500, date: "2026-06-15", vendor: "Morgan Stanley", note: "Q2 vest" },
 ];
+
+// History first (oldest), then the detailed recent months. Order is cosmetic —
+// every reader sorts — but keeping it chronological makes the dataset readable.
+export const SEED_TRANSACTIONS: SeedTransaction[] = [
+  ...historicalTransactions(),
+  ...RECENT_TRANSACTIONS,
+];
+
+// Pure doc builders — they turn a seed row into the persisted document, stamping
+// the per-household namespaced id (`seedDocId`), the seeding household, and the
+// `source: "seed"` provenance marker (#163). They live here with the dataset
+// (both dependency-free) rather than in `seed.ts` so non-Next callers — the demo
+// reseed script, tests — can import them without the `getDb` → `next/server`
+// chain. `seed.ts` re-exports them for its existing callers.
+
+// Omit optional fields when absent so Mongo doesn't persist `null` (mirrors
+// createCategory's null-avoidance, which the readers in mappers.ts rely on).
+export function buildCategoryDoc(
+  c: SeedCategory,
+  householdId: string,
+  now: Date,
+): CategoryDocument {
+  return {
+    _id: seedDocId(householdId, c._id),
+    householdId,
+    source: "seed",
+    name: c.name,
+    emoji: c.emoji,
+    kind: c.kind,
+    activeFrom: c.activeFrom,
+    createdAt: now,
+    ...(c.activeUntil !== undefined ? { activeUntil: c.activeUntil } : {}),
+    ...(c.incomeFrequency !== undefined
+      ? { incomeFrequency: c.incomeFrequency }
+      : {}),
+    ...(c.payCadence !== undefined ? { payCadence: c.payCadence } : {}),
+  };
+}
+
+// One-time income sources have no baseline, so they get no target row.
+export function buildTargetDoc(
+  c: SeedCategory,
+  householdId: string,
+  now: Date,
+): CategoryTargetDocument | undefined {
+  if (c.initialMonthly === undefined) return undefined;
+  return {
+    _id: seedDocId(householdId, `${c._id}:${c.activeFrom}`),
+    householdId,
+    source: "seed",
+    categoryId: seedDocId(householdId, c._id),
+    monthly: c.initialMonthly,
+    effectiveFrom: c.activeFrom,
+    createdAt: now,
+  };
+}
+
+export function buildTransactionDoc(
+  t: SeedTransaction,
+  householdId: string,
+  now: Date,
+): TransactionDocument {
+  return {
+    ...t,
+    _id: seedDocId(householdId, t._id),
+    // Reference the namespaced category id so the seed transaction resolves to
+    // its (also namespaced) category within this household.
+    categoryId: seedDocId(householdId, t.categoryId),
+    householdId,
+    source: "seed",
+    createdAt: now,
+  };
+}
