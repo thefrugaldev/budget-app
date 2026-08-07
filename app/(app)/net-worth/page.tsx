@@ -1,24 +1,23 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
-import { AccountCard } from "@/components/net-worth/AccountCard";
-import { AccountCardActions } from "@/components/net-worth/AccountCardActions";
 import { AddAccountButton } from "@/components/net-worth/AddAccountButton";
 import { CheckInButton } from "@/components/net-worth/CheckInButton";
+import { NetWorthAccounts } from "@/components/net-worth/NetWorthAccounts";
 import { NetWorthEmptyState } from "@/components/net-worth/NetWorthEmptyState";
 import { NetWorthHero } from "@/components/net-worth/NetWorthHero";
 import { NetWorthTrajectory } from "@/components/net-worth/NetWorthTrajectory";
 import { PriceStalenessNotice } from "@/components/net-worth/PriceStalenessNotice";
-import { SectionHeading } from "@/components/ui/SectionHeading";
-import { fmt } from "@/lib/budget";
 import { tickersNeedingQuotes } from "@/lib/net-worth/check-in";
 import { DEFAULT_QUOTE_TTL_MS, getQuotesWithAsOf } from "@/lib/net-worth/price/get-quotes";
 import { pricingStatus } from "@/lib/net-worth/pricing-status";
 import { latestSnapshotDates, monthlyNetWorthSeries } from "@/lib/net-worth/series";
 import { groupAccountsByInstitution } from "@/lib/net-worth/group-by-institution";
-import { accountValue, netWorthHeadline, unpricedHoldingCount } from "@/lib/net-worth/valuation";
+import { netWorthHeadline } from "@/lib/net-worth/valuation";
 import { listAccounts, listInstitutions } from "@/lib/repositories/accounts";
 import { listSnapshots } from "@/lib/repositories/snapshots";
-import type { PriceLookup } from "@/types/net-worth";
+import { parseViewPreference, VIEW_COOKIE } from "@/lib/view";
+import type { NetWorthSection, PriceLookup } from "@/types/net-worth";
 
 export const metadata: Metadata = {
   title: "Net worth",
@@ -77,7 +76,7 @@ export default async function NetWorthPage() {
   // institution subtotals reconciled with the headline figure. Assets and
   // liabilities stay separate sections (grouping is presentational; the math is
   // unchanged); the "No institution" group sorts last within each.
-  const sections = [
+  const sections: NetWorthSection[] = [
     {
       key: "asset",
       label: "Assets",
@@ -100,6 +99,14 @@ export default async function NetWorthPage() {
     },
   ].filter((section) => section.groups.length > 0);
 
+  // Read the persisted card/list choice server-side so the accounts region is
+  // painted in the chosen view from the first frame — no flash-then-switch
+  // (#203, story 3). The route is already dynamic (live prices), so opting into
+  // this request-time read costs nothing.
+  const initialView = parseViewPreference(
+    (await cookies()).get(VIEW_COOKIE)?.value,
+  );
+
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -121,59 +128,14 @@ export default async function NetWorthPage() {
         </div>
       )}
 
-      <div className="space-y-8">
-        {sections.map((section) => (
-          <section key={section.key}>
-            <SectionHeading
-              variant="divider"
-              amount={fmt(section.isLiability ? -section.total : section.total)}
-            >
-              {section.label}
-            </SectionHeading>
-            <div className="space-y-5">
-              {section.groups.map((group) => {
-                // Strict `=== null` for the bucket, so a real institution that
-                // happens to net $0 is never mislabeled "No institution".
-                const label = group.institution === null ? "No institution" : group.institution;
-                return (
-                  <div key={group.institution ?? "__none__"}>
-                    {/* Quiet, muted sub-label beneath the dominant section
-                        divider — the section (h2) outranks its institution
-                        groups (h3) rather than competing with them. */}
-                    <div className="mb-2 flex items-baseline justify-between gap-3">
-                      <h3 className="min-w-0 truncate text-xs font-medium text-muted-foreground">
-                        {label}
-                      </h3>
-                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {fmt(section.isLiability ? -group.subtotal : group.subtotal)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {group.accounts.map((account) => (
-                        <AccountCard
-                          key={account.id}
-                          account={account}
-                          value={accountValue(account, priceFor)}
-                          lastUpdated={lastUpdated.get(account.id)}
-                          unpricedCount={unpricedHoldingCount(account, priceFor)}
-                          action={
-                            <AccountCardActions
-                              account={account}
-                              hasHistory={accountsWithHistory.has(account.id)}
-                              institutions={institutions}
-                              prices={priceByTicker}
-                            />
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
+      <NetWorthAccounts
+        sections={sections}
+        prices={priceByTicker}
+        institutions={institutions}
+        accountsWithHistory={[...accountsWithHistory]}
+        lastUpdated={Object.fromEntries(lastUpdated)}
+        initialView={initialView}
+      />
     </div>
   );
 }

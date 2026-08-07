@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { dayLabel, fmt } from "@/lib/budget";
 import { cn } from "@/lib/utils";
-import type { Account } from "@/types/net-worth";
+import type { AccountItemView } from "@/types/net-worth";
 
 import { AccountIcon } from "./AccountIcon";
 
@@ -20,14 +20,7 @@ export function AccountCard({
   lastUpdated,
   unpricedCount = 0,
   action,
-}: {
-  account: Account;
-  /** The account's current value as a non-negative magnitude (class supplies the sign). */
-  value: number;
-  /** ISO date of the account's most recent snapshot; absent if never recorded. */
-  lastUpdated?: string;
-  /** Holdings with no override and no feed price — surfaced as a hint so the value reads as incomplete. */
-  unpricedCount?: number;
+}: AccountItemView & {
   /** Edit affordance rendered top-right (a client component, role-gated). */
   action?: ReactNode;
 }) {
