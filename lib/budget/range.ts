@@ -200,13 +200,34 @@ export function describeDateScope(
     from === earliestDate &&
     to === presetDateBounds("this-month", today).to
   ) {
-    return { eyebrow: "All time", phrase: "all-time" };
+    return { eyebrow: "All time", phrase: "across all time" };
   }
   const year = activeCalendarYear(from, to);
   if (year !== null) {
     return { eyebrow: String(year), phrase: `in ${year}` };
   }
   return { eyebrow: "Custom range", phrase: "in this range" };
+}
+
+/**
+ * The closed `[from, to]` day window a **server-aggregated** page runs over,
+ * resolved from raw `from`/`to` URL params. Both sides are required: an empty
+ * URL — or a single-sided one from a hand-edited or stale link — falls back to
+ * the this-month default rather than yielding an open-ended or inverted range,
+ * since the aggregation needs a bounded month span. (Client-windowed pages like
+ * `/transactions` instead keep open-ended sides via `useDateScope`, where an
+ * unbounded side is a valid "since"/"through" filter.) Shared so Income (#162)
+ * resolves the scope the same way when it adopts the control.
+ */
+export function resolveScopeWindow(
+  rawFrom: string | undefined,
+  rawTo: string | undefined,
+  today = new Date(),
+): { from: string; to: string } {
+  const from = (rawFrom ?? "").trim();
+  const to = (rawTo ?? "").trim();
+  if (from && to) return { from, to };
+  return presetDateBounds("this-month", today);
 }
 
 /**

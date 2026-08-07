@@ -33,6 +33,7 @@ import {
   savedTrendDirection,
   savingsRateToneClass,
   planTargetForMonth,
+  resolveScopeWindow,
   resolveTargetForMonth,
   signLabelsFor,
   targetLabel,
@@ -1272,7 +1273,7 @@ describe("describeDateScope", () => {
     const to = presetDateBounds("this-month", today).to;
     expect(describeDateScope("2019-03-04", to, today, "2019-03-04")).toEqual({
       eyebrow: "All time",
-      phrase: "all-time",
+      phrase: "across all time",
     });
   });
 
@@ -1281,6 +1282,30 @@ describe("describeDateScope", () => {
       eyebrow: "Custom range",
       phrase: "in this range",
     });
+  });
+});
+
+describe("resolveScopeWindow", () => {
+  const today = new Date("2026-06-08T00:00:00Z");
+  const thisMonth = presetDateBounds("this-month", today);
+
+  it("uses both sides when both are present", () => {
+    expect(resolveScopeWindow("2021-01-01", "2021-12-31", today)).toEqual({
+      from: "2021-01-01",
+      to: "2021-12-31",
+    });
+  });
+
+  it("falls back to this-month when the URL is empty", () => {
+    expect(resolveScopeWindow(undefined, undefined, today)).toEqual(thisMonth);
+    expect(resolveScopeWindow("", "", today)).toEqual(thisMonth);
+  });
+
+  it("falls back to this-month for a single-sided (hand-edited/stale) window", () => {
+    // Guards the server aggregation from an open-ended or inverted range.
+    expect(resolveScopeWindow("2021-01-01", undefined, today)).toEqual(thisMonth);
+    expect(resolveScopeWindow(undefined, "2021-12-31", today)).toEqual(thisMonth);
+    expect(resolveScopeWindow("  ", "2021-12-31", today)).toEqual(thisMonth);
   });
 });
 

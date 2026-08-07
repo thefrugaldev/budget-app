@@ -18,7 +18,7 @@ import {
   monthProgress,
   monthlyTrend,
   planTargetForMonth,
-  presetDateBounds,
+  resolveScopeWindow,
   savingsRateToneClass,
   selectAttention,
   selectTargetSuggestions,
@@ -55,15 +55,11 @@ export default async function Home({
 
   const now = new Date();
   const thisMonth = currentMonthKey(now);
-  const thisMonthBounds = presetDateBounds("this-month", now);
   // Unified date scope (#160): the shared DateScopeSelector writes a `from`/`to`
-  // window; an empty URL is the this-month default (the pre-#160 landing). The
-  // server-side aggregation is unchanged — only the window it runs over widened.
-  const rawFrom = (fromParam ?? "").trim();
-  const rawTo = (toParam ?? "").trim();
-  const hasScope = rawFrom !== "" || rawTo !== "";
-  const fromDay = hasScope ? rawFrom || thisMonthBounds.from : thisMonthBounds.from;
-  const toDay = hasScope ? rawTo || thisMonthBounds.to : thisMonthBounds.to;
+  // window; an empty (or single-sided, hand-edited) URL falls back to the
+  // this-month default — the pre-#160 landing. The server-side aggregation is
+  // unchanged; only the window it runs over widened.
+  const { from: fromDay, to: toDay } = resolveScopeWindow(fromParam, toParam, now);
   const ymStart = fromDay.slice(0, 7);
   const ymEnd = toDay.slice(0, 7);
   // Oldest transaction anchors "All time" and bounds the year selector.
