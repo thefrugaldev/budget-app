@@ -245,3 +245,64 @@
   outline-offset: -2px;
   border-radius: 9999px;
 }
+
+/*
+ * Range selection: only the two ends are filled discs — the days between are a
+ * single soft band, not a row of discs (which read as a heavy dark mass and
+ * hid which days were the anchors). The band is painted once at the cell level
+ * so consecutive days connect into a continuous track, capped with a pill at
+ * each end; the middle day buttons go transparent and sit on it.
+ */
+.rdp-range_start,
+.rdp-range_middle,
+.rdp-range_end {
+  background-color: var(--rdp-range_middle-background-color);
+}
+.rdp-range_start {
+  border-top-left-radius: 9999px;
+  border-bottom-left-radius: 9999px;
+}
+.rdp-range_end {
+  border-top-right-radius: 9999px;
+  border-bottom-right-radius: 9999px;
+}
+.rdp-range_middle .rdp-day_button {
+  background-color: transparent;
+  color: var(--rdp-range_middle-color);
+  border-radius: 0;
+}
+
+/*
+ * Month/year dropdown navigation (captionLayout="dropdown"), so a distant month
+ * is one pick away rather than a dozen arrow taps. The library keeps the native
+ * <select> invisible and overlaid on a visible `.rdp-caption_label`, so we theme
+ * the label as a quiet Harvest pill and leave the select as the hit target. The
+ * select drives `:hover`/`:focus-visible` on its sibling label.
+ */
+.rdp-dropdowns {
+  gap: 0.375rem;
+}
+.rdp-caption_label {
+  cursor: pointer;
+  gap: 0.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  color: var(--foreground);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color 150ms;
+}
+.rdp-dropdown_root:hover .rdp-caption_label {
+  background-color: var(--muted);
+}
+.rdp-dropdown:focus-visible ~ .rdp-caption_label {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.rdp-caption_label .rdp-chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  fill: var(--muted-foreground);
+}

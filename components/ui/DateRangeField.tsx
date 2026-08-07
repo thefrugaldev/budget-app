@@ -65,6 +65,15 @@ export function DateRangeField({
       : undefined;
   const hasRange = Boolean(from || to);
 
+  // Open on the current selection (its start) rather than always today, so a
+  // historical range doesn't land the user a dozen months away from it.
+  const defaultMonth = toDate(from) ?? toDate(to) ?? new Date();
+  // Bound the year dropdown to a sensible window: back far enough for imported
+  // history, up to the end of the current year.
+  const currentYear = new Date().getFullYear();
+  const startMonth = new Date(currentYear - 12, 0, 1);
+  const endMonth = new Date(currentYear, 11, 31);
+
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       {fromName !== undefined && (
@@ -118,6 +127,10 @@ export function DateRangeField({
               }}
               numberOfMonths={2}
               showOutsideDays
+              captionLayout="dropdown"
+              defaultMonth={defaultMonth}
+              startMonth={startMonth}
+              endMonth={endMonth}
             />
           </Popover.Popup>
         </Popover.Positioner>
