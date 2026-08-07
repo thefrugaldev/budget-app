@@ -18,3 +18,13 @@ export type RangeSelection = {
   ymStart: string;
   ymEnd: string;
 };
+
+/**
+ * How a date-scope change is committed to the URL (see `useDateScope`):
+ * - `"shallow"` — `window.history.replaceState`, no server round-trip. For a
+ *   page that ships its data once and re-windows client-side (`/transactions`).
+ * - `"navigate"` — `router.replace` (soft navigation), which re-runs the
+ *   dynamic server component. For a server-aggregated page (Pulse) that must
+ *   re-derive its figures from the new window.
+ */
+export type DateScopeCommit = "shallow" | "navigate";

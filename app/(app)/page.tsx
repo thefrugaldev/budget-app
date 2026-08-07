@@ -1,30 +1,29 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { HeaderIncome } from "@/components/budget/income/HeaderIncome";
 import { GrowthColumns } from "@/components/budget/pulse/GrowthColumns";
 import { NeedsAttention } from "@/components/budget/pulse/NeedsAttention";
 import { WorthRevisiting } from "@/components/budget/pulse/WorthRevisiting";
-import { RangeSelector } from "@/components/budget/shared/RangeSelector";
+import { DateScopeSelector } from "@/components/budget/shared/DateScopeSelector";
 import {
   aggregateRange,
   buildTargetSuggestionView,
   computeIncomeForRange,
   computeSavingsRate,
   currentMonthKey,
+  describeDateScope,
   fmt,
   isCategoryActiveInRange,
-  isRangePreset,
   monthProgress,
   monthlyTrend,
   planTargetForMonth,
-  rangeLabel,
-  resolveRange,
+  resolveScopeWindow,
   savingsRateToneClass,
   selectAttention,
   selectTargetSuggestions,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
-import type { RangePreset } from "@/types/range";
 import type { TargetSuggestionView } from "@/types/target-suggestion";
 import { requireHouseholdId } from "@/lib/auth/session";
 import { ensureSeeded } from "@/lib/db/seed";
@@ -42,10 +41,10 @@ export const metadata: Metadata = {
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string | string[] }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   await ensureSeeded(await requireHouseholdId());
-  const [{ range: rangeParam }, categories, targets, transactions, dismissals] =
+  const [{ from: fromParam, to: toParam }, categories, targets, transactions, dismissals] =
     await Promise.all([
       searchParams,
       listCategories(),
@@ -54,17 +53,26 @@ export default async function Home({
       listTargetSuggestionDismissals(),
     ]);
 
-  const raw = Array.isArray(rangeParam) ? rangeParam[0] : rangeParam;
-  const preset: RangePreset = isRangePreset(raw) ? raw : "this-month";
   const now = new Date();
-  const range = resolveRange(preset, now);
   const thisMonth = currentMonthKey(now);
+  // Unified date scope (#160): the shared DateScopeSelector writes a `from`/`to`
+  // window; an empty (or single-sided, hand-edited) URL falls back to the
+  // this-month default — the pre-#160 landing. The server-side aggregation is
+  // unchanged; only the window it runs over widened.
+  const { from: fromDay, to: toDay } = resolveScopeWindow(fromParam, toParam, now);
+  const ymStart = fromDay.slice(0, 7);
+  const ymEnd = toDay.slice(0, 7);
+  // Oldest transaction anchors "All time" and bounds the year selector.
+  const earliestDate = transactions.reduce<string | undefined>(
+    (min, t) => (min === undefined || t.date < min ? t.date : min),
+    undefined,
+  );
 
   const aggregates = aggregateRange(
     transactions,
     categories,
-    range.ymStart,
-    range.ymEnd,
+    ymStart,
+    ymEnd,
     targets,
   );
   const aggregateById = new Map(aggregates.map((row) => [row.categoryId, row]));
@@ -73,7 +81,7 @@ export default async function Home({
   // from the overview. The detail page still loads them by id (story 12), so a
   // user can always navigate back into an ended category's history.
   const inRange = categories.filter((c) =>
-    isCategoryActiveInRange(c, range.ymStart, range.ymEnd),
+    isCategoryActiveInRange(c, ymStart, ymEnd),
   );
   const expenses = inRange.filter((c) => c.kind === "expense");
   const savings = inRange.filter((c) => c.kind === "savings");
@@ -94,13 +102,19 @@ export default async function Home({
     incomeCategories,
     targets,
     transactions,
-    range.ymStart,
-    range.ymEnd,
+    ymStart,
+    ymEnd,
     now,
   );
   const savingsRate = computeSavingsRate(incomeForRange, savingsTotal);
-  const rangeText = rangeLabel(preset);
-  const rangeLower = rangeText.toLowerCase();
+  // One label for the whole scope — a preset, a calendar year, all-time, or a
+  // custom span — for the eyebrow and the inline hero copy alike.
+  const { eyebrow: rangeText, phrase: rangeLower } = describeDateScope(
+    fromDay,
+    toDay,
+    now,
+    earliestDate,
+  );
   const ratePct = savingsRate === null ? null : Math.round(savingsRate * 100);
 
   // The signature reads a fixed trailing window, independent of the range
@@ -120,7 +134,9 @@ export default async function Home({
     inRange,
     aggregates,
     undefined,
-    preset === "this-month" ? { pace: { monthProgress: monthProgress(now) } } : undefined,
+    ymStart === thisMonth && ymEnd === thisMonth
+      ? { pace: { monthProgress: monthProgress(now) } }
+      : undefined,
   );
 
   // "Worth revisiting" (#186): the detector judges on its own fixed trailing
@@ -191,7 +207,7 @@ export default async function Home({
                 <span className="tabular-nums">{fmt(incomeForRange)}</span> {rangeLower}.
               </>
             ) : (
-              <>Your {rangeLower} is just getting started.</>
+              <>Nothing tracked {rangeLower} yet.</>
             )}
           </h1>
           <p className="mt-3 text-base text-muted-foreground">
@@ -251,7 +267,11 @@ export default async function Home({
           12). The trend chart below stays a fixed trailing-6-month backdrop,
           independent of this selector. */}
       <div className="mb-8">
-        <RangeSelector active={preset} basePath="/" />
+        {/* useSearchParams needs a Suspense boundary; the control is short, so a
+            fixed-height placeholder holds its space without layout shift. */}
+        <Suspense fallback={<div className="h-7" />}>
+          <DateScopeSelector now={now} earliestDate={earliestDate} commit="navigate" />
+        </Suspense>
       </div>
 
       <div className="mb-8">

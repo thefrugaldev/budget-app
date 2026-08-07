@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Category, CategoryTarget, Transaction } from "@/types/budget";
 import {
+  activeCalendarYear,
   aggregateRange,
+  availableYears,
   barTone,
+  calendarYearBounds,
   computeIncomeForRange,
   computeSavingsRate,
   currentMonthlyBaseline,
+  describeDateScope,
   isCategoryActiveForMonth,
   isCategoryActiveInRange,
   isCategoryEnded,
@@ -29,6 +33,7 @@ import {
   savedTrendDirection,
   savingsRateToneClass,
   planTargetForMonth,
+  resolveScopeWindow,
   resolveTargetForMonth,
   signLabelsFor,
   targetLabel,
@@ -1197,6 +1202,110 @@ describe("isRangePreset", () => {
     expect(isRangePreset(undefined)).toBe(false);
     expect(isRangePreset(null)).toBe(false);
     expect(isRangePreset(7)).toBe(false);
+  });
+});
+
+describe("calendarYearBounds", () => {
+  it("spans Jan 1 through Dec 31 of the year", () => {
+    expect(calendarYearBounds(2021)).toEqual({
+      from: "2021-01-01",
+      to: "2021-12-31",
+    });
+  });
+});
+
+describe("availableYears", () => {
+  const today = new Date("2026-06-08T00:00:00Z");
+
+  it("lists complete past years newest-first, excluding the current year", () => {
+    expect(availableYears("2023-04-15", today)).toEqual([2025, 2024, 2023]);
+  });
+
+  it("is empty when there's no earlier complete year", () => {
+    expect(availableYears("2026-01-02", today)).toEqual([]); // only current year
+    expect(availableYears("2027-01-01", today)).toEqual([]); // future data
+  });
+
+  it("is empty when there's no data", () => {
+    expect(availableYears(undefined, today)).toEqual([]);
+  });
+});
+
+describe("activeCalendarYear", () => {
+  it("recognises a whole-calendar-year window", () => {
+    expect(activeCalendarYear("2021-01-01", "2021-12-31")).toBe(2021);
+  });
+
+  it("returns null for a partial or non-year window", () => {
+    expect(activeCalendarYear("2021-01-01", "2021-11-30")).toBeNull();
+    expect(activeCalendarYear("2021-02-01", "2021-12-31")).toBeNull();
+    expect(activeCalendarYear("2026-06-01", "2026-06-30")).toBeNull();
+  });
+});
+
+describe("describeDateScope", () => {
+  const today = new Date("2026-06-08T00:00:00Z");
+
+  it("labels a relative preset with its title-case and lowercase forms", () => {
+    const { from, to } = presetDateBounds("last-3-months", today);
+    expect(describeDateScope(from, to, today)).toEqual({
+      eyebrow: "Last 3 months",
+      phrase: "last 3 months",
+    });
+  });
+
+  it("labels the this-month default", () => {
+    const { from, to } = presetDateBounds("this-month", today);
+    expect(describeDateScope(from, to, today)).toEqual({
+      eyebrow: "This month",
+      phrase: "this month",
+    });
+  });
+
+  it("labels a whole calendar year", () => {
+    expect(describeDateScope("2021-01-01", "2021-12-31", today)).toEqual({
+      eyebrow: "2021",
+      phrase: "in 2021",
+    });
+  });
+
+  it("labels the all-time span when earliestDate matches", () => {
+    const to = presetDateBounds("this-month", today).to;
+    expect(describeDateScope("2019-03-04", to, today, "2019-03-04")).toEqual({
+      eyebrow: "All time",
+      phrase: "across all time",
+    });
+  });
+
+  it("falls back to a custom label for an arbitrary window", () => {
+    expect(describeDateScope("2024-03-10", "2024-09-14", today)).toEqual({
+      eyebrow: "Custom range",
+      phrase: "in this range",
+    });
+  });
+});
+
+describe("resolveScopeWindow", () => {
+  const today = new Date("2026-06-08T00:00:00Z");
+  const thisMonth = presetDateBounds("this-month", today);
+
+  it("uses both sides when both are present", () => {
+    expect(resolveScopeWindow("2021-01-01", "2021-12-31", today)).toEqual({
+      from: "2021-01-01",
+      to: "2021-12-31",
+    });
+  });
+
+  it("falls back to this-month when the URL is empty", () => {
+    expect(resolveScopeWindow(undefined, undefined, today)).toEqual(thisMonth);
+    expect(resolveScopeWindow("", "", today)).toEqual(thisMonth);
+  });
+
+  it("falls back to this-month for a single-sided (hand-edited/stale) window", () => {
+    // Guards the server aggregation from an open-ended or inverted range.
+    expect(resolveScopeWindow("2021-01-01", undefined, today)).toEqual(thisMonth);
+    expect(resolveScopeWindow(undefined, "2021-12-31", today)).toEqual(thisMonth);
+    expect(resolveScopeWindow("  ", "2021-12-31", today)).toEqual(thisMonth);
   });
 });
 

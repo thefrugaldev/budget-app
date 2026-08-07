@@ -1,9 +1,10 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 import { presetDateBounds } from "@/lib/budget";
+import type { DateScopeCommit } from "@/types/range";
 
 /** URL keys the date scope owns — a separate axis from the filter set (`q`/`vendor`/…). */
 const SCOPE_PARAMS = { from: "from", to: "to" } as const;
@@ -17,11 +18,13 @@ const SCOPE_PARAMS = { from: "from", to: "to" } as const;
  *
  * `raw` is exactly what's in the URL ("" when unset); `bounds` is the effective
  * inclusive ISO window after applying the **this-month default** (an empty URL
- * scopes to the current month, matching the pre-#165 landing behaviour). Writes
- * use `window.history.replaceState` (shallow, like the filter hook) so changing
- * scope re-runs only the client scope + list, never the dynamic server
- * component — the page already ships every transaction, so the client windows
- * them locally.
+ * scopes to the current month, matching the pre-#165 landing behaviour).
+ *
+ * The `commit` mode picks how a change reaches the URL (see {@link
+ * DateScopeCommit}): `"shallow"` (default) keeps the transactions behaviour —
+ * `replaceState`, no server round-trip — while `"navigate"` soft-navigates so a
+ * server-aggregated page (Pulse, #160) re-derives its figures. Either way the
+ * `from`/`to` URL contract is identical, so the same control serves both.
  */
 export type DateScope = {
   /** Raw URL bounds — "" when the param is absent. */
@@ -32,9 +35,13 @@ export type DateScope = {
   setScope: (next: { from: string; to: string }) => void;
 };
 
-export function useDateScope(now: Date): DateScope {
+export function useDateScope(
+  now: Date,
+  commit: DateScopeCommit = "shallow",
+): DateScope {
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const router = useRouter();
   // Key off the serialized string, not the object, which isn't referentially
   // stable across renders (same rationale as useTransactionFilterParams).
   const search = searchParams.toString();
@@ -60,9 +67,14 @@ export function useDateScope(now: Date): DateScope {
       if (next.to) params.set(SCOPE_PARAMS.to, next.to);
       else params.delete(SCOPE_PARAMS.to);
       const query = params.toString();
-      window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+      const url = query ? `${pathname}?${query}` : pathname;
+      // Navigate mode re-runs the server component (Pulse re-aggregates);
+      // shallow mode re-windows client-side only. `scroll: false` keeps the
+      // viewport put when only the range changed.
+      if (commit === "navigate") router.replace(url, { scroll: false });
+      else window.history.replaceState(null, "", url);
     },
-    [search, pathname],
+    [search, pathname, commit, router],
   );
 
   return { raw, bounds, setScope };
