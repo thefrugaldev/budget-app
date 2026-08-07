@@ -3,6 +3,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 
 import { CategoryForm } from "@/components/budget/category/CategoryForm";
+import { DialogFooterCancel } from "@/components/ui/DialogFooter";
 import type { CategoryKind } from "@/types/budget";
 
 const TITLES: Record<CategoryKind, string> = {
@@ -40,12 +41,8 @@ export function AddCategoryDialog({
               presetKind={presetKind}
               allowedKinds={allowedKinds}
               onSuccess={() => onOpenChange(false)}
+              cancelSlot={<DialogFooterCancel />}
             />
-          </div>
-          <div className="mt-4 flex justify-end">
-            <Dialog.Close className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              Cancel
-            </Dialog.Close>
           </div>
         </Dialog.Popup>
       </Dialog.Portal>
