@@ -1,7 +1,7 @@
 "use client";
 
 import { Popover } from "@base-ui/react/popover";
-import { format, isValid, parseISO } from "date-fns";
+import { format, isValid, parseISO, subMonths } from "date-fns";
 import { Calendar, X } from "lucide-react";
 import { useState } from "react";
 import { DayPicker, type DateRange } from "react-day-picker";
@@ -65,9 +65,17 @@ export function DateRangeField({
       : undefined;
   const hasRange = Boolean(from || to);
 
-  // Open on the current selection (its start) rather than always today, so a
-  // historical range doesn't land the user a dozen months away from it.
-  const defaultMonth = toDate(from) ?? toDate(to) ?? new Date();
+  // Open framed on the selection's END (its month on the right pane, the prior
+  // month on the left) rather than the start or today — so a range ending in
+  // August doesn't open on January/February, miles from the date you set. A
+  // range that fits in two months still shows both ends; a wider one puts the
+  // start one dropdown/arrow away. With no selection the scope is the this-month
+  // default, so this naturally frames [last month, this month].
+  const rangeEnd = toDate(to);
+  const rangeStart = toDate(from);
+  const defaultMonth = rangeEnd
+    ? subMonths(rangeEnd, 1)
+    : (rangeStart ?? new Date());
   // Bound the year dropdown to a sensible window: back far enough for imported
   // history, up to the end of the current year.
   const currentYear = new Date().getFullYear();
