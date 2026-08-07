@@ -6,13 +6,18 @@ import { useActionState, useEffect, useRef, useState } from "react";
 
 import { createIncomeSourceAction } from "@/app/actions/income";
 import { INCOME_ACTION_INITIAL } from "@/app/actions/income-state";
-import { AddIncomeSourceSubmitButton } from "@/components/budget/income/AddIncomeSourceSubmitButton";
 import { CadenceField } from "@/components/budget/income/CadenceField";
 import {
   type AmountUnit,
   RecurringAmountField,
 } from "@/components/budget/income/RecurringAmountField";
 import { CategoryIconPicker } from "@/components/budget/category/CategoryIconPicker";
+import {
+  DialogFooter,
+  DialogFooterButton,
+  DialogFooterCancel,
+} from "@/components/ui/DialogFooter";
+import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { useNotify } from "@/hooks/useNotify";
 import { paycheckFromYearly } from "@/lib/income";
 import { cn } from "@/lib/utils";
@@ -169,19 +174,15 @@ export function AddIncomeSourceDialog({
                   </label>
                 ))}
               </fieldset>
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <Dialog.Close className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-                  Cancel
-                </Dialog.Close>
-                <button
-                  type="button"
+              <DialogFooter className="pt-1">
+                <DialogFooterCancel />
+                <DialogFooterButton
                   disabled={frequency === null}
                   onClick={() => setStep(2)}
-                  className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-60"
                 >
                   Continue
-                </button>
-              </div>
+                </DialogFooterButton>
+              </DialogFooter>
             </div>
           ) : (
             <form action={formAction} className="mt-4 space-y-3">
@@ -247,7 +248,9 @@ export function AddIncomeSourceDialog({
                 </p>
               )}
 
-              <div className="flex items-center justify-between gap-2 pt-1">
+              {/* Back on the left is an accepted multi-step exception; the
+                  Cancel + submit on the right go through the shared footer. */}
+              <DialogFooter className="justify-between pt-1">
                 <button
                   type="button"
                   onClick={resetForm}
@@ -257,12 +260,10 @@ export function AddIncomeSourceDialog({
                   Back
                 </button>
                 <div className="flex items-center gap-2">
-                  <Dialog.Close className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-                    Cancel
-                  </Dialog.Close>
-                  <AddIncomeSourceSubmitButton />
+                  <DialogFooterCancel />
+                  <FormSubmitButton label="Add source" pendingLabel="Adding…" />
                 </div>
-              </div>
+              </DialogFooter>
             </form>
           )}
         </Dialog.Popup>
