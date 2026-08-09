@@ -89,18 +89,23 @@ export function rangeTrend(
     categories.filter((c) => c.kind === "savings").map((c) => c.id),
   );
 
-  const out: MonthlyTrendPoint[] = [];
+  // Seed every month in the window at zero (continuous axis), then bucket each
+  // transaction once by its month key — a single O(transactions) pass rather
+  // than O(months × transactions). The window is now unbounded ("All time" can
+  // span years of imported history), so the per-month rescan the old fixed
+  // 6-month trend used no longer holds. The Map keeps insertion (month) order,
+  // so the values come back oldest-first; an inverted window seeds nothing.
+  const byMonth = new Map<string, MonthlyTrendPoint>();
   for (const ym of monthsInRange(startYm, endYm)) {
-    let spent = 0;
-    let saved = 0;
-    for (const t of transactions) {
-      if (!t.date.startsWith(ym)) continue;
-      if (expenseIds.has(t.categoryId)) spent += t.amount;
-      else if (savingsIds.has(t.categoryId)) saved += t.amount;
-    }
-    out.push({ ym, spent, saved });
+    byMonth.set(ym, { ym, spent: 0, saved: 0 });
   }
-  return out;
+  for (const t of transactions) {
+    const point = byMonth.get(t.date.slice(0, 7));
+    if (!point) continue;
+    if (expenseIds.has(t.categoryId)) point.spent += t.amount;
+    else if (savingsIds.has(t.categoryId)) point.saved += t.amount;
+  }
+  return [...byMonth.values()];
 }
 
 /**

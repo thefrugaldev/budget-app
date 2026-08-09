@@ -42,6 +42,7 @@ import {
   thresholdDescriptor,
   thresholdFor,
   trailingActuals,
+  trendWindow,
   vendorSuggestionsForCategory,
   ytdTotalsByCategory,
 } from ".";
@@ -635,6 +636,25 @@ describe("formatMonthSpan", () => {
 
   it("carries the year on both ends for a cross-year span", () => {
     expect(formatMonthSpan("2025-03", "2026-08")).toBe("Mar 2025 – Aug 2026");
+  });
+});
+
+describe("trendWindow", () => {
+  it("passes a multi-month scope straight through", () => {
+    expect(trendWindow("2026-01", "2026-12")).toEqual({ start: "2026-01", end: "2026-12" });
+  });
+
+  it("widens a single-month scope to a trailing six ending at that month", () => {
+    expect(trendWindow("2026-08", "2026-08")).toEqual({ start: "2026-03", end: "2026-08" });
+  });
+
+  it("crosses the year boundary when widening near January", () => {
+    expect(trendWindow("2026-02", "2026-02")).toEqual({ start: "2025-09", end: "2026-02" });
+  });
+
+  it("always keeps end at ymEnd so the plan line is unaffected", () => {
+    expect(trendWindow("2024-06", "2024-06").end).toBe("2024-06");
+    expect(trendWindow("2024-01", "2024-12").end).toBe("2024-12");
   });
 });
 

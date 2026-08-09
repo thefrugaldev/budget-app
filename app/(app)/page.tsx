@@ -23,7 +23,7 @@ import {
   savingsRateToneClass,
   selectAttention,
   selectTargetSuggestions,
-  shiftMonth,
+  trendWindow,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { TargetSuggestionView } from "@/types/target-suggestion";
@@ -127,10 +127,10 @@ export default async function Home({
   // month), so the chart never silently reads as some other span. The plan line
   // is the window-end month's total caps + goals — the plan in effect at the end
   // of what's shown, not always today's.
-  const trendStart = ymStart === ymEnd ? shiftMonth(ymEnd, -5) : ymStart;
-  const trend = rangeTrend(transactions, categories, trendStart, ymEnd);
-  const trendPeriodLabel = formatMonthSpan(trendStart, ymEnd);
-  const plan = planTargetForMonth(categories, targets, ymEnd);
+  const { start: trendStart, end: trendEnd } = trendWindow(ymStart, ymEnd);
+  const trend = rangeTrend(transactions, categories, trendStart, trendEnd);
+  const trendPeriodLabel = formatMonthSpan(trendStart, trendEnd);
+  const plan = planTargetForMonth(categories, targets, trendEnd);
 
   // Overview, not ledger (story 17): Pulse surfaces only the exception rows for
   // the active range — over-cap expenses, savings behind / withdrawn / (closed
@@ -272,9 +272,10 @@ export default async function Home({
       </header>
 
       {/* Directly under the hero so it visibly governs the range-scoped content
-          it sits above — the hero figures and "Needs attention" (#178 story
-          12). The trend chart below stays a fixed trailing-6-month backdrop,
-          independent of this selector. */}
+          it sits above — the hero figures, the trend chart, and "Needs
+          attention" (#178 story 12). The chart follows this selector too (#160
+          follow-up): a multi-month scope plots its months, a single-month scope
+          a trailing-6 run ending at that month. */}
       <div className="mb-8">
         {/* useSearchParams needs a Suspense boundary; a fixed-height placeholder
             holds the two-row control's space (~two chip rows + gap) so it doesn't
