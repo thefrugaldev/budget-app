@@ -66,18 +66,21 @@ export function monthlyTotalsLastN(
 }
 
 /**
- * Trailing spend/save trend for the Pulse "Growth Columns" signature: the last
- * `monthsBack` months (oldest first, current month last), each carrying the
- * signed sum of expense-category amounts (`spent`) and savings-category amounts
- * (`saved`) that month. Income is excluded — the columns express outflow and
- * contributions against the plan, not earnings. Kept independent of the page's
- * range selector so the signature always shows the same "over time" lens.
+ * Spend/save trend for the Pulse "Growth Columns" signature over the inclusive
+ * month window `[startYm, endYm]` (oldest first), each month carrying the signed
+ * sum of expense-category amounts (`spent`) and savings-category amounts
+ * (`saved`). Income is excluded — the columns express outflow and contributions
+ * against the plan, not earnings. The window is the page's selected date scope
+ * (#160), so the signature redraws to whatever range the user picks — a calendar
+ * year renders that year's twelve columns, a custom span its months. Every month
+ * in the span gets a point (a zero-activity month is a genuine gap, not omitted),
+ * so the axis stays continuous. Returns `[]` when `startYm > endYm`.
  */
-export function monthlyTrend(
+export function rangeTrend(
   transactions: Transaction[],
   categories: Category[],
-  monthsBack: number,
-  today = new Date(),
+  startYm: string,
+  endYm: string,
 ): MonthlyTrendPoint[] {
   const expenseIds = new Set(
     categories.filter((c) => c.kind === "expense").map((c) => c.id),
@@ -86,20 +89,23 @@ export function monthlyTrend(
     categories.filter((c) => c.kind === "savings").map((c) => c.id),
   );
 
-  const out: MonthlyTrendPoint[] = [];
-  for (let i = monthsBack - 1; i >= 0; i--) {
-    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1));
-    const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-    let spent = 0;
-    let saved = 0;
-    for (const t of transactions) {
-      if (!t.date.startsWith(ym)) continue;
-      if (expenseIds.has(t.categoryId)) spent += t.amount;
-      else if (savingsIds.has(t.categoryId)) saved += t.amount;
-    }
-    out.push({ ym, spent, saved });
+  // Seed every month in the window at zero (continuous axis), then bucket each
+  // transaction once by its month key — a single O(transactions) pass rather
+  // than O(months × transactions). The window is now unbounded ("All time" can
+  // span years of imported history), so the per-month rescan the old fixed
+  // 6-month trend used no longer holds. The Map keeps insertion (month) order,
+  // so the values come back oldest-first; an inverted window seeds nothing.
+  const byMonth = new Map<string, MonthlyTrendPoint>();
+  for (const ym of monthsInRange(startYm, endYm)) {
+    byMonth.set(ym, { ym, spent: 0, saved: 0 });
   }
-  return out;
+  for (const t of transactions) {
+    const point = byMonth.get(t.date.slice(0, 7));
+    if (!point) continue;
+    if (expenseIds.has(t.categoryId)) point.spent += t.amount;
+    else if (savingsIds.has(t.categoryId)) point.saved += t.amount;
+  }
+  return [...byMonth.values()];
 }
 
 /**

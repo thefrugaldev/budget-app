@@ -231,6 +231,21 @@ export function resolveScopeWindow(
 }
 
 /**
+ * The month window the Pulse "Growth Columns" plot for a selected scope
+ * `[ymStart, ymEnd]` (#160). A multi-month scope passes straight through — the
+ * chart draws its own months. A single-month scope would collapse to one bar,
+ * so it widens to a trailing six-month run *ending at* that month: still a
+ * trend, still anchored to the selection. `end` always equals `ymEnd`, so the
+ * plan line (resolved at the window end) is unaffected. Pure month-key math.
+ */
+export function trendWindow(
+  ymStart: string,
+  ymEnd: string,
+): { start: string; end: string } {
+  return { start: ymStart === ymEnd ? shiftMonth(ymEnd, -5) : ymStart, end: ymEnd };
+}
+
+/**
  * Yields every "YYYY-MM" key from `start` through `end`, inclusive. The two
  * strings are lexically comparable, which makes range checks elsewhere a
  * straight string comparison.

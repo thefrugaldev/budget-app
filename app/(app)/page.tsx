@@ -14,14 +14,16 @@ import {
   currentMonthKey,
   describeDateScope,
   fmt,
+  formatMonthSpan,
   isCategoryActiveInRange,
   monthProgress,
-  monthlyTrend,
   planTargetForMonth,
+  rangeTrend,
   resolveScopeWindow,
   savingsRateToneClass,
   selectAttention,
   selectTargetSuggestions,
+  trendWindow,
 } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import type { TargetSuggestionView } from "@/types/target-suggestion";
@@ -117,11 +119,18 @@ export default async function Home({
   );
   const ratePct = savingsRate === null ? null : Math.round(savingsRate * 100);
 
-  // The signature reads a fixed trailing window, independent of the range
-  // selector, so it always tells the "over time" story. The plan line is the
-  // current month's total caps + goals.
-  const trend = monthlyTrend(transactions, categories, 6, now);
-  const plan = planTargetForMonth(categories, targets, thisMonth);
+  // The signature redraws to the selected scope (#160): a multi-month window
+  // plots its own months; a single-month scope (this-/last-month) would collapse
+  // to one bar, so it falls back to a trailing 6-month run *ending at* that month
+  // — still a trend, still anchored to the selection. `periodLabel` captions the
+  // window actually drawn (which for a single month is that 6-month run, not the
+  // month), so the chart never silently reads as some other span. The plan line
+  // is the window-end month's total caps + goals — the plan in effect at the end
+  // of what's shown, not always today's.
+  const { start: trendStart, end: trendEnd } = trendWindow(ymStart, ymEnd);
+  const trend = rangeTrend(transactions, categories, trendStart, trendEnd);
+  const trendPeriodLabel = formatMonthSpan(trendStart, trendEnd);
+  const plan = planTargetForMonth(categories, targets, trendEnd);
 
   // Overview, not ledger (story 17): Pulse surfaces only the exception rows for
   // the active range — over-cap expenses, savings behind / withdrawn / (closed
@@ -263,19 +272,21 @@ export default async function Home({
       </header>
 
       {/* Directly under the hero so it visibly governs the range-scoped content
-          it sits above — the hero figures and "Needs attention" (#178 story
-          12). The trend chart below stays a fixed trailing-6-month backdrop,
-          independent of this selector. */}
+          it sits above — the hero figures, the trend chart, and "Needs
+          attention" (#178 story 12). The chart follows this selector too (#160
+          follow-up): a multi-month scope plots its months, a single-month scope
+          a trailing-6 run ending at that month. */}
       <div className="mb-8">
-        {/* useSearchParams needs a Suspense boundary; the control is short, so a
-            fixed-height placeholder holds its space without layout shift. */}
-        <Suspense fallback={<div className="h-7" />}>
+        {/* useSearchParams needs a Suspense boundary; a fixed-height placeholder
+            holds the two-row control's space (~two chip rows + gap) so it doesn't
+            shift the chart below on hydrate. */}
+        <Suspense fallback={<div className="h-16" />}>
           <DateScopeSelector now={now} earliestDate={earliestDate} commit="navigate" />
         </Suspense>
       </div>
 
       <div className="mb-8">
-        <GrowthColumns data={trend} plan={plan} />
+        <GrowthColumns data={trend} plan={plan} periodLabel={trendPeriodLabel} />
       </div>
 
       <NeedsAttention result={attention} />

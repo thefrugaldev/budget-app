@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { fmt, monthLabelShort, savedTrendDirection } from "@/lib/budget";
+import { fmt, monthLabelShort, monthShortYear, savedTrendDirection } from "@/lib/budget";
 import { bandScale, domainMax, linearScale } from "@/lib/charts/scale";
 import type { MonthlyTrendPoint } from "@/types/budget";
 
@@ -32,6 +32,12 @@ const TREND_CAPTION: Record<ReturnType<typeof savedTrendDirection>, string> = {
  * 390px to desktop. Signed monthly sums can go negative (a refund- or
  * withdrawal-heavy month); heights clamp at zero so a net-negative month simply
  * shows no column rather than an inverted one.
+ *
+ * `data` is the page's selected date scope (#160), so the column count varies —
+ * a three-month preset draws three, a calendar year twelve, "All time" every
+ * month on record. `periodLabel` (e.g. "Jan–Dec 2023") captions which window is
+ * drawn, so a scoped chart never silently reads as the present. Axis labels thin
+ * adaptively so a long span doesn't collide them into a smear.
  */
 const W = 640;
 const H = 232;
@@ -41,9 +47,11 @@ const GAP = 3; // px between the spent and saved segments of a stack
 export function GrowthColumns({
   data,
   plan,
+  periodLabel,
 }: {
   data: MonthlyTrendPoint[];
   plan: number;
+  periodLabel: string;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const [wrapW, setWrapW] = useState(W);
@@ -90,15 +98,27 @@ export function GrowthColumns({
   const clear = (i: number) => setActive((a) => (a === i ? null : a));
   const latest = cols[cols.length - 1];
 
+  // Axis labels thin as the span grows so they never collide: at most ~13 ticks
+  // for a same-year span, fewer for a cross-year one (its "Mon YYYY" labels are
+  // wider). Anchored from the right so the latest month is always labelled and
+  // the spacing reads evenly. A window that crosses a year boundary carries the
+  // year on every tick (and in the tooltip); a within-year one leaves the year
+  // to the period caption above, keeping the axis to bare month names.
+  const crossYear =
+    data.length > 0 && data[0].ym.slice(0, 4) !== data[data.length - 1].ym.slice(0, 4);
+  const labelStep = Math.max(1, Math.ceil(data.length / (crossYear ? 8 : 13)));
+  const showAxisLabel = (i: number) => (data.length - 1 - i) % labelStep === 0;
+  const axisLabel = (ym: string) => (crossYear ? monthShortYear(ym) : monthLabelShort(ym));
+
   // The outer summary enumerates every month, so the full series reaches
   // assistive tech from one atomic read — independent of whether AT surfaces the
   // per-column controls nested inside this graphic.
   const ariaLabel = latest
-    ? `Spending and saving over the last ${data.length} months. ` +
+    ? `Spending and saving, ${periodLabel}. ` +
       data
         .map(
           (d) =>
-            `${monthLabelShort(d.ym)}: spent ${fmt(Math.max(0, d.spent))}, saved ${fmt(Math.max(0, d.saved))}`,
+            `${monthShortYear(d.ym)}: spent ${fmt(Math.max(0, d.spent))}, saved ${fmt(Math.max(0, d.saved))}`,
         )
         .join("; ") +
       "." +
@@ -119,8 +139,7 @@ export function GrowthColumns({
             Momentum
           </h2>
           <p className="text-sm text-muted-foreground">
-            {TREND_CAPTION[savedTrendDirection(data)]}
-            {plan > 0 ? ` · ${fmt(plan)}/mo plan` : ""}
+            {periodLabel} · {TREND_CAPTION[savedTrendDirection(data)]}
           </p>
         </div>
         {/* Swatches use the identity chart tokens (chart-1/chart-2), not the
@@ -216,8 +235,11 @@ export function GrowthColumns({
             <circle key={c.d.ym} cx={c.cx} cy={c.savedY} r={2.5} className="fill-chart-2" />
           ))}
 
-          {/* month labels (outside the animated groups so they don't scale) */}
+          {/* month labels (outside the animated groups so they don't scale),
+              thinned on long spans; the active column is always labelled so a
+              hover/focus never loses its footing */}
           {cols.map((c) => {
+            if (!showAxisLabel(c.i) && active !== c.i) return null;
             const emphasized = active === c.i || (active === null && c.i === cols.length - 1);
             return (
               <text
@@ -231,7 +253,7 @@ export function GrowthColumns({
                   (emphasized ? " font-semibold" : "")
                 }
               >
-                {monthLabelShort(c.d.ym)}
+                {axisLabel(c.d.ym)}
               </text>
             );
           })}
@@ -251,7 +273,7 @@ export function GrowthColumns({
               fill="transparent"
               tabIndex={0}
               role="button"
-              aria-label={`${monthLabelShort(c.d.ym)} — spent ${fmt(Math.max(0, c.d.spent))}, saved ${fmt(Math.max(0, c.d.saved))}`}
+              aria-label={`${monthShortYear(c.d.ym)} — spent ${fmt(Math.max(0, c.d.spent))}, saved ${fmt(Math.max(0, c.d.saved))}`}
               className="cursor-default outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               onMouseEnter={() => activate(c.i)}
               onMouseLeave={() => clear(c.i)}
@@ -290,7 +312,7 @@ export function GrowthColumns({
             }}
           >
             <div className="font-heading text-sm font-semibold">
-              {monthLabelShort(cols[active].d.ym)}
+              {monthShortYear(cols[active].d.ym)}
             </div>
             <div className="mt-1.5 flex justify-between gap-6 text-xs">
               <span className="text-muted-foreground">Spent</span>

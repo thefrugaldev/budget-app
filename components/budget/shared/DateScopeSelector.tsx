@@ -72,65 +72,82 @@ export function DateScopeSelector({
   const activeYear = isDefault ? null : activeCalendarYear(raw.from, raw.to);
 
   return (
-    <nav aria-label="Date range" className="flex flex-wrap items-center gap-2">
-      {RANGE_PRESETS.map((preset) => (
-        <button
-          key={preset}
-          type="button"
-          aria-pressed={activePreset === preset}
-          onClick={() =>
-            // This month is the default → clear the params for a clean URL;
-            // every other preset writes its explicit window.
-            setScope(preset === "this-month" ? { from: "", to: "" } : presetDateBounds(preset, now))
-          }
-          className={chip(activePreset === preset)}
-        >
-          {rangeLabel(preset)}
-        </button>
-      ))}
-      {allTime && (
-        <button
-          type="button"
-          aria-pressed={isAllTime}
-          onClick={() => setScope(allTime)}
-          className={chip(isAllTime)}
-        >
-          All time
-        </button>
-      )}
-      {years.length > 0 && (
-        <div className="relative">
-          <select
-            aria-label="Year"
-            value={activeYear ?? ""}
-            onChange={(event) => {
-              if (event.target.value) setScope(calendarYearBounds(Number(event.target.value)));
-            }}
-            className={cn(chip(activeYear !== null), "appearance-none pr-7")}
+    // Two rows encode a real split (#160): the top row is *relative* shortcuts
+    // that always track "now"; the bottom row reaches to a *specific* stretch of
+    // history — the whole record, a named year, or an arbitrary span. Separating
+    // them also gives the bulkier custom-range field its own line rather than
+    // wedging it against the pills, where its heavier box broke the rhythm.
+    <nav aria-label="Date range" className="flex flex-col gap-2">
+      <div
+        role="group"
+        aria-label="Relative ranges"
+        className="flex flex-wrap items-center gap-2"
+      >
+        {RANGE_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            aria-pressed={activePreset === preset}
+            onClick={() =>
+              // This month is the default → clear the params for a clean URL;
+              // every other preset writes its explicit window.
+              setScope(preset === "this-month" ? { from: "", to: "" } : presetDateBounds(preset, now))
+            }
+            className={chip(activePreset === preset)}
           >
-            <option value="" disabled>
-              Year
-            </option>
-            {years.map((year) => (
-              <option key={year} value={year}>
-                {year}
+            {rangeLabel(preset)}
+          </button>
+        ))}
+      </div>
+      <div
+        role="group"
+        aria-label="Specific periods"
+        className="flex flex-wrap items-center gap-2"
+      >
+        {allTime && (
+          <button
+            type="button"
+            aria-pressed={isAllTime}
+            onClick={() => setScope(allTime)}
+            className={chip(isAllTime)}
+          >
+            All time
+          </button>
+        )}
+        {years.length > 0 && (
+          <div className="relative">
+            <select
+              aria-label="Year"
+              value={activeYear ?? ""}
+              onChange={(event) => {
+                if (event.target.value) setScope(calendarYearBounds(Number(event.target.value)));
+              }}
+              className={cn(chip(activeYear !== null), "appearance-none pr-7")}
+            >
+              <option value="" disabled>
+                Year
               </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2"
-            aria-hidden
-          />
-        </div>
-      )}
-      <DateRangeField
-        ariaLabel="Custom date range"
-        from={bounds.from}
-        to={bounds.to}
-        onChange={setScope}
-        placeholder="Custom range"
-        className="w-full sm:w-auto sm:min-w-[220px]"
-      />
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2"
+              aria-hidden
+            />
+          </div>
+        )}
+        <DateRangeField
+          ariaLabel="Custom date range"
+          from={bounds.from}
+          to={bounds.to}
+          onChange={setScope}
+          placeholder="Custom range"
+          className="w-full sm:w-auto sm:min-w-[220px]"
+        />
+      </div>
     </nav>
   );
 }
