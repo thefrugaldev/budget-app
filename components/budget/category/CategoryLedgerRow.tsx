@@ -4,11 +4,13 @@ import { CategoryIcon } from "@/components/budget/category/CategoryIcon";
 import { CategoryPeekTrigger } from "@/components/budget/category/CategoryPeekTrigger";
 import { EndedBadge } from "@/components/budget/category/EndedBadge";
 import { FulfillmentChip } from "@/components/budget/category/FulfillmentChip";
+import { NoActivityChip } from "@/components/budget/category/NoActivityChip";
 import { SignedAmount } from "@/components/budget/charts/SignedAmount";
 import { fmt, targetLabel, thresholdColor } from "@/lib/budget";
 import { relativeDayLabel } from "@/lib/category/recency";
 import { cn } from "@/lib/utils";
 import type { Category, Transaction } from "@/types/budget";
+import type { CategoryZeroState } from "@/types/category";
 
 /**
  * One dense row of the Categories ledger (issue #166 chunk 3). The row links to
@@ -25,6 +27,7 @@ export function CategoryLedgerRow({
   perMonthTarget,
   lastActivity,
   recentTransactions,
+  zeroState,
   now,
 }: {
   category: Category;
@@ -38,8 +41,16 @@ export function CategoryLedgerRow({
   lastActivity: string | undefined;
   /** The category's most-recent transactions (newest first) for the peek. */
   recentTransactions: Transaction[];
+  /**
+   * The "nothing logged" chip state when the category is silent in a
+   * single-month view, else `null` — in which case the fulfillment chip shows.
+   */
+  zeroState: CategoryZeroState | null;
   now: Date;
 }) {
+  // At $0 the fulfillment chip's tone would misread (a green "Under cap"), so
+  // when the row is showing the no-activity chip the amount drops to a neutral
+  // tone rather than inheriting the threshold colour.
   const col = thresholdColor(category.kind, denominator, total);
 
   return (
@@ -59,15 +70,24 @@ export function CategoryLedgerRow({
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-          <span className={cn("font-medium tabular-nums", col.text)}>
+          <span
+            className={cn(
+              "font-medium tabular-nums",
+              zeroState ? "text-muted-foreground" : col.text,
+            )}
+          >
             <SignedAmount kind={category.kind} amount={total} />
           </span>
           <span className="flex items-center gap-2">
-            <FulfillmentChip
-              kind={category.kind}
-              total={total}
-              denominator={denominator}
-            />
+            {zeroState ? (
+              <NoActivityChip state={zeroState} />
+            ) : (
+              <FulfillmentChip
+                kind={category.kind}
+                total={total}
+                denominator={denominator}
+              />
+            )}
             <span className="text-xs text-muted-foreground">
               {relativeDayLabel(lastActivity, now)}
             </span>
