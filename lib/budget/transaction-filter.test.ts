@@ -39,9 +39,26 @@ describe("transaction filter URL seam", () => {
     expect(parseTransactionFilter(params)).toEqual({ text: "coffee" });
   });
 
-  it("trims whitespace and drops blank text", () => {
-    const params = serializeTransactionFilter({ text: "  tea  " });
-    expect(params.get("q")).toBe("tea");
+  it("drops whitespace-only text (a clean URL), keeping real content", () => {
+    expect(serializeTransactionFilter({ text: "   " }).toString()).toBe("");
+    expect(serializeTransactionFilter({ text: "tea" }).get("q")).toBe("tea");
+  });
+
+  it("preserves interior/trailing spaces so a multi-word query is typeable", () => {
+    // The controlled search input is bound to this value via the URL; trimming
+    // on the round-trip would erase a just-typed trailing space, so you could
+    // never type the space before the second word (issue: single-word search).
+    const midType = serializeTransactionFilter({ text: "Morgan " });
+    expect(midType.get("q")).toBe("Morgan ");
+    expect(parseTransactionFilter(midType)).toEqual({ text: "Morgan " });
+
+    const twoWords = serializeTransactionFilter({ text: "Morgan Stanley" });
+    expect(twoWords.get("q")).toBe("Morgan Stanley");
+    expect(parseTransactionFilter(twoWords)).toEqual({ text: "Morgan Stanley" });
+  });
+
+  it("parses whitespace-only q to no text constraint", () => {
+    expect(parseTransactionFilter(new URLSearchParams("q=+++"))).toEqual({});
   });
 
   describe("applyTransactionFilterToParams", () => {
@@ -198,6 +215,49 @@ describe("matchesTransactionFilter — vendors axis", () => {
 
   it("normalises the row vendor before matching (trims)", () => {
     expect(matchesTransactionFilter(tx("a", "  Costco  "), { vendors: ["Costco"] })).toBe(true);
+  });
+});
+
+describe("matchesTransactionFilter — text axis", () => {
+  const tx = (id: string, vendor?: string, note?: string): Transaction => ({
+    id,
+    categoryId: "groceries",
+    amount: 10,
+    date: "2026-02-01",
+    vendor,
+    note,
+  });
+
+  it("matches a single term case-insensitively against vendor or note", () => {
+    const f: TransactionFilter = { text: "COFFEE" };
+    expect(matchesTransactionFilter(tx("a", "Blue Bottle Coffee"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("b", "Costco", "coffee run"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("c", "Costco"), f)).toBe(false);
+  });
+
+  it("requires every whitespace-separated term to match (AND across terms)", () => {
+    const f: TransactionFilter = { text: "blue coffee" };
+    expect(matchesTransactionFilter(tx("a", "Blue Bottle Coffee"), f)).toBe(true);
+    // word order doesn't matter, only that every term is found somewhere
+    expect(matchesTransactionFilter(tx("b", "Coffee Blues"), f)).toBe(true);
+    // missing a term fails the match
+    expect(matchesTransactionFilter(tx("c", "Blue Bottle"), f)).toBe(false);
+    expect(matchesTransactionFilter(tx("d", "Philz Coffee"), f)).toBe(false);
+  });
+
+  it("lets each term match vendor and note independently", () => {
+    const f: TransactionFilter = { text: "costco birthday" };
+    expect(matchesTransactionFilter(tx("a", "Costco", "birthday gift"), f)).toBe(true);
+  });
+
+  it("collapses repeated whitespace between terms", () => {
+    const f: TransactionFilter = { text: "blue   coffee" };
+    expect(matchesTransactionFilter(tx("a", "Blue Bottle Coffee"), f)).toBe(true);
+  });
+
+  it("matches any row when text is empty/absent", () => {
+    expect(matchesTransactionFilter(tx("a", "Costco"), {})).toBe(true);
+    expect(matchesTransactionFilter(tx("a", "Costco"), { text: "  " })).toBe(true);
   });
 });
 
