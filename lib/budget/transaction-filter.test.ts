@@ -201,6 +201,49 @@ describe("matchesTransactionFilter — vendors axis", () => {
   });
 });
 
+describe("matchesTransactionFilter — text axis", () => {
+  const tx = (id: string, vendor?: string, note?: string): Transaction => ({
+    id,
+    categoryId: "groceries",
+    amount: 10,
+    date: "2026-02-01",
+    vendor,
+    note,
+  });
+
+  it("matches a single term case-insensitively against vendor or note", () => {
+    const f: TransactionFilter = { text: "COFFEE" };
+    expect(matchesTransactionFilter(tx("a", "Blue Bottle Coffee"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("b", "Costco", "coffee run"), f)).toBe(true);
+    expect(matchesTransactionFilter(tx("c", "Costco"), f)).toBe(false);
+  });
+
+  it("requires every whitespace-separated term to match (AND across terms)", () => {
+    const f: TransactionFilter = { text: "blue coffee" };
+    expect(matchesTransactionFilter(tx("a", "Blue Bottle Coffee"), f)).toBe(true);
+    // word order doesn't matter, only that every term is found somewhere
+    expect(matchesTransactionFilter(tx("b", "Coffee Blues"), f)).toBe(true);
+    // missing a term fails the match
+    expect(matchesTransactionFilter(tx("c", "Blue Bottle"), f)).toBe(false);
+    expect(matchesTransactionFilter(tx("d", "Philz Coffee"), f)).toBe(false);
+  });
+
+  it("lets each term match vendor and note independently", () => {
+    const f: TransactionFilter = { text: "costco birthday" };
+    expect(matchesTransactionFilter(tx("a", "Costco", "birthday gift"), f)).toBe(true);
+  });
+
+  it("collapses repeated whitespace between terms", () => {
+    const f: TransactionFilter = { text: "blue   coffee" };
+    expect(matchesTransactionFilter(tx("a", "Blue Bottle Coffee"), f)).toBe(true);
+  });
+
+  it("matches any row when text is empty/absent", () => {
+    expect(matchesTransactionFilter(tx("a", "Costco"), {})).toBe(true);
+    expect(matchesTransactionFilter(tx("a", "Costco"), { text: "  " })).toBe(true);
+  });
+});
+
 describe("matchesTransactionFilter — kinds axis", () => {
   const categories: Category[] = [
     { id: "groceries", name: "Groceries", kind: "expense", activeFrom: "2026-01" },

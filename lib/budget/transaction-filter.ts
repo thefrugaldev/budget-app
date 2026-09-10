@@ -73,7 +73,9 @@ export function vendorSuggestionsForCategory(
 /**
  * Predicate behind the transaction filter row — the category-detail list
  * (stories 24, 64) and the global `/transactions` list (chunk 5).
- * Free-text matches `vendor` and `note` case-insensitively. `vendors` is the
+ * Free-text is split on whitespace into terms; every term must independently
+ * match `vendor` or `note` (case-insensitively) for the row to pass, so terms
+ * can match across the two fields and in any order. `vendors` is the
  * OR-combined vendor multi-select: a row passes if its (trimmed) vendor is in
  * the set; the empty-string member `""` matches vendorless rows (the "No
  * vendor" pseudo-option). Empty/undefined means "all vendors". `categoryIds`
@@ -114,9 +116,13 @@ export function matchesTransactionFilter(
   if (f.provenance === "manual" && t.imported) return false;
   const text = f.text?.trim().toLowerCase();
   if (text) {
-    const inVendor = t.vendor?.toLowerCase().includes(text) ?? false;
-    const inNote = t.note?.toLowerCase().includes(text) ?? false;
-    if (!inVendor && !inNote) return false;
+    const vendor = t.vendor?.toLowerCase();
+    const note = t.note?.toLowerCase();
+    const terms = text.split(/\s+/);
+    const matchesAllTerms = terms.every(
+      (term) => (vendor?.includes(term) ?? false) || (note?.includes(term) ?? false),
+    );
+    if (!matchesAllTerms) return false;
   }
   return true;
 }
