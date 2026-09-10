@@ -152,8 +152,15 @@ export function serializeTransactionFilter(
   filter: TransactionFilter,
 ): URLSearchParams {
   const params = new URLSearchParams();
-  const text = filter.text?.trim();
-  if (text) params.set(FILTER_PARAMS.text, text);
+  // Store the raw text (interior/trailing spaces included), not a trimmed copy.
+  // The search field is a controlled input bound to this value via the URL, so
+  // trimming here would erase a just-typed trailing space on every keystroke —
+  // you could never type the space before a second word (e.g. "Morgan Stanley").
+  // Emptiness is still gated on trimmed content, so a blank/whitespace-only
+  // query yields a clean URL; the predicate trims internally, so stored spaces
+  // are inert for matching.
+  const text = filter.text;
+  if (text && text.trim()) params.set(FILTER_PARAMS.text, text);
   // Vendors are free text (commas, "&" and all), so they can't share a
   // delimiter-joined param like categoryIds/kinds — emit one repeated `vendor`
   // key per selection. The "" No-vendor sentinel round-trips as a bare
@@ -182,8 +189,11 @@ export function parseTransactionFilter(
   params: URLSearchParams,
 ): TransactionFilter {
   const filter: TransactionFilter = {};
-  const text = params.get(FILTER_PARAMS.text)?.trim();
-  if (text) filter.text = text;
+  // Preserve the raw text so the controlled search input round-trips exactly
+  // what was typed (see serializeTransactionFilter); gate emptiness on trimmed
+  // content so a whitespace-only `q` parses to no constraint.
+  const text = params.get(FILTER_PARAMS.text);
+  if (text && text.trim()) filter.text = text;
   // getAll (not get) collects every repeated `vendor` key; dedupe but keep the
   // "" No-vendor sentinel. A bare `vendor=` yields [""] → the No-vendor filter.
   const vendors = [

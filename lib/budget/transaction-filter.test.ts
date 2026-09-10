@@ -39,9 +39,26 @@ describe("transaction filter URL seam", () => {
     expect(parseTransactionFilter(params)).toEqual({ text: "coffee" });
   });
 
-  it("trims whitespace and drops blank text", () => {
-    const params = serializeTransactionFilter({ text: "  tea  " });
-    expect(params.get("q")).toBe("tea");
+  it("drops whitespace-only text (a clean URL), keeping real content", () => {
+    expect(serializeTransactionFilter({ text: "   " }).toString()).toBe("");
+    expect(serializeTransactionFilter({ text: "tea" }).get("q")).toBe("tea");
+  });
+
+  it("preserves interior/trailing spaces so a multi-word query is typeable", () => {
+    // The controlled search input is bound to this value via the URL; trimming
+    // on the round-trip would erase a just-typed trailing space, so you could
+    // never type the space before the second word (issue: single-word search).
+    const midType = serializeTransactionFilter({ text: "Morgan " });
+    expect(midType.get("q")).toBe("Morgan ");
+    expect(parseTransactionFilter(midType)).toEqual({ text: "Morgan " });
+
+    const twoWords = serializeTransactionFilter({ text: "Morgan Stanley" });
+    expect(twoWords.get("q")).toBe("Morgan Stanley");
+    expect(parseTransactionFilter(twoWords)).toEqual({ text: "Morgan Stanley" });
+  });
+
+  it("parses whitespace-only q to no text constraint", () => {
+    expect(parseTransactionFilter(new URLSearchParams("q=+++"))).toEqual({});
   });
 
   describe("applyTransactionFilterToParams", () => {
